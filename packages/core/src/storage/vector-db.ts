@@ -25,6 +25,7 @@ export interface VectorDB {
   upsert(collection: string, documents: VectorDocument[]): Promise<void>
   search(collection: string, opts: VectorSearchOpts): Promise<VectorSearchResult[]>
   delete(collection: string, ids: string[]): Promise<void>
+  deleteByFilter(collection: string, filter: string): Promise<void>
   count(collection: string): Promise<number>
   close(): Promise<void>
 }

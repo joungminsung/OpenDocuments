@@ -137,14 +137,7 @@ export class DocumentStore {
   }
 
   async deleteDocument(documentId: string): Promise<void> {
-    const results = await this.vectorDb.search(COLLECTION, {
-      embedding: new Array(3).fill(0),
-      topK: 10000,
-      filter: { document_id: documentId },
-    })
-    if (results.length > 0) {
-      await this.vectorDb.delete(COLLECTION, results.map(r => r.id))
-    }
+    await this.vectorDb.deleteByFilter(COLLECTION, `document_id = '${documentId}'`)
     this.db.run('DELETE FROM documents WHERE id = ?', [documentId])
   }
 
