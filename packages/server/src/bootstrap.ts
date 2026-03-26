@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import {
   loadConfig,
+  log,
   type OpenDocsConfig,
   createSQLiteDB,
   runMigrations,
@@ -106,11 +107,12 @@ async function loadSinglePlugin(
 ): Promise<ModelPlugin | null> {
   const packageName = PROVIDER_MAP[provider]
   if (!packageName) {
-    console.warn(`Unknown model provider: ${provider}.`)
+    log.fail(`Unknown model provider: ${provider}.`)
     return null
   }
 
   try {
+    log.wait(`Loading model plugin: ${packageName}`)
     const mod = await import(packageName)
 
     let plugin: ModelPlugin
@@ -143,7 +145,7 @@ async function loadSinglePlugin(
     await plugin.setup(modelPluginCtx)
     return plugin
   } catch (err) {
-    console.warn(`Failed to load model plugin ${packageName}: ${(err as Error).message}.`)
+    log.fail(`Failed to load ${packageName}: ${(err as Error).message}. Using stub models.`)
     return null
   }
 }
@@ -157,7 +159,7 @@ async function loadModelPlugin(
   const packageName = PROVIDER_MAP[provider]
 
   if (!packageName) {
-    console.warn(`Unknown model provider: ${provider}. Using stub models.`)
+    log.fail(`Unknown model provider: ${provider}. Using stub models.`)
     return createStubModels(embeddingDimensions)
   }
 
@@ -183,9 +185,7 @@ async function loadModelPlugin(
       try {
         await mainPlugin.embed(['probe'])
       } catch (probeErr) {
-        console.warn(
-          `Model plugin ${packageName} embed probe failed: ${(probeErr as Error).message}. Using stub models.`,
-        )
+        log.fail(`Model plugin ${packageName} embed probe failed: ${(probeErr as Error).message}. Using stub models.`)
         return createStubModels(embeddingDimensions)
       }
     }
@@ -193,7 +193,7 @@ async function loadModelPlugin(
     // If the main plugin doesn't support embedding, load a secondary embedding provider
     if (!mainPlugin.capabilities.embedding) {
       const embeddingProvider = modelConfig.embeddingProvider || 'ollama'
-      console.info(`Main provider '${provider}' does not support embedding. Loading secondary embedding provider: ${embeddingProvider}`)
+      log.info(`Main provider '${provider}' does not support embedding. Loading secondary embedding provider: ${embeddingProvider}`)
 
       const embeddingPlugin = await loadSinglePlugin(
         embeddingProvider,
@@ -209,12 +209,10 @@ async function loadModelPlugin(
           await embeddingPlugin.embed(['probe'])
           return { embedder: embeddingPlugin, llm: mainPlugin }
         } catch (probeErr) {
-          console.warn(
-            `Secondary embedding provider '${embeddingProvider}' probe failed: ${(probeErr as Error).message}. Falling back to stub embedder.`,
-          )
+          log.fail(`Secondary embedding provider '${embeddingProvider}' probe failed: ${(probeErr as Error).message}. Falling back to stub embedder.`)
         }
       } else if (embeddingPlugin) {
-        console.warn(`Secondary embedding provider '${embeddingProvider}' does not support embedding. Falling back to stub embedder.`)
+        log.fail(`Secondary embedding provider '${embeddingProvider}' does not support embedding. Falling back to stub embedder.`)
       }
 
       // Last resort: stub embedder
@@ -223,9 +221,7 @@ async function loadModelPlugin(
 
     return { embedder: mainPlugin, llm: mainPlugin }
   } catch (err) {
-    console.warn(
-      `Failed to load model plugin ${packageName}: ${(err as Error).message}. Using stub models.`,
-    )
+    log.fail(`Failed to load model plugin ${packageName}: ${(err as Error).message}. Using stub models.`)
     return createStubModels(embeddingDimensions)
   }
 }
@@ -348,6 +344,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       embedder,
       eventBus,
       defaultProfile: config.rag.profile,
+      customProfileConfig: config.rag.custom,
     })
 
     // Shutdown function

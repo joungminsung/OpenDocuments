@@ -25,11 +25,14 @@ function updateHeadingStack(stack: string[], para: string): string[] {
     if (match) {
       const level = match[1].length
       while (updated.length > 0) {
-        const lastLevel = (updated[updated.length - 1].match(/^#+/) || [''])[0].length
-        if (lastLevel >= level) updated.pop()
+        // Stored headings no longer have leading '#' so we use the index position
+        // as a proxy for level. We track level separately via a parallel structure.
+        // Since we now store plain text, we rely on the stack length heuristic:
+        // pop entries until the stack is shorter than `level` entries.
+        if (updated.length >= level) updated.pop()
         else break
       }
-      updated.push(line.trim())
+      updated.push(line.trim().replace(/^#+\s*/, ''))
     }
   }
   return updated

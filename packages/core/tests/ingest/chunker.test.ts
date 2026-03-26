@@ -20,10 +20,12 @@ describe('chunkText', () => {
     }
   })
 
-  it('preserves heading hierarchy in metadata', () => {
+  it('preserves heading hierarchy in metadata (without # markers)', () => {
     const text = '# Main Title\n\n## Sub Section\n\nSome content here.'
     const chunks = chunkText(text, { maxTokens: 512, overlap: 50 })
-    expect(chunks[0].headingHierarchy).toContain('# Main Title')
+    // Headings are stored as plain text without leading '#' characters
+    expect(chunks[0].headingHierarchy).toContain('Main Title')
+    expect(chunks[0].headingHierarchy).not.toContain('# Main Title')
   })
 
   it('includes overlap between consecutive chunks', () => {

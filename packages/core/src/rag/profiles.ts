@@ -50,8 +50,20 @@ const PROFILES: Record<string, RAGProfileConfig> = {
   },
 }
 
-export function getProfileConfig(profile: string): RAGProfileConfig {
+export function getProfileConfig(profile: string, customConfig?: Partial<RAGProfileConfig>): RAGProfileConfig {
+  if (profile === 'custom') {
+    const base = structuredClone(PROFILES.balanced)
+    if (customConfig) {
+      if (customConfig.retrieval) Object.assign(base.retrieval, customConfig.retrieval)
+      if (customConfig.context) Object.assign(base.context, customConfig.context)
+      if (customConfig.features) Object.assign(base.features, customConfig.features)
+    }
+    return base
+  }
+
   const config = PROFILES[profile]
-  if (!config) throw new Error(`Unknown RAG profile: ${profile}. Available: ${Object.keys(PROFILES).join(', ')}`)
+  if (!config) {
+    throw new Error(`Unknown RAG profile: ${profile}. Available: ${Object.keys(PROFILES).join(', ')}, custom`)
+  }
   return structuredClone(config)
 }

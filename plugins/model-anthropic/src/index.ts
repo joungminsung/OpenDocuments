@@ -13,6 +13,8 @@ async function fetchWithTimeout(url: string, opts: RequestInit, timeoutMs = 3000
 export interface AnthropicConfig {
   apiKey?: string
   baseUrl?: string
+  llmModel?: string
+  /** @deprecated use llmModel */
   model?: string
 }
 
@@ -31,7 +33,8 @@ export class AnthropicModelPlugin implements ModelPlugin {
     const config = ctx.config as AnthropicConfig
     this.apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY || ''
     if (config.baseUrl) this.baseUrl = config.baseUrl
-    if (config.model) this.model = config.model
+    if (config.llmModel) this.model = config.llmModel
+    else if (config.model) this.model = config.model
   }
 
   async healthCheck(): Promise<HealthStatus> {

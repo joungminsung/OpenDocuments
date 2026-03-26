@@ -83,11 +83,10 @@ function updateHeadings(headings: string[], text: string): void {
     if (match) {
       const level = match[1].length
       while (headings.length > 0) {
-        const lastLevel = (headings[headings.length - 1].match(/^#+/) || [''])[0].length
-        if (lastLevel >= level) headings.pop()
+        if (headings.length >= level) headings.pop()
         else break
       }
-      headings.push(line.trim())
+      headings.push(line.trim().replace(/^#+\s*/, ''))
     }
   }
 }

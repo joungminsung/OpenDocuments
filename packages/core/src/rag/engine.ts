@@ -29,6 +29,7 @@ export interface RAGEngineOptions {
   embedder: ModelPlugin
   eventBus: EventBus
   defaultProfile: string
+  customProfileConfig?: Partial<RAGProfileConfig>
 }
 
 export type StreamEvent =
@@ -43,6 +44,7 @@ export class RAGEngine {
   private embedder: ModelPlugin
   private eventBus: EventBus
   private defaultProfile: string
+  private customProfileConfig: Partial<RAGProfileConfig> | undefined
   private retriever: Retriever
 
   constructor(opts: RAGEngineOptions) {
@@ -51,13 +53,14 @@ export class RAGEngine {
     this.embedder = opts.embedder
     this.eventBus = opts.eventBus
     this.defaultProfile = opts.defaultProfile
+    this.customProfileConfig = opts.customProfileConfig
     this.retriever = new Retriever(this.store, this.embedder)
   }
 
   async query(input: QueryInput): Promise<QueryResult> {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
-    const config = getProfileConfig(profileName)
+    const config = getProfileConfig(profileName, this.customProfileConfig)
     const route = routeQuery(input.query)
 
     this.eventBus.emit('query:received', { queryId, query: input.query })
@@ -72,7 +75,7 @@ export class RAGEngine {
   async *queryStream(input: QueryInput): AsyncIterable<StreamEvent> {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
-    const config = getProfileConfig(profileName)
+    const config = getProfileConfig(profileName, this.customProfileConfig)
     const route = routeQuery(input.query)
 
     this.eventBus.emit('query:received', { queryId, query: input.query })
@@ -207,19 +210,9 @@ export class RAGEngine {
     })
   }
 
-  private getDirectResponse(query: string): string {
-    const lower = query.toLowerCase().trim()
-
-    if (/^(hi|hello|hey|howdy|yo|sup|greetings)\b/i.test(lower) ||
-        /^(안녕|안녕하세요|반갑습니다|하이|헬로)/.test(lower) ||
-        /^(good\s+(morning|afternoon|evening|day))\b/i.test(lower)) {
-      return 'Hello! I am OpenDocs, your documentation assistant. How can I help you today?'
-    }
-
-    if (/^(thanks|thank\s+you|감사합니다|고마워)\b/i.test(lower)) {
-      return 'You are welcome! If you have more questions, feel free to ask. I am OpenDocs, here to help.'
-    }
-
-    return 'I am OpenDocs, your documentation assistant. You can ask me questions about your documents.'
+  private getDirectResponse(_query: string): string {
+    // Routing is already decided by routeQuery() in router.ts.
+    // This method only needs to supply a friendly reply — no need to re-check patterns.
+    return 'I am OpenDocs, your documentation assistant. How can I help you today?'
   }
 }
