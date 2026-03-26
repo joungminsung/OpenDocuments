@@ -18,9 +18,11 @@ export { createSQLiteDB } from './storage/sqlite.js'
 export { runMigrations } from './storage/migrations/runner.js'
 
 export type { VectorDB, VectorDocument, VectorSearchResult, VectorSearchOpts } from './storage/vector-db.js'
-export { createChromaDB } from './storage/chroma.js'
+export { createLanceDB } from './storage/lancedb.js'
 
 export { WorkspaceManager, type Workspace } from './workspace/manager.js'
+
+export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
 
 export type {
   PluginType,
