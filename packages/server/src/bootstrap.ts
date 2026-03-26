@@ -18,6 +18,7 @@ import {
   PlainTextParser,
   ConversationManager,
   ConnectorManager,
+  APIKeyManager,
   type DB,
   type VectorDB,
   type ModelPlugin,
@@ -235,6 +236,8 @@ async function loadModelPlugin(
 export interface BootstrapOptions {
   dataDir?: string
   projectDir?: string
+  /** Partial config overrides applied on top of loaded config (useful for tests) */
+  configOverrides?: Partial<OpenDocsConfig>
 }
 
 export interface AppContext {
@@ -250,6 +253,7 @@ export interface AppContext {
   pipeline: IngestPipeline
   ragEngine: RAGEngine
   connectorManager: ConnectorManager
+  apiKeyManager: APIKeyManager
   shutdown: () => Promise<void>
 }
 
@@ -260,7 +264,10 @@ export interface AppContext {
 export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext> {
   // 1. Load config
   const projectDir = opts.projectDir || process.cwd()
-  const config = loadConfig(projectDir)
+  const baseConfig = loadConfig(projectDir)
+  const config: OpenDocsConfig = opts.configOverrides
+    ? { ...baseConfig, ...opts.configOverrides }
+    : baseConfig
 
   // Resolve dataDir
   const dataDir = opts.dataDir || config.storage.dataDir.replace(/^~/, process.env.HOME || '~')
@@ -380,7 +387,10 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // Note: @opendocs/connector-web-search is a query-time utility, not an index-time connector.
     // It is loaded on-demand by the RAG engine when webSearch profile feature is enabled.
 
-    // 13. Create ConnectorManager
+    // 13. Create APIKeyManager
+    const apiKeyManager = new APIKeyManager(db)
+
+    // 14. Create ConnectorManager
     const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
 
     // Connector type -> package mapping
@@ -441,6 +451,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       pipeline,
       ragEngine,
       connectorManager,
+      apiKeyManager,
       shutdown,
     }
   } catch (err) {

@@ -8,6 +8,8 @@ import { healthRoutes } from './routes/health.js'
 import { documentRoutes } from './routes/documents.js'
 import { chatRoutes } from './routes/chat.js'
 import { conversationRoutes } from './routes/conversations.js'
+import { authMiddleware } from './middleware/auth.js'
+import { rateLimit } from './middleware/rate-limit.js'
 import type { AppContext } from '../bootstrap.js'
 
 export interface AppOptions {
@@ -30,13 +32,11 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
     },
   }))
 
-  // TODO(Plan 7): Add auth middleware here
-  // app.use('/api/*', authMiddleware(ctx))
+  // Auth middleware: personal mode passes through, team mode requires X-API-Key
+  app.use('/api/*', authMiddleware(ctx))
 
-  // TODO(Plan 7): Add rate limiting middleware
-  // app.use('/api/*', rateLimit({ max: 60, window: '1m' }))
-
-  // TODO(Plan 7): Add input validation (query length limits etc.)
+  // Rate limiting: 60 requests per minute per API key / IP
+  app.use('/api/*', rateLimit({ max: 60, windowMs: 60000 }))
 
   // Body size limit (50MB)
   const MAX_BODY_SIZE = 50 * 1024 * 1024
