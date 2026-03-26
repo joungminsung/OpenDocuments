@@ -105,12 +105,23 @@ export class DocumentStore {
         code_symbols: chunk.codeSymbols ? JSON.stringify(chunk.codeSymbols) : '',
       },
     }))
+
+    // Step 1: Upsert vectors
     await this.vectorDb.upsert(COLLECTION, vectorDocs)
-    const now = new Date().toISOString()
-    this.db.run(
-      `UPDATE documents SET chunk_count = ?, status = 'indexed', indexed_at = ?, updated_at = ? WHERE id = ?`,
-      [chunks.length, now, now, documentId]
-    )
+
+    // Step 2: Update SQLite -- if this fails, compensate by deleting the vectors we just inserted
+    try {
+      const now = new Date().toISOString()
+      this.db.run(
+        `UPDATE documents SET chunk_count = ?, status = 'indexed', indexed_at = ?, updated_at = ? WHERE id = ?`,
+        [chunks.length, now, now, documentId]
+      )
+    } catch (err) {
+      // Compensating action: remove vectors we just inserted to avoid orphaned vectors
+      const chunkIds = chunks.map((_, i) => `${documentId}_chunk_${i}`)
+      await this.vectorDb.delete(COLLECTION, chunkIds).catch(() => {})
+      throw err
+    }
   }
 
   async searchChunks(queryEmbedding: number[], topK: number, minScore?: number): Promise<SearchResult[]> {
@@ -137,7 +148,13 @@ export class DocumentStore {
   }
 
   async deleteDocument(documentId: string): Promise<void> {
+    // Step 1: Delete vectors. If this throws, SQLite delete is never reached -- both stores remain consistent.
     await this.vectorDb.deleteByFilter(COLLECTION, `document_id = '${documentId}'`)
+
+    // Step 2: Delete SQLite row.
+    // If vector deletion succeeded but this fails, the document row remains with no backing vectors.
+    // That is acceptable: a subsequent retry of deleteDocument will succeed because
+    // deleteByFilter on an already-absent document is a no-op, and the SQLite delete will be retried.
     this.db.run('DELETE FROM documents WHERE id = ?', [documentId])
   }
 
