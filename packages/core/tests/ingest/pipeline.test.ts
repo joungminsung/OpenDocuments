@@ -10,29 +10,11 @@ import { createLanceDB } from '../../src/storage/lancedb.js'
 import { runMigrations } from '../../src/storage/migrations/runner.js'
 import type { DB } from '../../src/storage/db.js'
 import type { VectorDB } from '../../src/storage/vector-db.js'
-import type { ModelPlugin, PluginContext } from '../../src/plugin/interfaces.js'
+import type { PluginContext } from '../../src/plugin/interfaces.js'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-
-function createMockModel(): ModelPlugin {
-  return {
-    name: '@opendocs/model-mock',
-    type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
-    capabilities: { embedding: true },
-    setup: async () => {},
-    async embed(texts: string[]) {
-      return {
-        dense: texts.map(t => {
-          const hash = t.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-          return [Math.sin(hash), Math.cos(hash), Math.sin(hash * 2)]
-        }),
-      }
-    },
-  }
-}
+import { createMockEmbedder } from '../_fixtures/mock-models.js'
 
 describe('IngestPipeline', () => {
   let db: DB
@@ -51,7 +33,7 @@ describe('IngestPipeline', () => {
     const middleware = new MiddlewareRunner()
     const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
 
-    await registry.register(createMockModel(), ctx)
+    await registry.register(createMockEmbedder(), ctx)
     await registry.register(new MarkdownParser(), ctx)
 
     const store = new DocumentStore(db, vectorDb, 'ws-1')
@@ -86,7 +68,7 @@ describe('IngestPipeline', () => {
 
     const registry = new PluginRegistry()
     const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
-    await registry.register(createMockModel(), ctx)
+    await registry.register(createMockEmbedder(), ctx)
     await registry.register(new MarkdownParser(), ctx)
 
     const store = new DocumentStore(db, vectorDb, 'ws-1')

@@ -31,10 +31,11 @@ export interface RAGEngineOptions {
   defaultProfile: string
 }
 
-export interface StreamEvent {
-  type: 'chunk' | 'sources' | 'confidence' | 'done'
-  data: string | SearchResult[] | ConfidenceResult | QueryResult
-}
+export type StreamEvent =
+  | { type: 'chunk'; data: string }
+  | { type: 'sources'; data: SearchResult[] }
+  | { type: 'confidence'; data: ConfidenceResult }
+  | { type: 'done'; data: { queryId: string; route: string; profile: string } }
 
 export class RAGEngine {
   private store: DocumentStore
@@ -81,7 +82,7 @@ export class RAGEngine {
       yield { type: 'chunk', data: result.answer }
       yield { type: 'sources', data: result.sources }
       yield { type: 'confidence', data: result.confidence }
-      yield { type: 'done', data: result }
+      yield { type: 'done', data: { queryId: result.queryId, route: result.route, profile: result.profile } }
       return
     }
 
@@ -111,16 +112,7 @@ export class RAGEngine {
 
     this.eventBus.emit('query:generated', { queryId })
 
-    const result: QueryResult = {
-      queryId,
-      answer: fullAnswer,
-      sources,
-      confidence,
-      route,
-      profile: profileName,
-    }
-
-    yield { type: 'done', data: result }
+    yield { type: 'done', data: { queryId, route, profile: profileName } }
   }
 
   private handleDirect(queryId: string, query: string, profile: string): QueryResult {
@@ -188,7 +180,9 @@ export class RAGEngine {
       minScore: config.retrieval.minScore,
     })
 
-    // Fallback: if minScore filtered everything, retry without threshold
+    // Fallback: if minScore filtered everything, retry without threshold.
+    // This trades result quality for availability — the confidence score will be lower
+    // because retrieval scores on fallback results are below the configured threshold.
     if (sources.length === 0 && config.retrieval.minScore > 0) {
       sources = await this.retriever.retrieve(query, {
         k: config.retrieval.k,

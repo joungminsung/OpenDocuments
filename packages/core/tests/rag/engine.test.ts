@@ -7,37 +7,13 @@ import { createLanceDB } from '../../src/storage/lancedb.js'
 import { runMigrations } from '../../src/storage/migrations/runner.js'
 import type { DB } from '../../src/storage/db.js'
 import type { VectorDB } from '../../src/storage/vector-db.js'
-import type { ModelPlugin } from '../../src/plugin/interfaces.js'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createMockEmbedder, createMockLLM } from '../_fixtures/mock-models.js'
 
 function createMockModels() {
-  const embedder: ModelPlugin = {
-    name: 'mock-embedder', type: 'model', version: '0.1.0', coreVersion: '^0.1.0',
-    capabilities: { embedding: true },
-    setup: async () => {},
-    async embed(texts: string[]) {
-      return {
-        dense: texts.map(t => {
-          const h = t.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-          return [Math.sin(h), Math.cos(h), Math.sin(h * 2)]
-        }),
-      }
-    },
-  }
-
-  const llm: ModelPlugin = {
-    name: 'mock-llm', type: 'model', version: '0.1.0', coreVersion: '^0.1.0',
-    capabilities: { llm: true },
-    setup: async () => {},
-    async *generate(prompt: string) {
-      yield 'Based on the context, '
-      yield 'here is the answer.'
-    },
-  }
-
-  return { embedder, llm }
+  return { embedder: createMockEmbedder(), llm: createMockLLM() }
 }
 
 describe('RAGEngine', () => {

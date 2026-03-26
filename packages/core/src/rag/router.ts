@@ -1,5 +1,6 @@
 export type QueryRoute = 'rag' | 'direct' | 'web_only' | 'rag_web'
 
+// TODO: Make patterns configurable via middleware (before:query hook) or config
 const GREETING_PATTERNS = [
   /^(hi|hello|hey|howdy|yo|sup|greetings)\b/i,
   /^(안녕|안녕하세요|반갑습니다|하이|헬로)/,

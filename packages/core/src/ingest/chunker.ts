@@ -16,22 +16,23 @@ function estimateTokens(text: string): number {
   return Math.ceil(nonCjk / 4 + cjk / 2)
 }
 
-function extractHeadings(text: string): string[] {
-  const headings: string[] = []
-  const lines = text.split('\n')
+
+function updateHeadingStack(stack: string[], para: string): string[] {
+  const lines = para.split('\n')
+  const updated = [...stack]
   for (const line of lines) {
     const match = line.match(/^(#{1,6})\s+(.+)/)
     if (match) {
       const level = match[1].length
-      while (headings.length > 0) {
-        const lastLevel = (headings[headings.length - 1].match(/^#+/) || [''])[0].length
-        if (lastLevel >= level) headings.pop()
+      while (updated.length > 0) {
+        const lastLevel = (updated[updated.length - 1].match(/^#+/) || [''])[0].length
+        if (lastLevel >= level) updated.pop()
         else break
       }
-      headings.push(line.trim())
+      updated.push(line.trim())
     }
   }
-  return headings
+  return updated
 }
 
 export function chunkText(
@@ -45,7 +46,8 @@ export function chunkText(
   const chunks: TextChunk[] = []
   let currentParagraphs: string[] = []
   let currentTokens = 0
-  let headingsBeforeCurrent = ''
+  // Heading stack carries forward between chunks instead of accumulating full text history
+  let currentHeadings: string[] = []
 
   for (const para of paragraphs) {
     const paraTokens = estimateTokens(para)
@@ -56,7 +58,7 @@ export function chunkText(
         content,
         position: chunks.length,
         tokenCount: estimateTokens(content),
-        headingHierarchy: extractHeadings(headingsBeforeCurrent + '\n' + content),
+        headingHierarchy: [...currentHeadings],
       })
 
       const overlapParagraphs: string[] = []
@@ -68,7 +70,11 @@ export function chunkText(
         overlapTokens += pTokens
       }
 
-      headingsBeforeCurrent = headingsBeforeCurrent + '\n' + currentParagraphs.join('\n\n')
+      // Update heading stack by scanning all flushed paragraphs
+      for (const flushed of currentParagraphs) {
+        currentHeadings = updateHeadingStack(currentHeadings, flushed)
+      }
+
       currentParagraphs = [...overlapParagraphs]
       currentTokens = overlapTokens
     }
@@ -79,11 +85,16 @@ export function chunkText(
 
   if (currentParagraphs.length > 0) {
     const content = currentParagraphs.join('\n\n')
+    // Build final heading state from remaining paragraphs
+    const finalHeadings = currentParagraphs.reduce(
+      (stack, para) => updateHeadingStack(stack, para),
+      [...currentHeadings]
+    )
     chunks.push({
       content,
       position: chunks.length,
       tokenCount: estimateTokens(content),
-      headingHierarchy: extractHeadings(headingsBeforeCurrent + '\n' + content),
+      headingHierarchy: finalHeadings,
     })
   }
 
