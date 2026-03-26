@@ -1,7 +1,13 @@
 import { readdirSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
-const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt'])
+const SUPPORTED_EXTENSIONS = new Set([
+  '.md', '.mdx', '.txt',          // built-in
+  '.pdf', '.docx',                 // document parsers
+  '.xlsx', '.xls', '.csv',        // spreadsheet parsers
+  '.html', '.htm',                 // HTML parser
+  '.ipynb',                        // Jupyter parser
+])
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules'])
 
 export function discoverFiles(dir: string, extensions?: Set<string>): string[] {

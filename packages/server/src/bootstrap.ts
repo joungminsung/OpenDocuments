@@ -307,6 +307,28 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const plainTextParser = new PlainTextParser()
     await registry.register(plainTextParser, pluginCtx)
 
+    // Auto-register installed parser plugins
+    const PARSER_PLUGINS = [
+      '@opendocs/parser-pdf',
+      '@opendocs/parser-docx',
+      '@opendocs/parser-xlsx',
+      '@opendocs/parser-html',
+      '@opendocs/parser-jupyter',
+    ]
+
+    for (const name of PARSER_PLUGINS) {
+      try {
+        const mod = await import(name)
+        const ParserClass = mod.default
+        if (typeof ParserClass === 'function') {
+          const parser = new ParserClass()
+          await registry.register(parser, pluginCtx)
+        }
+      } catch {
+        // Plugin not installed -- skip silently
+      }
+    }
+
     // 8. Load model plugin (or fall back to stubs)
     const { embedder, llm } = await loadModelPlugin(
       config.model.provider,
