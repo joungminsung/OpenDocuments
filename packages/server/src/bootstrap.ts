@@ -24,28 +24,31 @@ import {
   type HealthStatus,
 } from '@opendocs/core'
 
-const EMBEDDING_DIMENSIONS = 384
+/* ------------------------------------------------------------------ */
+/*  Provider -> package mapping                                       */
+/* ------------------------------------------------------------------ */
 
-export interface BootstrapOptions {
-  dataDir?: string
-  projectDir?: string
+const PROVIDER_MAP: Record<string, string> = {
+  ollama: '@opendocs/model-ollama',
+  openai: '@opendocs/model-openai',
+  anthropic: '@opendocs/model-anthropic',
+  google: '@opendocs/model-google',
+  grok: '@opendocs/model-grok',
 }
 
-export interface AppContext {
-  config: OpenDocsConfig
-  db: DB
-  vectorDb: VectorDB
-  registry: PluginRegistry
-  eventBus: EventBus
-  middleware: MiddlewareRunner
-  workspaceManager: WorkspaceManager
-  store: DocumentStore
-  pipeline: IngestPipeline
-  ragEngine: RAGEngine
-  shutdown: () => Promise<void>
+const EMBEDDING_DIMENSIONS: Record<string, number> = {
+  ollama: 1024,
+  openai: 1536,
+  google: 768,
+  grok: 1536,
+  default: 384,
 }
 
-function createStubEmbedder(): ModelPlugin {
+/* ------------------------------------------------------------------ */
+/*  Stub models (fallback when plugin unavailable)                    */
+/* ------------------------------------------------------------------ */
+
+function createStubEmbedder(dimensions: number): ModelPlugin {
   return {
     name: '@opendocs/stub-embedder',
     type: 'model',
@@ -58,7 +61,7 @@ function createStubEmbedder(): ModelPlugin {
       return { healthy: true, message: 'Stub embedder' }
     },
     async embed(texts: string[]): Promise<EmbeddingResult> {
-      const dense = texts.map(() => new Array(EMBEDDING_DIMENSIONS).fill(0))
+      const dense = texts.map(() => new Array(dimensions).fill(0))
       return { dense }
     },
   }
@@ -82,6 +85,106 @@ function createStubLLM(): ModelPlugin {
   }
 }
 
+function createStubModels(dimensions: number) {
+  const embedder = createStubEmbedder(dimensions)
+  const llm = createStubLLM()
+  return { embedder, llm }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Dynamic model plugin loader                                       */
+/* ------------------------------------------------------------------ */
+
+async function loadModelPlugin(
+  provider: string,
+  modelConfig: OpenDocsConfig['model'],
+  pluginCtx: PluginContext,
+  embeddingDimensions: number,
+): Promise<{ embedder: ModelPlugin; llm: ModelPlugin }> {
+  const packageName = PROVIDER_MAP[provider]
+
+  if (!packageName) {
+    console.warn(`Unknown model provider: ${provider}. Using stub models.`)
+    return createStubModels(embeddingDimensions)
+  }
+
+  try {
+    const mod = await import(packageName)
+
+    let plugin: ModelPlugin
+
+    if (typeof mod.default === 'object' && mod.default !== null && typeof mod.default.setup === 'function') {
+      // Default export is a plugin instance
+      plugin = mod.default
+    } else if (typeof mod.default === 'function') {
+      // Default export is a class
+      plugin = new mod.default()
+    } else {
+      // Try named exports
+      const ClassName = Object.values(mod).find(
+        (v) => typeof v === 'function' && (v as any).prototype?.setup,
+      ) as any
+      if (ClassName) {
+        plugin = new ClassName()
+      } else {
+        throw new Error(`Plugin ${packageName} does not export a valid ModelPlugin`)
+      }
+    }
+
+    // Set up plugin with model-specific config
+    const modelPluginCtx: PluginContext = {
+      ...pluginCtx,
+      config: {
+        apiKey: modelConfig.apiKey || '',
+        baseUrl: modelConfig.baseUrl || '',
+        llmModel: modelConfig.llm,
+        embeddingModel: modelConfig.embedding,
+      } as any,
+    }
+
+    await plugin.setup(modelPluginCtx)
+
+    // If the plugin supports embedding use it; otherwise fall back to stub embedder
+    const embedder = plugin.capabilities.embedding
+      ? plugin
+      : createStubEmbedder(embeddingDimensions)
+
+    return { embedder, llm: plugin }
+  } catch (err) {
+    console.warn(
+      `Failed to load model plugin ${packageName}: ${(err as Error).message}. Using stub models.`,
+    )
+    return createStubModels(embeddingDimensions)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public types                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface BootstrapOptions {
+  dataDir?: string
+  projectDir?: string
+}
+
+export interface AppContext {
+  config: OpenDocsConfig
+  db: DB
+  vectorDb: VectorDB
+  registry: PluginRegistry
+  eventBus: EventBus
+  middleware: MiddlewareRunner
+  workspaceManager: WorkspaceManager
+  store: DocumentStore
+  pipeline: IngestPipeline
+  ragEngine: RAGEngine
+  shutdown: () => Promise<void>
+}
+
+/* ------------------------------------------------------------------ */
+/*  Bootstrap                                                         */
+/* ------------------------------------------------------------------ */
+
 export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext> {
   // 1. Load config
   const projectDir = opts.projectDir || process.cwd()
@@ -90,6 +193,12 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
   // Resolve dataDir
   const dataDir = opts.dataDir || config.storage.dataDir.replace(/^~/, process.env.HOME || '~')
   mkdirSync(dataDir, { recursive: true })
+
+  // Resolve embedding dimensions from config or provider default
+  const embeddingDimensions =
+    config.model.embeddingDimensions ||
+    EMBEDDING_DIMENSIONS[config.model.provider] ||
+    EMBEDDING_DIMENSIONS.default
 
   // 2. Create SQLite DB
   const dbPath = join(dataDir, 'opendocs.db')
@@ -128,11 +237,15 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const markdownParser = new MarkdownParser()
     await registry.register(markdownParser, pluginCtx)
 
-    // 8. Register stub embedder and LLM
-    const stubEmbedder = createStubEmbedder()
-    const stubLLM = createStubLLM()
-    await registry.register(stubEmbedder, pluginCtx)
-    await registry.register(stubLLM, pluginCtx)
+    // 8. Load model plugin (or fall back to stubs)
+    const { embedder, llm } = await loadModelPlugin(
+      config.model.provider,
+      config.model,
+      pluginCtx,
+      embeddingDimensions,
+    )
+    await registry.register(embedder, pluginCtx)
+    if (llm !== embedder) await registry.register(llm, pluginCtx)
 
     // 9. Create WorkspaceManager, ensure default workspace
     const workspaceManager = new WorkspaceManager(db)
@@ -140,7 +253,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // 10. Create DocumentStore (with workspace ID from default workspace)
     const store = new DocumentStore(db, vectorDb, defaultWorkspace.id)
-    await store.initialize(EMBEDDING_DIMENSIONS)
+    await store.initialize(embeddingDimensions)
 
     // 11. Create IngestPipeline and RAGEngine
     const pipeline = new IngestPipeline({
@@ -148,7 +261,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       registry,
       eventBus,
       middleware,
-      embeddingDimensions: EMBEDDING_DIMENSIONS,
+      embeddingDimensions,
     })
 
     // Capture for shutdown closure
@@ -157,8 +270,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     const ragEngine = new RAGEngine({
       store,
-      llm: stubLLM,
-      embedder: stubEmbedder,
+      llm,
+      embedder,
       eventBus,
       defaultProfile: config.rag.profile,
     })

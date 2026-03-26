@@ -43,6 +43,9 @@ export const configSchema = z.object({
     provider: z.string().default('ollama'),
     llm: z.string().default('qwen2.5:14b'),
     embedding: z.string().default('bge-m3'),
+    apiKey: z.string().optional(),
+    baseUrl: z.string().optional(),
+    embeddingDimensions: z.number().optional(),
   }).default({}),
   rag: z.object({
     profile: ragProfileSchema.default('balanced'),
