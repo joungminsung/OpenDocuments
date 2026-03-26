@@ -16,13 +16,14 @@ describe('Confidence Scoring', () => {
 
   it('returns low confidence for weak results', () => {
     const result = calculateConfidence({
-      retrievalScores: [0.2],
-      rerankScores: [0.15],
+      retrievalScores: [0.5],
+      rerankScores: [0.4],
       sourceCount: 1,
       queryKeywords: ['advanced', 'quantum', 'computing'],
       chunkTexts: ['basic introduction to databases'],
     })
     expect(result.level).toBe('low')
+    expect(result.score).toBeGreaterThanOrEqual(0.2)
     expect(result.score).toBeLessThan(0.4)
   })
 

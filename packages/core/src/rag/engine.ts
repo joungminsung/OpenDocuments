@@ -98,6 +98,8 @@ export class RAGEngine {
     const genInput: GenerateInput = {
       query: input.query,
       context: sources,
+      // TODO(Phase 2): Implement intent classification (code | concept | config | data | search | compare)
+      // Currently defaults to 'general'. Intent-specific prompt templates exist in generator.ts.
       intent: 'general',
     }
 
@@ -153,6 +155,8 @@ export class RAGEngine {
     const genInput: GenerateInput = {
       query,
       context: sources,
+      // TODO(Phase 2): Implement intent classification (code | concept | config | data | search | compare)
+      // Currently defaults to 'general'. Intent-specific prompt templates exist in generator.ts.
       intent: 'general',
     }
 
@@ -203,7 +207,7 @@ export class RAGEngine {
     return calculateConfidence({
       retrievalScores: sources.map(s => s.score),
       rerankScores: [],
-      sourceCount: sources.length,
+      sourceCount: new Set(sources.map(r => r.documentId)).size,
       queryKeywords,
       chunkTexts: sources.map(s => s.content),
     })

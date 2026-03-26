@@ -31,9 +31,11 @@ describe('chunkText', () => {
       `Unique sentence number ${i}. ${'Filler text goes here. '.repeat(8)}`
     ).join('\n\n')
     const chunks = chunkText(paragraphs, { maxTokens: 150, overlap: 30 })
-    if (chunks.length >= 2) {
-      expect(chunks[1].content.length).toBeGreaterThan(0)
-    }
+    expect(chunks.length).toBeGreaterThanOrEqual(2)
+
+    // Last paragraph(s) of chunk N should appear at the start of chunk N+1
+    const lastParaOfFirst = chunks[0].content.split('\n\n').pop()!
+    expect(chunks[1].content).toContain(lastParaOfFirst.substring(0, 20))
   })
 
   it('assigns sequential positions', () => {

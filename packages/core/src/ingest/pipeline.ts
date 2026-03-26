@@ -10,7 +10,7 @@ import type { ParsedChunk, RawDocument } from '../plugin/interfaces.js'
 
 export interface IngestInput {
   title: string
-  content: string
+  content: string | Buffer
   sourceType: string
   sourcePath: string
   fileType?: string

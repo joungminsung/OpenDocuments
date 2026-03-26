@@ -27,7 +27,10 @@ export function calculateConfidence(input: ConfidenceInput): ConfidenceResult {
 
   const score = avgRetrieval * WEIGHTS.retrievalScore + avgRerank * WEIGHTS.rerankScore + sourceFactor * WEIGHTS.sourceCount + coverage * WEIGHTS.chunkCoverage
 
-  const level: ConfidenceResult['level'] = score >= 0.7 ? 'high' : score >= 0.4 ? 'medium' : score > 0 ? 'low' : 'none'
+  const level: ConfidenceResult['level'] =
+    score >= 0.7 ? 'high' :
+    score >= 0.4 ? 'medium' :
+    score >= 0.2 ? 'low' : 'none'
   const reason = level === 'high' ? 'Strong match with multiple supporting sources' : level === 'medium' ? 'Partial match found' : level === 'low' ? 'Weak match -- results may not be accurate' : 'No relevant documents found'
 
   return { score, level, reason }

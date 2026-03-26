@@ -22,9 +22,11 @@ export function buildPrompt(input: GenerateInput): string {
   const systemPrompt = input.systemPrompt || INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general
 
   const contextBlock = input.context.length > 0
-    ? input.context.map((r, i) =>
-      `[Source ${i + 1}: ${r.sourcePath}]\n${r.content}`
-    ).join('\n\n')
+    ? input.context.map((r) => {
+      const heading = (r as { headingHierarchy?: string[] }).headingHierarchy?.at(-1)?.replace(/^#+\s*/, '') ?? ''
+      const section = heading ? `#${heading}` : ''
+      return `[Source: ${r.sourcePath}${section}]\n${r.content}`
+    }).join('\n\n')
     : 'No relevant documentation found.'
 
   return `${systemPrompt}
@@ -36,7 +38,7 @@ ${contextBlock}
 ${input.query}
 
 ## Instructions
-Answer based on the context above. If the context does not contain enough information to answer fully, acknowledge what is missing. Cite sources by their number when referencing specific information.`
+Answer based on the context above. If the context does not contain enough information to answer fully, acknowledge what is missing. Cite sources using [Source: filename#section] format.`
 }
 
 export async function* generateAnswer(
@@ -49,7 +51,8 @@ export async function* generateAnswer(
 
   const prompt = buildPrompt(input)
 
-  for await (const chunk of model.generate(prompt)) {
-    yield chunk
-  }
+  yield* model.generate(prompt, {
+    temperature: 0.3,
+    systemPrompt: INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general,
+  })
 }
