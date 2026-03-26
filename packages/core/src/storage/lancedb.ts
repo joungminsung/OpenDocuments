@@ -2,6 +2,10 @@
 import * as lancedb from '@lancedb/lancedb'
 import type { VectorDB, VectorDocument, VectorSearchOpts, VectorSearchResult } from './vector-db.js'
 
+function escapeDoubleQuotes(value: string): string {
+  return value.replace(/"/g, '""')
+}
+
 function sanitizeFilterValue(value: string | number | boolean): string {
   if (typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
@@ -83,7 +87,7 @@ export async function createLanceDB(dataDir: string): Promise<VectorDB> {
       // Delete existing IDs first (upsert semantics), then add new ones
       for (const doc of documents) {
         try {
-          await table.delete(`id = "${doc.id}"`)
+          await table.delete(`id = "${escapeDoubleQuotes(doc.id)}"`)
         } catch {
           // ID doesn't exist yet, that's fine
         }
@@ -131,7 +135,7 @@ export async function createLanceDB(dataDir: string): Promise<VectorDB> {
     async delete(collectionName: string, ids: string[]): Promise<void> {
       const table = await db.openTable(collectionName)
       for (const id of ids) {
-        await table.delete(`id = "${id}"`)
+        await table.delete(`id = "${escapeDoubleQuotes(id)}"`)
       }
     },
 

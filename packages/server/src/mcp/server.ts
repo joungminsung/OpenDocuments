@@ -124,12 +124,19 @@ export function createMCPServer(ctx: AppContext): Server {
               isError: true,
             }
           }
-          // Embed query then search
-          const embedResult = await ctx.registry.getModels()
-            .find((m) => m.capabilities?.embedding)
-            ?.embed?.([query])
-          const embedding = embedResult?.dense?.[0] ?? new Array(384).fill(0)
-          const results = await ctx.store.searchChunks(embedding, topK)
+          const embedder = ctx.registry.getModels().find(m => m.capabilities.embedding)
+          if (!embedder?.embed) {
+            return { content: [{ type: 'text' as const, text: 'No embedding model configured. Run opendocs init to set up a model.' }] }
+          }
+
+          let embedResult
+          try {
+            embedResult = await embedder.embed([(args as any).query])
+          } catch (err) {
+            return { content: [{ type: 'text' as const, text: `Embedding failed: ${(err as Error).message}` }] }
+          }
+
+          const results = await ctx.store.searchChunks(embedResult.dense[0], topK)
           return {
             content: [
               {
