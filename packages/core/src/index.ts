@@ -24,6 +24,8 @@ export { WorkspaceManager, type Workspace } from './workspace/manager.js'
 
 export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
 
+export { chunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
+
 export type {
   PluginType,
   PipelineStage,
