@@ -26,6 +26,8 @@ export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
 
 export { chunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
 
+export { MarkdownParser } from './parsers/markdown.js'
+
 export type {
   PluginType,
   PipelineStage,
