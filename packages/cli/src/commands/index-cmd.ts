@@ -24,7 +24,7 @@ export function indexCommand() {
     .description('Index a file or directory')
     .argument('<path>', 'File or directory path')
     .option('--reindex', 'Force reindex even if unchanged')
-    .action(async (inputPath, _opts) => {
+    .action(async (inputPath, opts) => {
       const ctx = await getContext()
       const absPath = resolve(inputPath)
       try {
@@ -34,6 +34,14 @@ export function indexCommand() {
         if (files.length === 0) { log.fail('No supported files found'); return }
         log.info(`Found ${files.length} file(s)`)
         for (const file of files) {
+          if (opts.reindex) {
+            // Delete existing document to force reindex (bypass content hash check)
+            const docs = ctx.store.listDocuments()
+            const existing = docs.find(d => d.source_path === file)
+            if (existing) {
+              await ctx.store.deleteDocument(existing.id)
+            }
+          }
           const content = readFileSync(file, 'utf-8')
           const result = await ctx.pipeline.ingest({
             title: basename(file), content, sourceType: 'local',

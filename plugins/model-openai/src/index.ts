@@ -6,6 +6,16 @@ import type {
   EmbeddingResult,
 } from '@opendocs/core'
 
+async function fetchWithTimeout(url: string, opts: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export interface OpenAIConfig {
   apiKey?: string
   baseUrl?: string
@@ -36,9 +46,9 @@ export class OpenAIModelPlugin implements ModelPlugin {
   async healthCheck(): Promise<HealthStatus> {
     if (!this.apiKey) return { healthy: false, message: 'OPENAI_API_KEY not set' }
     try {
-      const res = await fetch(`${this.baseUrl}/models`, {
+      const res = await fetchWithTimeout(`${this.baseUrl}/models`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
-      })
+      }, 10000)
       return { healthy: res.ok, message: res.ok ? 'Connected' : `HTTP ${res.status}` }
     } catch (err) {
       return { healthy: false, message: (err as Error).message }
@@ -50,7 +60,7 @@ export class OpenAIModelPlugin implements ModelPlugin {
     if (opts?.systemPrompt) messages.push({ role: 'system', content: opts.systemPrompt })
     messages.push({ role: 'user', content: prompt })
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +74,7 @@ export class OpenAIModelPlugin implements ModelPlugin {
         max_tokens: opts?.maxTokens,
         stop: opts?.stop,
       }),
-    })
+    }, 120000)
 
     if (!res.ok) throw new Error(`OpenAI error: ${res.status}`)
     if (!res.body) throw new Error('No response body')
@@ -99,7 +109,7 @@ export class OpenAIModelPlugin implements ModelPlugin {
   }
 
   async embed(texts: string[]): Promise<EmbeddingResult> {
-    const res = await fetch(`${this.baseUrl}/embeddings`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/embeddings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -109,7 +119,7 @@ export class OpenAIModelPlugin implements ModelPlugin {
         model: this.embeddingModel,
         input: texts,
       }),
-    })
+    }, 30000)
 
     if (!res.ok) throw new Error(`OpenAI embed error: ${res.status}`)
     const data = (await res.json()) as { data: { embedding: number[] }[] }
@@ -117,4 +127,4 @@ export class OpenAIModelPlugin implements ModelPlugin {
   }
 }
 
-export default new OpenAIModelPlugin()
+export default OpenAIModelPlugin

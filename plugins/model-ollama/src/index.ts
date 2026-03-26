@@ -6,6 +6,16 @@ import type {
   EmbeddingResult,
 } from '@opendocs/core'
 
+async function fetchWithTimeout(url: string, opts: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export interface OllamaConfig {
   baseUrl?: string
   llmModel?: string
@@ -32,7 +42,7 @@ export class OllamaModelPlugin implements ModelPlugin {
 
   async healthCheck(): Promise<HealthStatus> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`)
+      const res = await fetchWithTimeout(`${this.baseUrl}/api/tags`, {}, 10000)
       if (!res.ok) {
         return { healthy: false, message: `Ollama returned ${res.status}` }
       }
@@ -63,11 +73,11 @@ export class OllamaModelPlugin implements ModelPlugin {
       options,
     }
 
-    const res = await fetch(`${this.baseUrl}/api/generate`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    })
+    }, 120000)
 
     if (!res.ok) throw new Error(`Ollama generate error: ${res.status}`)
     if (!res.body) throw new Error('No response body')
@@ -78,14 +88,14 @@ export class OllamaModelPlugin implements ModelPlugin {
   }
 
   async embed(texts: string[]): Promise<EmbeddingResult> {
-    const res = await fetch(`${this.baseUrl}/api/embed`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.embeddingModel,
         input: texts,
       }),
-    })
+    }, 30000)
 
     if (!res.ok) throw new Error(`Ollama embed error: ${res.status}`)
     const data = (await res.json()) as { embeddings: number[][] }
@@ -110,11 +120,11 @@ export class OllamaModelPlugin implements ModelPlugin {
       options,
     }
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    })
+    }, 120000)
 
     if (!res.ok) throw new Error(`Ollama chat error: ${res.status}`)
     if (!res.body) throw new Error('No response body')
@@ -165,4 +175,4 @@ export class OllamaModelPlugin implements ModelPlugin {
 }
 
 // Default export for plugin loading
-export default new OllamaModelPlugin()
+export default OllamaModelPlugin

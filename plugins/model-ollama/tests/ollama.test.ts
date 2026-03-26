@@ -42,7 +42,7 @@ describe('OllamaModelPlugin', () => {
     )
 
     await customPlugin.healthCheck()
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith('http://remote:11434/api/tags')
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('http://remote:11434/api/tags', expect.objectContaining({}))
   })
 
   it('healthCheck returns healthy when Ollama is reachable', async () => {

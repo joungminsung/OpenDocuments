@@ -14,6 +14,7 @@ import {
   IngestPipeline,
   RAGEngine,
   MarkdownParser,
+  PlainTextParser,
   type DB,
   type VectorDB,
   type ModelPlugin,
@@ -304,9 +305,11 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       },
     }
 
-    // 7. Register built-in MarkdownParser
+    // 7. Register built-in parsers
     const markdownParser = new MarkdownParser()
     await registry.register(markdownParser, pluginCtx)
+    const plainTextParser = new PlainTextParser()
+    await registry.register(plainTextParser, pluginCtx)
 
     // 8. Load model plugin (or fall back to stubs)
     const { embedder, llm } = await loadModelPlugin(

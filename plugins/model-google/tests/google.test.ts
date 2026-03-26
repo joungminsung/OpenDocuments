@@ -57,6 +57,7 @@ describe('GoogleModelPlugin', () => {
     expect(status.message).toBe('Connected')
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringContaining('?key=test-api-key'),
+      expect.objectContaining({}),
     )
   })
 

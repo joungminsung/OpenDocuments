@@ -1,5 +1,15 @@
 import type { ModelPlugin, PluginContext, HealthStatus, GenerateOpts } from '@opendocs/core'
 
+async function fetchWithTimeout(url: string, opts: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export interface AnthropicConfig {
   apiKey?: string
   baseUrl?: string
@@ -27,12 +37,12 @@ export class AnthropicModelPlugin implements ModelPlugin {
   async healthCheck(): Promise<HealthStatus> {
     if (!this.apiKey) return { healthy: false, message: 'ANTHROPIC_API_KEY not set' }
     try {
-      const res = await fetch(`${this.baseUrl}/models`, {
+      const res = await fetchWithTimeout(`${this.baseUrl}/models`, {
         headers: {
           'x-api-key': this.apiKey,
           'anthropic-version': '2023-06-01',
         },
-      })
+      }, 10000)
       return { healthy: res.ok, message: res.ok ? 'Connected' : `HTTP ${res.status}` }
     } catch (err) {
       return { healthy: false, message: (err as Error).message }
@@ -42,7 +52,7 @@ export class AnthropicModelPlugin implements ModelPlugin {
   async *generate(prompt: string, opts?: GenerateOpts): AsyncIterable<string> {
     const messages = [{ role: 'user' as const, content: prompt }]
 
-    const res = await fetch(`${this.baseUrl}/messages`, {
+    const res = await fetchWithTimeout(`${this.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,7 +67,7 @@ export class AnthropicModelPlugin implements ModelPlugin {
         max_tokens: opts?.maxTokens || 4096,
         temperature: opts?.temperature ?? 0.3,
       }),
-    })
+    }, 120000)
 
     if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
     if (!res.body) throw new Error('No response body')
@@ -92,4 +102,4 @@ export class AnthropicModelPlugin implements ModelPlugin {
   }
 }
 
-export default new AnthropicModelPlugin()
+export default AnthropicModelPlugin

@@ -31,6 +31,7 @@ export { DocumentStore, type CreateDocumentInput, type StoredChunk, type SearchR
 export { IngestPipeline, type IngestInput, type IngestResult, type IngestPipelineOptions } from './ingest/pipeline.js'
 
 export { MarkdownParser } from './parsers/markdown.js'
+export { PlainTextParser } from './parsers/plaintext.js'
 
 export { getProfileConfig, type RAGProfileConfig } from './rag/profiles.js'
 export { calculateConfidence, type ConfidenceInput, type ConfidenceResult } from './rag/confidence.js'

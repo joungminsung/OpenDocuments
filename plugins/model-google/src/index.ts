@@ -6,6 +6,16 @@ import type {
   EmbeddingResult,
 } from '@opendocs/core'
 
+async function fetchWithTimeout(url: string, opts: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export interface GoogleConfig {
   apiKey?: string
   llmModel?: string
@@ -34,7 +44,7 @@ export class GoogleModelPlugin implements ModelPlugin {
   async healthCheck(): Promise<HealthStatus> {
     if (!this.apiKey) return { healthy: false, message: 'GOOGLE_API_KEY not set' }
     try {
-      const res = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`)
+      const res = await fetchWithTimeout(`${this.baseUrl}/models?key=${this.apiKey}`, {}, 10000)
       return { healthy: res.ok, message: res.ok ? 'Connected' : `HTTP ${res.status}` }
     } catch (err) {
       return { healthy: false, message: (err as Error).message }
@@ -48,7 +58,7 @@ export class GoogleModelPlugin implements ModelPlugin {
       : undefined
 
     const url = `${this.baseUrl}/models/${this.llmModel}:streamGenerateContent?alt=sse&key=${this.apiKey}`
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -60,7 +70,7 @@ export class GoogleModelPlugin implements ModelPlugin {
           stopSequences: opts?.stop,
         },
       }),
-    })
+    }, 120000)
 
     if (!res.ok) throw new Error(`Google AI error: ${res.status}`)
     if (!res.body) throw new Error('No response body')
@@ -97,13 +107,13 @@ export class GoogleModelPlugin implements ModelPlugin {
     const embeddings: number[][] = []
     for (const text of texts) {
       const url = `${this.baseUrl}/models/${this.embeddingModel}:embedContent?key=${this.apiKey}`
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: { parts: [{ text }] },
         }),
-      })
+      }, 30000)
       if (!res.ok) throw new Error(`Google embed error: ${res.status}`)
       const data = (await res.json()) as { embedding: { values: number[] } }
       embeddings.push(data.embedding.values)
@@ -113,4 +123,4 @@ export class GoogleModelPlugin implements ModelPlugin {
 }
 
 // Default export for plugin loading
-export default new GoogleModelPlugin()
+export default GoogleModelPlugin

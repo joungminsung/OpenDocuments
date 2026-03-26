@@ -121,7 +121,7 @@ export async function createLanceDB(dataDir: string): Promise<VectorDB> {
           return {
             id: row.id as string,
             content: row.content as string,
-            score: 1 - (row._distance as number), // LanceDB returns L2 distance; convert to similarity
+            score: 1 / (1 + (row._distance as number)), // LanceDB returns L2 distance; convert to 0-1 similarity
             metadata,
           }
         })
