@@ -9,6 +9,10 @@ export { EventBus } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
 
+export { configSchema, type OpenDocsConfig } from './config/schema.js'
+export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
+export { DEFAULT_CONFIG } from './config/defaults.js'
+
 export type {
   PluginType,
   PipelineStage,
