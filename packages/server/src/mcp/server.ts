@@ -168,13 +168,20 @@ export function createMCPServer(ctx: AppContext): Server {
             }
           }
 
+          const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt'])
+          const EXCLUDED_DIRS = new Set(['.git', 'node_modules'])
+
           const filesToIndex: string[] = []
           if (stat.isDirectory()) {
             const entries = readdirSync(filePath, { recursive: true }) as string[]
             for (const entry of entries) {
+              // Exclude hidden directories and known excluded dirs
+              const parts = entry.split(/[\\/]/)
+              if (parts.some((p) => p.startsWith('.') || EXCLUDED_DIRS.has(p))) continue
               const fullPath = join(filePath, entry)
               try {
-                if (statSync(fullPath).isFile()) {
+                const entryStat = statSync(fullPath)
+                if (entryStat.isFile() && SUPPORTED_EXTENSIONS.has(extname(fullPath))) {
                   filesToIndex.push(fullPath)
                 }
               } catch {
@@ -182,14 +189,16 @@ export function createMCPServer(ctx: AppContext): Server {
               }
             }
           } else {
-            filesToIndex.push(filePath)
+            if (SUPPORTED_EXTENSIONS.has(extname(filePath))) {
+              filesToIndex.push(filePath)
+            }
           }
 
           const results: { path: string; status: string; error?: string }[] = []
           for (const fp of filesToIndex) {
             try {
               const content = await readFile(fp, 'utf-8')
-              const ext = extname(fp).slice(1) || 'txt'
+              const ext = extname(fp) || '.txt'
               await ctx.pipeline.ingest({
                 title: fp,
                 content,
