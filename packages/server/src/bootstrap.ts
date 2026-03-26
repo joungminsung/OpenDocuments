@@ -17,6 +17,7 @@ import {
   MarkdownParser,
   PlainTextParser,
   ConversationManager,
+  ConnectorManager,
   type DB,
   type VectorDB,
   type ModelPlugin,
@@ -248,6 +249,7 @@ export interface AppContext {
   store: DocumentStore
   pipeline: IngestPipeline
   ragEngine: RAGEngine
+  connectorManager: ConnectorManager
   shutdown: () => Promise<void>
 }
 
@@ -375,8 +377,33 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // 12. Create ConversationManager
     const conversationManager = new ConversationManager(db, defaultWorkspace.id)
 
+    // 13. Create ConnectorManager
+    const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
+
+    // Auto-register installed connector plugins
+    const CONNECTOR_PLUGINS = [
+      '@opendocs/connector-github',
+      '@opendocs/connector-notion',
+      '@opendocs/connector-web-crawler',
+    ]
+
+    for (const name of CONNECTOR_PLUGINS) {
+      try {
+        const mod = await import(name)
+        const ConnectorClass = mod.default
+        if (typeof ConnectorClass === 'function') {
+          const connector = new ConnectorClass()
+          await connector.setup(pluginCtx)
+          await registry.register(connector, pluginCtx)
+        }
+      } catch {
+        // Plugin not installed -- skip silently
+      }
+    }
+
     // Shutdown function
     const shutdown = async (): Promise<void> => {
+      connectorManager.stopAll()
       await registry.teardownAll()
       eventBus.removeAllListeners()
       await vectorDbRef.close()
@@ -395,6 +422,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       store,
       pipeline,
       ragEngine,
+      connectorManager,
       shutdown,
     }
   } catch (err) {

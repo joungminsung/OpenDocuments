@@ -49,10 +49,10 @@ describe('MCP Server', () => {
     return { server, client, clientTransport, serverTransport }
   }
 
-  it('lists 6 available tools', async () => {
+  it('lists 8 available tools', async () => {
     const { client } = await setupMCP()
     const result = await client.listTools()
-    expect(result.tools).toHaveLength(6)
+    expect(result.tools).toHaveLength(8)
     const names = result.tools.map((t) => t.name)
     expect(names).toContain('opendocs_ask')
     expect(names).toContain('opendocs_search')
@@ -60,6 +60,8 @@ describe('MCP Server', () => {
     expect(names).toContain('opendocs_document_list')
     expect(names).toContain('opendocs_stats')
     expect(names).toContain('opendocs_doctor')
+    expect(names).toContain('opendocs_connector_list')
+    expect(names).toContain('opendocs_connector_sync')
   })
 
   it('opendocs_ask returns an answer', async () => {

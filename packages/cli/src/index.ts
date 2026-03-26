@@ -6,6 +6,7 @@ import { indexCommand } from './commands/index-cmd.js'
 import { doctorCommand } from './commands/doctor.js'
 import { configCommand } from './commands/config-cmd.js'
 import { initCommand } from './commands/init.js'
+import { connectorCommand } from './commands/connector.js'
 
 const program = new Command()
 program
@@ -19,5 +20,6 @@ program.addCommand(indexCommand())
 program.addCommand(doctorCommand())
 program.addCommand(configCommand())
 program.addCommand(initCommand())
+program.addCommand(connectorCommand())
 
 program.parse()

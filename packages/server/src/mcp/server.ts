@@ -67,6 +67,21 @@ const TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'opendocs_connector_list',
+    description: 'List registered connectors and their sync status',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'opendocs_connector_sync',
+    description: 'Sync a connector to discover and index new documents',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: 'Connector plugin name (omit to sync all)' },
+      },
+    },
+  },
 ]
 
 // TODO(Phase 2): Add MCP Resources (opendocs://documents, opendocs://documents/{id}, opendocs://stats)
@@ -285,6 +300,29 @@ export function createMCPServer(ctx: AppContext): Server {
           }
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(health, null, 2) }],
+          }
+        }
+
+        case 'opendocs_connector_list': {
+          const connectors = ctx.connectorManager.listConnectors()
+          if (connectors.length === 0) {
+            return { content: [{ type: 'text' as const, text: 'No connectors registered' }] }
+          }
+          const formatted = connectors.map(c =>
+            `${c.name} (${c.status}) -- last sync: ${c.lastSyncedAt || 'never'}`
+          ).join('\n')
+          return { content: [{ type: 'text' as const, text: formatted }] }
+        }
+
+        case 'opendocs_connector_sync': {
+          const connectorName = (args as any).name
+          if (connectorName) {
+            const result = await ctx.connectorManager.syncConnector(connectorName)
+            return { content: [{ type: 'text' as const, text: `Discovered: ${result.documentsDiscovered}, Indexed: ${result.documentsIndexed}, Skipped: ${result.documentsSkipped}${result.errors.length > 0 ? '\nErrors: ' + result.errors.join(', ') : ''}` }] }
+          } else {
+            const results = await ctx.connectorManager.syncAll()
+            const formatted = results.map(r => `${r.connectorName}: ${r.documentsIndexed} indexed, ${r.documentsSkipped} skipped`).join('\n')
+            return { content: [{ type: 'text' as const, text: formatted || 'No connectors to sync' }] }
           }
         }
 
