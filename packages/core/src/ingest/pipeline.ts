@@ -15,6 +15,7 @@ export interface IngestInput {
   sourceType: string
   sourcePath: string
   fileType?: string
+  connectorId?: string
 }
 
 export interface IngestResult {
@@ -98,6 +99,7 @@ export class IngestPipeline {
       sourceType: input.sourceType,
       sourcePath: input.sourcePath,
       fileType,
+      connectorId: input.connectorId,
     })
 
     try {

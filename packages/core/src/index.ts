@@ -31,6 +31,8 @@ export { DocumentStore, type CreateDocumentInput, type StoredChunk, type SearchR
 
 export { IngestPipeline, type IngestInput, type IngestResult, type IngestPipelineOptions } from './ingest/pipeline.js'
 
+export { ConnectorManager, type ConnectorSyncResult } from './connector/manager.js'
+
 export { MarkdownParser } from './parsers/markdown.js'
 export { PlainTextParser } from './parsers/plaintext.js'
 
