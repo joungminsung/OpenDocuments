@@ -1,0 +1,26 @@
+{
+  "name": "@opendocs/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "opendocs": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@opendocs/core": "*",
+    "@opendocs/server": "*",
+    "@hono/node-server": "^1.13.0",
+    "commander": "^12.1.0",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
