@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { loadConfig, validateConfig } from '../../src/config/loader.js'
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js'
 
@@ -36,5 +39,46 @@ describe('loadConfig', () => {
   it('returns defaults when no config file exists', () => {
     const config = loadConfig('/nonexistent/path')
     expect(config).toEqual(DEFAULT_CONFIG)
+  })
+
+  it('loads config from opendocs.config.ts file', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'opendocs-config-'))
+
+    try {
+      writeFileSync(join(tempDir, 'opendocs.config.ts'), `
+        export default {
+          workspace: 'test-workspace',
+          mode: 'team' as const,
+          rag: { profile: 'precise' as const },
+        }
+      `)
+
+      const config = loadConfig(tempDir)
+      expect(config.workspace).toBe('test-workspace')
+      expect(config.mode).toBe('team')
+      expect(config.rag.profile).toBe('precise')
+      // Defaults should still fill in missing values
+      expect(config.model.provider).toBe('ollama')
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to defaults on invalid config file', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'opendocs-config-'))
+
+    try {
+      writeFileSync(join(tempDir, 'opendocs.config.ts'), `
+        export default {
+          mode: 'invalid-mode',
+        }
+      `)
+
+      const config = loadConfig(tempDir)
+      // Should fall back to defaults when validation fails
+      expect(config).toEqual(DEFAULT_CONFIG)
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

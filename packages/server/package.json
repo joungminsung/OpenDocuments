@@ -22,8 +22,7 @@
     "@opendocs/core": "*",
     "hono": "^4.6.0",
     "@hono/node-server": "^1.13.0",
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "jiti": "^2.4.0"
+    "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
