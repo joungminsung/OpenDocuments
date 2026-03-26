@@ -8,6 +8,7 @@ import { healthRoutes } from './routes/health.js'
 import { documentRoutes } from './routes/documents.js'
 import { chatRoutes } from './routes/chat.js'
 import { conversationRoutes } from './routes/conversations.js'
+import { adminRoutes } from './routes/admin.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import type { AppContext } from '../bootstrap.js'
@@ -52,6 +53,7 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   app.route('/', documentRoutes(ctx))
   app.route('/', chatRoutes(ctx))
   app.route('/', conversationRoutes(ctx))
+  app.route('/', adminRoutes(ctx))
 
   app.onError((err, c) => {
     console.error('Unhandled error:', err.message)

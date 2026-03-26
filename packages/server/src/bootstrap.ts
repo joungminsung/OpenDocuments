@@ -20,6 +20,7 @@ import {
   ConnectorManager,
   APIKeyManager,
   PIIRedactor,
+  AuditLogger,
   type DB,
   type VectorDB,
   type ModelPlugin,
@@ -255,6 +256,7 @@ export interface AppContext {
   ragEngine: RAGEngine
   connectorManager: ConnectorManager
   apiKeyManager: APIKeyManager
+  auditLogger: AuditLogger
   shutdown: () => Promise<void>
 }
 
@@ -392,8 +394,9 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // Note: @opendocs/connector-web-search is a query-time utility, not an index-time connector.
     // It is loaded on-demand by the RAG engine when webSearch profile feature is enabled.
 
-    // 13. Create APIKeyManager
+    // 13. Create APIKeyManager and AuditLogger
     const apiKeyManager = new APIKeyManager(db)
+    const auditLogger = new AuditLogger(db, config.security.audit)
 
     // 14. Create ConnectorManager
     const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
@@ -457,6 +460,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       ragEngine,
       connectorManager,
       apiKeyManager,
+      auditLogger,
       shutdown,
     }
   } catch (err) {

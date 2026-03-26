@@ -29,8 +29,15 @@ export function authMiddleware(appCtx: AppContext) {
 
     const validated = appCtx.apiKeyManager.validate(apiKey)
     if (!validated) {
+      appCtx.auditLogger?.log({ eventType: 'auth:failed', details: { reason: 'invalid key' } })
       return c.json({ error: 'Invalid or expired API key' }, 401)
     }
+
+    appCtx.auditLogger?.log({
+      eventType: 'auth:login',
+      userId: validated.record.userId,
+      workspaceId: validated.record.workspaceId,
+    })
 
     c.set('auth', validated)
     return next()

@@ -7,6 +7,7 @@ import { doctorCommand } from './commands/doctor.js'
 import { configCommand } from './commands/config-cmd.js'
 import { initCommand } from './commands/init.js'
 import { connectorCommand } from './commands/connector.js'
+import { authCommand } from './commands/auth.js'
 
 const program = new Command()
 program
@@ -21,5 +22,6 @@ program.addCommand(doctorCommand())
 program.addCommand(configCommand())
 program.addCommand(initCommand())
 program.addCommand(connectorCommand())
+program.addCommand(authCommand())
 
 program.parse()
