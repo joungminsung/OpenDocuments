@@ -31,7 +31,11 @@ export function runMigrations(db: DB): { applied: string[] } {
 
     const sql = readFileSync(join(migrationDir, file), 'utf-8')
     db.transaction(() => {
-      db.exec(sql)
+      try {
+        db.exec(sql)
+      } catch (err) {
+        throw new Error(`Migration ${file} failed: ${(err as Error).message}`)
+      }
       db.run('INSERT INTO schema_migrations (name) VALUES (?)', [file])
     })
     applied.push(file)

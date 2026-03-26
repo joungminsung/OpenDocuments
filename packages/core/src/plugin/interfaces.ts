@@ -4,6 +4,7 @@ export type PluginType = 'connector' | 'parser' | 'model' | 'middleware'
 
 export type PipelineStage =
   | 'before:discover' | 'after:discover'
+  | 'before:fetch' | 'after:fetch'
   | 'before:parse' | 'after:parse'
   | 'before:chunk' | 'after:chunk'
   | 'before:retrieve' | 'after:retrieve'

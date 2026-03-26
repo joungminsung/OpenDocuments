@@ -1,3 +1,4 @@
+import semver from 'semver'
 import type { AnyPlugin } from './interfaces.js'
 
 export interface CompatibilityResult {
@@ -14,9 +15,9 @@ export function checkCompatibility(
   const errors: string[] = []
   const warnings: string[] = []
 
-  if (!satisfiesVersion(coreVersion, plugin.coreVersion)) {
+  if (!semver.satisfies(coreVersion, plugin.coreVersion)) {
     errors.push(
-      `Requires core version ${plugin.coreVersion}, but current core version is ${coreVersion}`
+      `Requires core version ${plugin.coreVersion}, but current is ${coreVersion}`
     )
   }
 
@@ -37,19 +38,4 @@ export function checkCompatibility(
   }
 
   return { compatible: errors.length === 0, errors, warnings }
-}
-
-function satisfiesVersion(current: string, requirement: string): boolean {
-  const req = requirement.replace(/^[\^~>=<]+/, '')
-  const [reqMajor, reqMinor] = req.split('.').map(Number)
-  const [curMajor, curMinor, curPatch] = current.split('.').map(Number)
-
-  if (requirement.startsWith('^')) {
-    if (reqMajor === 0) {
-      return curMajor === reqMajor && curMinor === reqMinor && curPatch >= (Number(req.split('.')[2]) || 0)
-    }
-    return curMajor === reqMajor && (curMinor > reqMinor || (curMinor === reqMinor && curPatch >= (Number(req.split('.')[2]) || 0)))
-  }
-
-  return current === req
 }

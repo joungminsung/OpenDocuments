@@ -9,8 +9,27 @@ export interface Workspace {
   createdAt: string
 }
 
+interface WorkspaceRow {
+  [key: string]: unknown
+  id: string
+  name: string
+  mode: string
+  settings: string
+  created_at: string
+}
+
 export class WorkspaceManager {
   constructor(private db: DB) {}
+
+  private mapRow(row: WorkspaceRow): Workspace {
+    return {
+      id: row.id,
+      name: row.name,
+      mode: row.mode as 'personal' | 'team',
+      settings: JSON.parse(row.settings),
+      createdAt: row.created_at,
+    }
+  }
 
   create(name: string, mode: 'personal' | 'team' = 'personal'): Workspace {
     const existing = this.getByName(name)
@@ -27,44 +46,20 @@ export class WorkspaceManager {
   }
 
   getByName(name: string): Workspace | undefined {
-    const row = this.db.get<{
-      id: string; name: string; mode: string; settings: string; created_at: string
-    }>('SELECT * FROM workspaces WHERE name = ?', [name])
+    const row = this.db.get<WorkspaceRow>('SELECT * FROM workspaces WHERE name = ?', [name])
     if (!row) return undefined
-    return {
-      id: row.id,
-      name: row.name,
-      mode: row.mode as 'personal' | 'team',
-      settings: JSON.parse(row.settings),
-      createdAt: row.created_at,
-    }
+    return this.mapRow(row)
   }
 
   getById(id: string): Workspace | undefined {
-    const row = this.db.get<{
-      id: string; name: string; mode: string; settings: string; created_at: string
-    }>('SELECT * FROM workspaces WHERE id = ?', [id])
+    const row = this.db.get<WorkspaceRow>('SELECT * FROM workspaces WHERE id = ?', [id])
     if (!row) return undefined
-    return {
-      id: row.id,
-      name: row.name,
-      mode: row.mode as 'personal' | 'team',
-      settings: JSON.parse(row.settings),
-      createdAt: row.created_at,
-    }
+    return this.mapRow(row)
   }
 
   list(): Workspace[] {
-    const rows = this.db.all<{
-      id: string; name: string; mode: string; settings: string; created_at: string
-    }>('SELECT * FROM workspaces ORDER BY name')
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      mode: row.mode as 'personal' | 'team',
-      settings: JSON.parse(row.settings),
-      createdAt: row.created_at,
-    }))
+    const rows = this.db.all<WorkspaceRow>('SELECT * FROM workspaces ORDER BY name')
+    return rows.map(row => this.mapRow(row))
   }
 
   delete(id: string): void {
