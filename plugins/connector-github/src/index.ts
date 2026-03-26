@@ -1,4 +1,5 @@
 import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus, ChangeEvent, Disposable } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocs/core'
 
 export interface GitHubConfig {
   repo: string         // owner/repo
@@ -6,12 +7,6 @@ export interface GitHubConfig {
   branch?: string      // default: main
   paths?: string[]     // paths to crawl (default: entire repo)
   syncInterval?: number // seconds
-}
-
-function fetchWithTimeout(url: string, opts: RequestInit, timeout = 30000): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export class GitHubConnector implements ConnectorPlugin {

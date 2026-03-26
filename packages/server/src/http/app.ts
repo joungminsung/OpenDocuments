@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { join, extname } from 'node:path'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { existsSync, statSync } from 'node:fs'
 import { healthRoutes } from './routes/health.js'
 import { documentRoutes } from './routes/documents.js'
 import { chatRoutes } from './routes/chat.js'
@@ -28,6 +29,14 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
       return null  // reject other origins
     },
   }))
+
+  // TODO(Plan 7): Add auth middleware here
+  // app.use('/api/*', authMiddleware(ctx))
+
+  // TODO(Plan 7): Add rate limiting middleware
+  // app.use('/api/*', rateLimit({ max: 60, window: '1m' }))
+
+  // TODO(Plan 7): Add input validation (query length limits etc.)
 
   // Body size limit (50MB)
   const MAX_BODY_SIZE = 50 * 1024 * 1024
@@ -80,16 +89,16 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
       const filePath = join(webDir, reqPath)
 
       if (existsSync(filePath) && statSync(filePath).isFile()) {
-        const content = readFileSync(filePath)
+        const content = await readFile(filePath)
         const ext = extname(filePath)
-        const contentType = MIME_TYPES[ext] || 'application/octet-stream'
-        return c.body(content as unknown as ReadableStream, 200, { 'Content-Type': contentType })
+        return c.body(content as unknown as ReadableStream, { headers: { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' } })
       }
 
       // SPA fallback: serve index.html for any unmatched route
       const indexPath = join(webDir, 'index.html')
       if (existsSync(indexPath)) {
-        return c.html(readFileSync(indexPath, 'utf-8'))
+        const indexContent = await readFile(indexPath, 'utf-8')
+        return c.html(indexContent)
       }
 
       return c.json({ error: 'Not found' }, 404)

@@ -36,7 +36,7 @@ export type StreamEvent =
   | { type: 'chunk'; data: string }
   | { type: 'sources'; data: SearchResult[] }
   | { type: 'confidence'; data: ConfidenceResult }
-  | { type: 'done'; data: { queryId: string; route: string; profile: string } }
+  | { type: 'done'; data: { queryId: string; route: QueryRoute; profile: string } }
 
 export class RAGEngine {
   private store: DocumentStore

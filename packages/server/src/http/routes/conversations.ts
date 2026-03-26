@@ -34,5 +34,20 @@ export function conversationRoutes(ctx: AppContext) {
     return c.json({ deleted: true })
   })
 
+  app.patch('/api/v1/conversations/:id', async (c) => {
+    const id = c.req.param('id')
+    const body = await c.req.json<{ title?: string }>()
+
+    const exists = ctx.db.get('SELECT id FROM conversations WHERE id = ? AND deleted_at IS NULL', [id])
+    if (!exists) return c.json({ error: 'Conversation not found' }, 404)
+
+    if (body.title !== undefined) {
+      ctx.db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?',
+        [body.title, new Date().toISOString(), id])
+    }
+
+    return c.json({ updated: true })
+  })
+
   return app
 }

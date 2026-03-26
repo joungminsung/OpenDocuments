@@ -1,16 +1,11 @@
 import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocs/core'
 
 export interface WebCrawlerConfig {
   urls: string[]
   depth?: number  // not implemented yet, for future use
   syncInterval?: number
   headers?: Record<string, string>  // custom headers (e.g., cookies for auth)
-}
-
-function fetchWithTimeout(url: string, opts: RequestInit, timeout = 30000): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export class WebCrawlerConnector implements ConnectorPlugin {

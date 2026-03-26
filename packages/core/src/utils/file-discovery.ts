@@ -8,7 +8,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.html', '.htm',                 // HTML parser
   '.ipynb',                        // Jupyter parser
 ])
-const EXCLUDED_DIRS = new Set(['.git', 'node_modules'])
+const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv', 'dist', 'build', '.next', '.turbo', 'coverage'])
 
 export function discoverFiles(dir: string, extensions?: Set<string>): string[] {
   const supported = extensions || SUPPORTED_EXTENSIONS

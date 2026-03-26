@@ -6,6 +6,19 @@ export function documentRoutes(ctx: AppContext) {
 
   app.get('/api/v1/documents', (c) => c.json({ documents: ctx.store.listDocuments() }))
 
+  // List deleted documents (trash)
+  app.get('/api/v1/documents/trash', (c) => {
+    const docs = ctx.store.listDeletedDocuments()
+    return c.json({ documents: docs })
+  })
+
+  // Restore a deleted document
+  app.post('/api/v1/documents/:id/restore', (c) => {
+    const id = c.req.param('id')
+    ctx.store.restoreDocument(id)
+    return c.json({ restored: true })
+  })
+
   app.get('/api/v1/documents/:id', (c) => {
     const doc = ctx.store.getDocument(c.req.param('id'))
     if (!doc) return c.json({ error: 'Document not found' }, 404)

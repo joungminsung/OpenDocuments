@@ -4,6 +4,7 @@
  * Does not implement discover/fetch since web search is query-time, not index-time.
  */
 import type { PluginContext, HealthStatus } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocs/core'
 
 export interface WebSearchConfig {
   provider?: 'tavily' | 'searxng'
@@ -16,12 +17,6 @@ export interface WebSearchResult {
   url: string
   content: string
   score: number
-}
-
-function fetchWithTimeout(url: string, opts: RequestInit, timeout = 15000): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export class WebSearchProvider {

@@ -1,15 +1,10 @@
 import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocs/core'
 
 export interface NotionConfig {
   token?: string
   rootPageId?: string
   syncInterval?: number
-}
-
-function fetchWithTimeout(url: string, opts: RequestInit, timeout = 30000): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export class NotionConnector implements ConnectorPlugin {
