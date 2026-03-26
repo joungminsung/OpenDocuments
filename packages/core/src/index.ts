@@ -7,6 +7,7 @@ export { log } from './utils/logger.js'
 export { sha256 } from './utils/hash.js'
 export { EventBus } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
+export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
 
 export type {
   PluginType,
