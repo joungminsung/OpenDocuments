@@ -14,6 +14,7 @@ export interface APIKeyRecord {
   role: UserRole
   scopes: APIKeyScope[]
   rateLimit?: number   // requests per minute
+  allowedIps?: string[]
   expiresAt?: string
   lastUsedAt?: string
   createdAt: string
@@ -26,6 +27,7 @@ export interface CreateKeyInput {
   role: UserRole
   scopes?: APIKeyScope[]
   rateLimit?: number
+  allowedIps?: string[]
   expiresAt?: string
 }
 

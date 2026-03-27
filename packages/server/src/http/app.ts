@@ -57,6 +57,17 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   })
 
   app.get('/widget.js', (c) => {
+    // Check Referer against config.security.access.widgetAllowedDomains
+    const referer = c.req.header('referer')
+    const allowedDomains = (ctx.config as any)?.security?.access?.widgetAllowedDomains as string[] | undefined
+    if (allowedDomains && allowedDomains.length > 0 && referer) {
+      try {
+        const refOrigin = new URL(referer).origin
+        if (!allowedDomains.some(d => refOrigin.includes(d))) {
+          return c.text('Forbidden', 403)
+        }
+      } catch {}
+    }
     return c.body(generateWidgetScript(), { headers: { 'Content-Type': 'application/javascript' } })
   })
 

@@ -14,7 +14,7 @@ interface ChatState {
   appendStreamChunk: (text: string) => void
   setSources: (sources: SearchResult[]) => void
   setConfidence: (confidence: ConfidenceResult) => void
-  finishStreaming: (profile: string) => void
+  finishStreaming: (profile: string, queryId?: string) => void
   setConversationId: (id: string) => void
   clearMessages: () => void
 }
@@ -55,7 +55,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setConfidence: (confidence) => set({ currentConfidence: confidence }),
 
-  finishStreaming: (profile) => {
+  finishStreaming: (profile, queryId?) => {
     const state = get()
     set((s) => ({
       messages: [...s.messages, {
@@ -65,6 +65,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         sources: state.currentSources,
         confidence: state.currentConfidence || undefined,
         profile,
+        queryId,
         timestamp: Date.now(),
       }],
       isStreaming: false,

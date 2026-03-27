@@ -79,3 +79,8 @@ export async function getPluginHealth(): Promise<PluginHealthResponse> {
 export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
 }
+
+// Feedback
+export async function submitFeedback(queryId: string, feedback: 'positive' | 'negative'): Promise<void> {
+  await request('/chat/feedback', { method: 'POST', body: JSON.stringify({ queryId, feedback }) })
+}

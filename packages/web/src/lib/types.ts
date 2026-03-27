@@ -5,6 +5,7 @@ export interface ChatMessage {
   sources?: SearchResult[]
   confidence?: ConfidenceResult
   profile?: string
+  queryId?: string
   timestamp: number
 }
 

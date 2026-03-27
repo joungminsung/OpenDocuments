@@ -4,6 +4,7 @@ import { useAppStore } from '../../stores/appStore'
 import { ChatInput } from './ChatInput'
 import { ChatMessage } from './ChatMessage'
 import { streamChat } from '../../lib/sse'
+import { submitFeedback } from '../../lib/api'
 
 export function ChatPage() {
   const { messages, isStreaming, currentStreamText, currentSources, currentConfidence } = useChatStore()
@@ -28,7 +29,7 @@ export function ChatPage() {
       onChunk: (text) => useChatStore.getState().appendStreamChunk(text),
       onSources: (sources) => useChatStore.getState().setSources(sources),
       onConfidence: (confidence) => useChatStore.getState().setConfidence(confidence),
-      onDone: (data) => useChatStore.getState().finishStreaming(data.profile || profile),
+      onDone: (data) => useChatStore.getState().finishStreaming(data.profile || profile, data.queryId),
       onError: (error) => {
         useChatStore.getState().appendStreamChunk(`\n\nError: ${error}`)
         useChatStore.getState().finishStreaming(profile)
@@ -50,7 +51,13 @@ export function ChatPage() {
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                onFeedback={(type) => {
+                  if (msg.queryId) submitFeedback(msg.queryId, type).catch(() => {})
+                }}
+              />
             ))}
             {isStreaming && currentStreamText && (
               <ChatMessage

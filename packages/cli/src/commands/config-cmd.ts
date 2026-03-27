@@ -1,17 +1,16 @@
 import { Command } from 'commander'
 import { log, loadConfig } from '@opendocs/core'
+import { existsSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
 
 export function configCommand() {
-  return new Command('config')
+  const cmd = new Command('config')
     .description('View or modify configuration')
+
+  cmd.command('show')
+    .description('Show full config')
     .argument('[key]', 'Config key to view')
-    .argument('[value]', 'Config value to set')
-    .action(async (key, value) => {
-      if (value) {
-        log.info(`To set configuration values, edit opendocs.config.ts directly:`)
-        log.arrow(`$EDITOR opendocs.config.ts`)
-        return
-      }
+    .action(async (key) => {
       const config = loadConfig(process.cwd())
       if (!key) {
         log.heading('Configuration')
@@ -24,4 +23,36 @@ export function configCommand() {
       if (current === undefined) log.fail(`Config key not found: ${key}`)
       else console.log(JSON.stringify(current, null, 2))
     })
+
+  cmd.command('edit')
+    .description('Open config file in editor')
+    .action(async () => {
+      const editor = process.env.EDITOR || 'vi'
+      const configPath = join(process.cwd(), 'opendocs.config.ts')
+      if (!existsSync(configPath)) { log.fail('No config file found. Run: opendocs init'); return }
+      const { execSync } = await import('node:child_process')
+      execSync(`${editor} ${configPath}`, { stdio: 'inherit' })
+    })
+
+  cmd.command('reset')
+    .description('Reset config to defaults')
+    .action(async () => {
+      const configPath = join(process.cwd(), 'opendocs.config.ts')
+      if (existsSync(configPath)) {
+        const { confirm } = await import('@inquirer/prompts')
+        const yes = await confirm({ message: 'Reset configuration to defaults?' })
+        if (!yes) return
+        unlinkSync(configPath)
+      }
+      log.ok('Configuration reset. Run: opendocs init')
+    })
+
+  // Default action (no subcommand) -- show config
+  cmd.action(async () => {
+    const config = loadConfig(process.cwd())
+    log.heading('Configuration')
+    console.log(JSON.stringify(config, null, 2))
+  })
+
+  return cmd
 }

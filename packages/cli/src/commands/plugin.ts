@@ -206,6 +206,32 @@ describe('${name}', () => {
       log.arrow(`cd ${name} && npm install && npm run test`)
     })
 
+  cmd.command('publish')
+    .description('Publish plugin to npm')
+    .action(async () => {
+      const { execSync } = await import('node:child_process')
+      log.heading('Publishing Plugin')
+      try {
+        execSync('npm publish --access public', { stdio: 'inherit' })
+        log.ok('Published successfully')
+      } catch { log.fail('Publish failed. Check npm login and package.json') }
+    })
+
+  cmd.command('search <query>')
+    .description('Search for OpenDocs plugins on npm')
+    .action(async (query) => {
+      const { execSync } = await import('node:child_process')
+      try {
+        const result = execSync(`npm search opendocs-plugin ${query} --json 2>/dev/null || echo "[]"`, { encoding: 'utf-8' })
+        const packages = JSON.parse(result)
+        if (packages.length === 0) { log.info('No plugins found'); return }
+        log.heading(`Search Results (${packages.length})`)
+        for (const pkg of packages.slice(0, 10)) {
+          log.ok(`${pkg.name.padEnd(40)} ${pkg.description || ''}`)
+        }
+      } catch { log.info('No plugins found') }
+    })
+
   cmd.command('test')
     .description('Run plugin tests')
     .action(async () => {

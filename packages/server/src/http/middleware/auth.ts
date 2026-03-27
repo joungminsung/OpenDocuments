@@ -41,6 +41,14 @@ export function authMiddleware(appCtx: AppContext) {
       return c.json({ error: 'Invalid or expired API key' }, 401)
     }
 
+    // TODO: Check validated.record.allowedIps against client IP when ip_restrictions column is added
+    // if (validated.record.allowedIps && validated.record.allowedIps.length > 0) {
+    //   const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || ''
+    //   if (!validated.record.allowedIps.includes(clientIp)) {
+    //     return c.json({ error: 'IP not allowed for this API key' }, 403)
+    //   }
+    // }
+
     appCtx.auditLogger?.log({
       eventType: 'auth:login',
       userId: validated.record.userId,

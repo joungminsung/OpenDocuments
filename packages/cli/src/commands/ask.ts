@@ -9,11 +9,59 @@ export function askCommand() {
     .argument('[query]', 'The question to ask')
     .option('--profile <profile>', 'RAG profile: fast, balanced, precise', 'balanced')
     .option('--json', 'Output as JSON')
+    .option('--stdin', 'Read from stdin')
     .action(async (query, opts) => {
-      if (!query) {
-        console.error(chalk.red('Usage: opendocs ask "your question"'))
-        process.exit(1)
+      // Check for piped stdin
+      if (opts.stdin || !process.stdin.isTTY) {
+        try {
+          const chunks: Buffer[] = []
+          for await (const chunk of process.stdin) chunks.push(chunk)
+          const stdinContent = Buffer.concat(chunks).toString('utf-8').trim()
+          if (stdinContent) {
+            query = query ? `${query}\n\nContext:\n${stdinContent}` : stdinContent
+          }
+        } catch {}
       }
+
+      if (!query) {
+        // Interactive REPL mode
+        const ctx = await getContext()
+        const readline = await import('node:readline')
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+
+        log.heading('OpenDocs Interactive')
+        log.dim(`Profile: ${opts.profile} | Type /quit to exit`)
+
+        const askLine = () => {
+          rl.question(chalk.green('\n  > '), async (input) => {
+            const trimmed = input.trim()
+            if (!trimmed || trimmed === '/quit' || trimmed === '/exit') {
+              rl.close()
+              await shutdownContext()
+              return
+            }
+            if (trimmed.startsWith('/profile ')) {
+              const p = trimmed.split(' ')[1]
+              if (['fast', 'balanced', 'precise'].includes(p)) {
+                opts.profile = p
+                log.ok(`Profile: ${p}`)
+              }
+              askLine()
+              return
+            }
+
+            // Stream answer
+            for await (const event of ctx.ragEngine.queryStream({ query: trimmed, profile: opts.profile })) {
+              if (event.type === 'chunk') process.stdout.write(event.data as string)
+            }
+            console.log()
+            askLine()
+          })
+        }
+        askLine()
+        return // Don't shutdown -- REPL keeps running
+      }
+
       const ctx = await getContext()
       try {
         if (opts.json) {

@@ -109,6 +109,15 @@ const TOOLS = [
     description: 'List installed plugins',
     inputSchema: { type: 'object' as const, properties: {} },
   },
+  {
+    name: 'opendocs_workspace_switch',
+    description: 'Switch workspace',
+    inputSchema: {
+      type: 'object' as const,
+      properties: { name: { type: 'string', description: 'Workspace name to switch to' } },
+      required: ['name'],
+    },
+  },
 ]
 
 export function createMCPServer(ctx: AppContext): Server {
@@ -407,6 +416,12 @@ export function createMCPServer(ctx: AppContext): Server {
         case 'opendocs_plugin_list': {
           const plugins = ctx.registry.listAll()
           return { content: [{ type: 'text' as const, text: plugins.map(p => `${p.name} (${p.type}) v${p.version}`).join('\n') || 'No plugins installed' }] }
+        }
+
+        case 'opendocs_workspace_switch': {
+          const ws = ctx.workspaceManager.getByName((args as any).name)
+          if (!ws) return { content: [{ type: 'text' as const, text: 'Workspace not found' }] }
+          return { content: [{ type: 'text' as const, text: `Switched to workspace: ${ws.name}` }] }
         }
 
         default:

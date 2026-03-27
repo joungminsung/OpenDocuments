@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 
@@ -47,6 +48,20 @@ export function conversationRoutes(ctx: AppContext) {
     }
 
     return c.json({ updated: true })
+  })
+
+  app.post('/api/v1/conversations/:id/share', async (c) => {
+    const id = c.req.param('id')
+    const token = randomBytes(16).toString('hex')
+    ctx.db.run('UPDATE conversations SET shared = 1, share_token = ? WHERE id = ?', [token, id])
+    return c.json({ shareUrl: `/shared/${token}` })
+  })
+
+  app.get('/api/v1/shared/:token', async (c) => {
+    const convo = ctx.db.get<any>('SELECT * FROM conversations WHERE share_token = ?', [c.req.param('token')])
+    if (!convo) return c.json({ error: 'Not found' }, 404)
+    const messages = ctx.conversationManager.getMessages(convo.id)
+    return c.json({ conversation: convo, messages })
   })
 
   return app

@@ -80,5 +80,17 @@ export function chatRoutes(ctx: AppContext) {
     })
   })
 
+  app.post('/api/v1/chat/feedback', async (c) => {
+    let body: { queryId: string; feedback: 'positive' | 'negative' }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400)
+    }
+    if (!body.queryId || !body.feedback) return c.json({ error: 'queryId and feedback are required' }, 400)
+    ctx.db.run('UPDATE query_logs SET feedback = ? WHERE id = ?', [body.feedback, body.queryId])
+    return c.json({ saved: true })
+  })
+
   return app
 }
