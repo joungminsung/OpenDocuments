@@ -13,6 +13,7 @@ import { expandQuery, reciprocalRankFusion } from './cross-lingual.js'
 import { rerankResults } from './reranker.js'
 import { checkGrounding } from './grounding.js'
 import { createQueryCache } from './cache.js'
+import { fitToContextWindow } from './context-window.js'
 import { sha256 } from '../utils/hash.js'
 
 export interface QueryInput {
@@ -273,6 +274,9 @@ export class RAGEngine {
 
     // Trim to finalTopK after merging/reranking
     results = results.slice(0, config.retrieval.finalTopK)
+
+    // Fit chunks into context window budget
+    results = fitToContextWindow(results)
 
     // Web search integration
     if (this.webSearchProvider && config.features.webSearch) {

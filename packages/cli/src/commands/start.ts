@@ -2,8 +2,8 @@ import { Command } from 'commander'
 import { log } from '@opendocs/core'
 import { bootstrap, createApp, startMCPServer } from '@opendocs/server'
 import { serve } from '@hono/node-server'
-import { resolve, dirname } from 'node:path'
-import { existsSync } from 'node:fs'
+import { resolve, dirname, join } from 'node:path'
+import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 function findWebDistDir(): string | null {
@@ -55,6 +55,12 @@ export function startCommand() {
 
       const app = createApp(ctx, { webDir })
       const port = parseInt(opts.port)
+      // Write PID file for `opendocs stop`
+      const pidDir = join(process.env.HOME || '~', '.opendocs')
+      const pidFile = join(pidDir, 'server.pid')
+      mkdirSync(pidDir, { recursive: true })
+      writeFileSync(pidFile, String(process.pid))
+
       serve({ fetch: app.fetch, port }, () => {
         log.ok(`Server running at http://localhost:${port}`)
         log.arrow(`API: http://localhost:${port}/api/v1`)
@@ -68,6 +74,7 @@ export function startCommand() {
       process.on('SIGINT', async () => {
         log.blank()
         log.wait('Shutting down...')
+        try { unlinkSync(pidFile) } catch {}
         await ctx.shutdown()
         log.ok('Goodbye')
         process.exit(0)

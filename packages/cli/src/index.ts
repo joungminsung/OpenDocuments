@@ -13,6 +13,8 @@ import { exportCommand } from './commands/export-cmd.js'
 import { importCommand } from './commands/import-cmd.js'
 import { documentCommand } from './commands/document.js'
 import { workspaceCommand } from './commands/workspace.js'
+import { stopCommand } from './commands/stop.js'
+import { searchCommand } from './commands/search.js'
 
 const program = new Command()
 program
@@ -33,5 +35,7 @@ program.addCommand(exportCommand())
 program.addCommand(importCommand())
 program.addCommand(documentCommand())
 program.addCommand(workspaceCommand())
+program.addCommand(stopCommand())
+program.addCommand(searchCommand())
 
 program.parse()

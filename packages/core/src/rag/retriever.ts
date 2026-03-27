@@ -1,6 +1,8 @@
 import { DocumentStore, type SearchResult } from '../ingest/document-store.js'
 import type { ModelPlugin } from '../plugin/interfaces.js'
 import { reciprocalRankFusion } from './cross-lingual.js'
+import { createEmbeddingCache } from './cache.js'
+import { sha256 } from '../utils/hash.js'
 
 export interface RetrieveOptions {
   k: number
@@ -10,6 +12,7 @@ export interface RetrieveOptions {
 
 export class Retriever {
   private embedFn: (texts: string[]) => Promise<import('../plugin/interfaces.js').EmbeddingResult>
+  private embeddingCache = createEmbeddingCache()
 
   constructor(
     private store: DocumentStore,
@@ -20,9 +23,14 @@ export class Retriever {
   }
 
   async retrieve(query: string, opts: RetrieveOptions): Promise<SearchResult[]> {
-    // Dense search
-    const embedResult = await this.embedFn([query])
-    const queryEmbedding = embedResult.dense[0]
+    // L2 embedding cache
+    const cacheKey = sha256(query)
+    let queryEmbedding = this.embeddingCache.get(cacheKey)
+    if (!queryEmbedding) {
+      const embedResult = await this.embedFn([query])
+      queryEmbedding = embedResult.dense[0]
+      this.embeddingCache.set(cacheKey, queryEmbedding)
+    }
     const denseResults = await this.store.searchChunks(queryEmbedding, opts.k, opts.minScore)
 
     // Sparse search (FTS5)
