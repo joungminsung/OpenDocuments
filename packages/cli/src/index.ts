@@ -11,6 +11,8 @@ import { authCommand } from './commands/auth.js'
 import { pluginCommand } from './commands/plugin.js'
 import { exportCommand } from './commands/export-cmd.js'
 import { importCommand } from './commands/import-cmd.js'
+import { documentCommand } from './commands/document.js'
+import { workspaceCommand } from './commands/workspace.js'
 
 const program = new Command()
 program
@@ -29,5 +31,7 @@ program.addCommand(authCommand())
 program.addCommand(pluginCommand())
 program.addCommand(exportCommand())
 program.addCommand(importCommand())
+program.addCommand(documentCommand())
+program.addCommand(workspaceCommand())
 
 program.parse()
