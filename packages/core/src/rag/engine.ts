@@ -7,6 +7,13 @@ import { getProfileConfig, type RAGProfileConfig } from './profiles.js'
 import { calculateConfidence, type ConfidenceResult } from './confidence.js'
 import { routeQuery, type QueryRoute } from './router.js'
 import { generateAnswer, type GenerateInput } from './generator.js'
+import { classifyIntent } from './intent.js'
+import { decomposeQuery } from './decomposer.js'
+import { expandQuery, reciprocalRankFusion } from './cross-lingual.js'
+import { rerankResults } from './reranker.js'
+import { checkGrounding } from './grounding.js'
+import { createQueryCache } from './cache.js'
+import { sha256 } from '../utils/hash.js'
 
 export interface QueryInput {
   query: string
@@ -30,6 +37,7 @@ export interface RAGEngineOptions {
   eventBus: EventBus
   defaultProfile: string
   customProfileConfig?: Partial<RAGProfileConfig>
+  rerankerModel?: ModelPlugin
 }
 
 export type StreamEvent =
@@ -46,6 +54,8 @@ export class RAGEngine {
   private defaultProfile: string
   private customProfileConfig: Partial<RAGProfileConfig> | undefined
   private retriever: Retriever
+  private rerankerModel: ModelPlugin | undefined
+  private queryCache = createQueryCache()
 
   constructor(opts: RAGEngineOptions) {
     this.store = opts.store
@@ -54,6 +64,7 @@ export class RAGEngine {
     this.eventBus = opts.eventBus
     this.defaultProfile = opts.defaultProfile
     this.customProfileConfig = opts.customProfileConfig
+    this.rerankerModel = opts.rerankerModel
     this.retriever = new Retriever(this.store, this.embedder)
   }
 
@@ -65,11 +76,22 @@ export class RAGEngine {
 
     this.eventBus.emit('query:received', { queryId, query: input.query })
 
-    if (route === 'direct') {
-      return this.handleDirect(queryId, input.query, profileName)
+    // L1 cache check
+    const cacheKey = sha256(input.query + profileName)
+    const cached = this.queryCache.get(cacheKey) as QueryResult | undefined
+    if (cached) {
+      return { ...cached, queryId }
     }
 
-    return this.handleRAG(queryId, input.query, config, profileName, route)
+    if (route === 'direct') {
+      const result = this.handleDirect(queryId, input.query, profileName)
+      this.queryCache.set(cacheKey, result)
+      return result
+    }
+
+    const result = await this.handleRAG(queryId, input.query, config, profileName, route)
+    this.queryCache.set(cacheKey, result)
+    return result
   }
 
   async *queryStream(input: QueryInput): AsyncIterable<StreamEvent> {
@@ -90,8 +112,11 @@ export class RAGEngine {
       return
     }
 
-    // Retrieve
-    const sources = await this.retrieve(queryId, input.query, config)
+    // Classify intent
+    const intent = classifyIntent(input.query)
+
+    // Retrieve with decomposition and cross-lingual support
+    const sources = await this.retrieveWithFeatures(queryId, input.query, config)
 
     yield { type: 'sources', data: sources }
 
@@ -99,16 +124,14 @@ export class RAGEngine {
     const confidence = this.computeConfidence(input.query, sources)
     yield { type: 'confidence', data: confidence }
 
-    // TODO(Phase 2): Web search integration when config.features.webSearch is true/fallback
-    // TODO(Phase 2): Hallucination guard when config.features.hallucinationGuard is true/strict
+    // TODO: Web search integration when config.features.webSearch is true/fallback
+    // Streaming skips cache and grounding (they require the full answer)
 
     // Generate (streaming)
     const genInput: GenerateInput = {
       query: input.query,
       context: sources,
-      // TODO(Phase 2): Implement intent classification (code | concept | config | data | search | compare)
-      // Currently defaults to 'general'. Intent-specific prompt templates exist in generator.ts.
-      intent: 'general',
+      intent,
     }
 
     let fullAnswer = ''
@@ -144,22 +167,23 @@ export class RAGEngine {
     profileName: string,
     route: QueryRoute,
   ): Promise<QueryResult> {
-    // Retrieve
-    const sources = await this.retrieve(queryId, query, config)
+    // Classify intent
+    const intent = classifyIntent(query)
+
+    // Retrieve with decomposition and cross-lingual support
+    const sources = await this.retrieveWithFeatures(queryId, query, config)
 
     // Calculate confidence
     const confidence = this.computeConfidence(query, sources)
 
-    // TODO(Phase 2): Web search integration when config.features.webSearch is true/fallback
-    // TODO(Phase 2): Hallucination guard when config.features.hallucinationGuard is true/strict
+    // TODO: Web search integration when config.features.webSearch is true/fallback
+    // Web results would be merged into sources here before generation.
 
     // Generate
     const genInput: GenerateInput = {
       query,
       context: sources,
-      // TODO(Phase 2): Implement intent classification (code | concept | config | data | search | compare)
-      // Currently defaults to 'general'. Intent-specific prompt templates exist in generator.ts.
-      intent: 'general',
+      intent,
     }
 
     let answer = ''
@@ -168,6 +192,15 @@ export class RAGEngine {
     }
 
     this.eventBus.emit('query:generated', { queryId })
+
+    // Hallucination guard
+    if (config.features.hallucinationGuard) {
+      const strictMode = config.features.hallucinationGuard === 'strict'
+      const grounding = checkGrounding(answer, sources, strictMode)
+      if (strictMode && grounding.warnings.length > 0) {
+        answer = grounding.annotatedAnswer
+      }
+    }
 
     return {
       queryId,
@@ -179,8 +212,61 @@ export class RAGEngine {
     }
   }
 
-  private async retrieve(
+  /**
+   * Retrieve with decomposition and cross-lingual expansion based on profile features.
+   */
+  private async retrieveWithFeatures(
     queryId: string,
+    query: string,
+    config: RAGProfileConfig,
+  ): Promise<SearchResult[]> {
+    // Decompose query if enabled
+    const decomposed = config.features.queryDecomposition
+      ? decomposeQuery(query)
+      : { original: query, subQueries: [query], isDecomposed: false }
+
+    const subQueryResultSets: SearchResult[][] = []
+
+    for (const subQuery of decomposed.subQueries) {
+      // Cross-lingual expansion if enabled
+      const queryVariants = config.features.crossLingual
+        ? expandQuery(subQuery)
+        : [subQuery]
+
+      const variantResultSets: SearchResult[][] = []
+
+      for (const variant of queryVariants) {
+        const results = await this.retrieve(variant, config)
+        variantResultSets.push(results)
+      }
+
+      // RRF merge cross-lingual variants
+      const merged = variantResultSets.length > 1
+        ? reciprocalRankFusion(variantResultSets)
+        : variantResultSets[0]
+
+      subQueryResultSets.push(merged)
+    }
+
+    // RRF merge sub-query results if decomposed
+    let results = decomposed.isDecomposed && subQueryResultSets.length > 1
+      ? reciprocalRankFusion(subQueryResultSets)
+      : subQueryResultSets[0]
+
+    // Rerank if enabled
+    if (config.features.reranker && results.length > 1) {
+      results = await rerankResults(query, results, this.rerankerModel)
+    }
+
+    // Trim to finalTopK after merging/reranking
+    results = results.slice(0, config.retrieval.finalTopK)
+
+    this.eventBus.emit('query:retrieved', { queryId, chunks: results.length })
+
+    return results
+  }
+
+  private async retrieve(
     query: string,
     config: RAGProfileConfig,
   ): Promise<SearchResult[]> {
@@ -193,8 +279,6 @@ export class RAGEngine {
     let results = await this.retriever.retrieve(query, retrieveOpts)
 
     // Fallback: if minScore filtered everything, retry without threshold.
-    // This trades result quality for availability — the confidence score will be lower
-    // because retrieval scores on fallback results are below the configured threshold.
     if (results.length === 0 && config.retrieval.minScore > 0) {
       results = await this.retriever.retrieve(query, {
         k: config.retrieval.k,
@@ -202,24 +286,17 @@ export class RAGEngine {
       })
     }
 
-    // Check if results are insufficient and adaptive retrieval is enabled
+    // Adaptive retrieval: retry with relaxed parameters if results are insufficient
     if (config.features.adaptiveRetrieval && results.length < 3) {
-      // Retry with relaxed parameters
       const relaxedResults = await this.retriever.retrieve(query, {
         k: retrieveOpts.k * 2,
         finalTopK: retrieveOpts.finalTopK,
-        minScore: 0,  // remove minScore filter
+        minScore: 0,
       })
       if (relaxedResults.length > results.length) {
         results = relaxedResults
       }
     }
-
-    // TODO(Phase 2): Reranker integration when config.features.reranker is true
-    // TODO(Phase 2): Query decomposition when config.features.queryDecomposition is true
-    // TODO(Phase 2): Cross-lingual retrieval when config.features.crossLingual is true
-
-    this.eventBus.emit('query:retrieved', { queryId, chunks: results.length })
 
     return results
   }

@@ -85,4 +85,18 @@ describe('RAGEngine', () => {
     expect(fast.profile).toBe('fast')
     expect(fast.sources.length).toBeLessThanOrEqual(3)
   })
+
+  it('classifies intent and uses intent-specific prompt', async () => {
+    const result = await engine.query({ query: 'How to implement the hello function?' })
+    expect(result.route).toBe('rag')
+    expect(result.answer).toBeDefined()
+  })
+
+  it('caches identical queries', async () => {
+    const result1 = await engine.query({ query: 'What is Redis?' })
+    const result2 = await engine.query({ query: 'What is Redis?' })
+    // Second call should return a cached result with a different queryId
+    expect(result2.queryId).not.toBe(result1.queryId)
+    expect(result2.answer).toBe(result1.answer)
+  })
 })
