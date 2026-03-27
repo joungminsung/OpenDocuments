@@ -1,5 +1,5 @@
 {
-  "name": "opendocs-monorepo",
+  "name": "opendocuments-monorepo",
   "private": true,
   "workspaces": ["packages/*", "plugins/*"],
   "scripts": {

@@ -84,8 +84,8 @@ export const configSchema = z.object({
     dbUrl: z.string().optional(),
     vectorDb: z.enum(['lancedb', 'qdrant']).default('lancedb'),
     vectorDbUrl: z.string().optional(),
-    dataDir: z.string().default('~/.opendocs'),
+    dataDir: z.string().default('~/.opendocuments'),
   }).default({}),
 })
 
-export type OpenDocsConfig = z.infer<typeof configSchema>
+export type OpenDocumentsConfig = z.infer<typeof configSchema>

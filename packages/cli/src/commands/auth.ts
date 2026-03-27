@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 
@@ -75,10 +75,10 @@ export function authCommand() {
 
     const { writeFileSync, mkdirSync } = await import('node:fs')
     const { join } = await import('node:path')
-    const dir = join(process.env.HOME || '~', '.opendocs')
+    const dir = join(process.env.HOME || '~', '.opendocuments')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'auth-token'), key)
-    log.ok('Logged in. API key saved to ~/.opendocs/auth-token')
+    log.ok('Logged in. API key saved to ~/.opendocuments/auth-token')
   })
 
   return cmd

@@ -9,7 +9,7 @@ docker compose up -d
 ## Manual
 
 ```bash
-npm install -g @opendocs/cli
-opendocs init
-opendocs start --port 3000
+npm install -g @opendocuments/cli
+opendocuments init
+opendocuments start --port 3000
 ```

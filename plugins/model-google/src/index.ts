@@ -4,8 +4,8 @@ import type {
   HealthStatus,
   GenerateOpts,
   EmbeddingResult,
-} from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+} from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface GoogleConfig {
   apiKey?: string
@@ -14,7 +14,7 @@ export interface GoogleConfig {
 }
 
 export class GoogleModelPlugin implements ModelPlugin {
-  name = '@opendocs/model-google'
+  name = '@opendocuments/model-google'
   type = 'model' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

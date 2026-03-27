@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 
@@ -51,8 +51,8 @@ export function connectorCommand() {
       }
     })
 
-  cmd.command('add <type>').description('Add a connector (configures in opendocs.config.ts)').action(async (type) => {
-    log.info(`To add a ${type} connector, edit opendocs.config.ts:`)
+  cmd.command('add <type>').description('Add a connector (configures in opendocuments.config.ts)').action(async (type) => {
+    log.info(`To add a ${type} connector, edit opendocuments.config.ts:`)
     log.arrow(`connectors: [{ type: '${type}', ... }]`)
   })
 
@@ -70,11 +70,11 @@ export function connectorCommand() {
   })
 
   cmd.command('remove <name>').description('Remove a connector').action(async (name) => {
-    log.info(`To remove the ${name} connector, edit opendocs.config.ts and remove it from the connectors array.`)
+    log.info(`To remove the ${name} connector, edit opendocuments.config.ts and remove it from the connectors array.`)
   })
 
   cmd.command('auth <name>').description('Re-authenticate a connector').action(async (name) => {
-    log.info(`To update credentials for ${name}, edit opendocs.config.ts or update environment variables.`)
+    log.info(`To update credentials for ${name}, edit opendocuments.config.ts or update environment variables.`)
   })
 
   return cmd

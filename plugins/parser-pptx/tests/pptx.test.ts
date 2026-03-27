@@ -9,7 +9,7 @@ describe('PPTXParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-pptx')
+    expect(parser.name).toBe('@opendocuments/parser-pptx')
     expect(parser.supportedTypes).toEqual(['.pptx'])
   })
 

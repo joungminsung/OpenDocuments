@@ -361,6 +361,6 @@ export class RAGEngine {
   private getDirectResponse(_query: string): string {
     // Routing is already decided by routeQuery() in router.ts.
     // This method only needs to supply a friendly reply — no need to re-check patterns.
-    return 'I am OpenDocs, your documentation assistant. How can I help you today?'
+    return 'I am OpenDocuments, your documentation assistant. How can I help you today?'
   }
 }

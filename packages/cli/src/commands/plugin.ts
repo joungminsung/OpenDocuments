@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import chalk from 'chalk'
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -66,9 +66,9 @@ export function pluginCommand() {
           test: 'vitest run',
           typecheck: 'tsc --noEmit',
         },
-        dependencies: { '@opendocs/core': '^0.1.0' },
+        dependencies: { '@opendocuments/core': '^0.1.0' },
         devDependencies: { typescript: '^5.5.0', vitest: '^2.1.0' },
-        peerDependencies: { '@opendocs/core': '^0.1.0' },
+        peerDependencies: { '@opendocuments/core': '^0.1.0' },
       }, null, 2) + '\n')
 
       // tsconfig.json
@@ -88,7 +88,7 @@ export function pluginCommand() {
 
       // Generate src/index.ts based on type
       const templates: Record<string, string> = {
-        parser: `import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocs/core'
+        parser: `import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocuments/core'
 
 export class MyParser implements ParserPlugin {
   name = '${name}'
@@ -109,7 +109,7 @@ export class MyParser implements ParserPlugin {
 
 export default MyParser
 `,
-        connector: `import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
+        connector: `import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocuments/core'
 
 export class MyConnector implements ConnectorPlugin {
   name = '${name}'
@@ -132,7 +132,7 @@ export class MyConnector implements ConnectorPlugin {
 
 export default MyConnector
 `,
-        model: `import type { ModelPlugin, PluginContext, HealthStatus, GenerateOpts, EmbeddingResult } from '@opendocs/core'
+        model: `import type { ModelPlugin, PluginContext, HealthStatus, GenerateOpts, EmbeddingResult } from '@opendocuments/core'
 
 export class MyModel implements ModelPlugin {
   name = '${name}'
@@ -147,7 +147,7 @@ export class MyModel implements ModelPlugin {
 
 export default MyModel
 `,
-        middleware: `import type { MiddlewarePlugin, PluginContext, HealthStatus, PipelineStage } from '@opendocs/core'
+        middleware: `import type { MiddlewarePlugin, PluginContext, HealthStatus, PipelineStage } from '@opendocuments/core'
 
 export class MyMiddleware implements MiddlewarePlugin {
   name = '${name}'
@@ -200,7 +200,7 @@ describe('${name}', () => {
 
       // README
       writeFileSync(join(dir, 'README.md'),
-        `# ${name}\n\nOpenDocs ${opts.type} plugin.\n\n## Development\n\n\`\`\`bash\nnpm install\nnpm run build\nnpm run test\n\`\`\`\n`)
+        `# ${name}\n\nOpenDocuments ${opts.type} plugin.\n\n## Development\n\n\`\`\`bash\nnpm install\nnpm run build\nnpm run test\n\`\`\`\n`)
 
       log.ok(`Created ${dir}/`)
       log.arrow(`cd ${name} && npm install && npm run test`)
@@ -218,11 +218,11 @@ describe('${name}', () => {
     })
 
   cmd.command('search <query>')
-    .description('Search for OpenDocs plugins on npm')
+    .description('Search for OpenDocuments plugins on npm')
     .action(async (query) => {
       const { execSync } = await import('node:child_process')
       try {
-        const result = execSync(`npm search opendocs-plugin ${query} --json 2>/dev/null || echo "[]"`, { encoding: 'utf-8' })
+        const result = execSync(`npm search opendocuments-plugin ${query} --json 2>/dev/null || echo "[]"`, { encoding: 'utf-8' })
         const packages = JSON.parse(result)
         if (packages.length === 0) { log.info('No plugins found'); return }
         log.heading(`Search Results (${packages.length})`)

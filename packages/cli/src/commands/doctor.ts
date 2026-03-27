@@ -1,12 +1,12 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 
 export function doctorCommand() {
   return new Command('doctor')
     .description('Run health diagnostics')
     .action(async () => {
-      log.heading('OpenDocs Health Check')
+      log.heading('OpenDocuments Health Check')
       try {
         const ctx = await getContext()
         log.ok('Core           v0.1.0')

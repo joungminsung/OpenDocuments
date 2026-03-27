@@ -11,7 +11,7 @@ describe('LanceDB VectorDB', () => {
   const COLLECTION = 'test_chunks'
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     await vectorDb.ensureCollection(COLLECTION, 3)
   })

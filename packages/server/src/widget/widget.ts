@@ -5,10 +5,10 @@
 export function generateWidgetScript(): string {
   return `
 (function() {
-  var OpenDocs = window.OpenDocs || {};
-  OpenDocs.widget = function(config) {
+  var OpenDocuments = window.OpenDocuments || {};
+  OpenDocuments.widget = function(config) {
     var container = document.createElement('div');
-    container.id = 'opendocs-widget';
+    container.id = 'opendocuments-widget';
     container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;';
 
     var button = document.createElement('button');
@@ -20,7 +20,7 @@ export function generateWidgetScript(): string {
     iframe.style.cssText = 'width:380px;height:520px;border:none;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);display:none;';
 
     iframe.onload = function() {
-      iframe.contentWindow.postMessage({ type: 'opendocs-auth', apiKey: config.apiKey, workspace: config.workspace }, config.server);
+      iframe.contentWindow.postMessage({ type: 'opendocuments-auth', apiKey: config.apiKey, workspace: config.workspace }, config.server);
     };
 
     button.onclick = function() {
@@ -32,7 +32,7 @@ export function generateWidgetScript(): string {
     container.appendChild(button);
     document.body.appendChild(container);
   };
-  window.OpenDocs = OpenDocs;
+  window.OpenDocuments = OpenDocuments;
 })();
 `
 }

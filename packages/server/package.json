@@ -1,5 +1,5 @@
 {
-  "name": "@opendocs/server",
+  "name": "@opendocuments/server",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,7 +19,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@opendocs/core": "*",
+    "@opendocuments/core": "*",
     "hono": "^4.6.0",
     "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.0.0"

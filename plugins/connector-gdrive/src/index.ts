@@ -5,8 +5,8 @@ import type {
   RawDocument,
   PluginContext,
   HealthStatus,
-} from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+} from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface GDriveConfig {
   accessToken?: string        // OAuth2 access token
@@ -33,7 +33,7 @@ const SUPPORTED_MIME_TYPES = new Set([
 ])
 
 export class GDriveConnector implements ConnectorPlugin {
-  name = '@opendocs/connector-gdrive'
+  name = '@opendocuments/connector-gdrive'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

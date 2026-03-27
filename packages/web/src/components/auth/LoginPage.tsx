@@ -10,7 +10,7 @@ export function LoginPage({ onLogin }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="w-full max-w-sm p-6 bg-white dark:bg-gray-900 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold text-center text-primary-600 mb-6">OpenDocs</h1>
+        <h1 className="text-2xl font-bold text-center text-primary-600 mb-6">OpenDocuments</h1>
 
         <div className="space-y-4">
           <div>

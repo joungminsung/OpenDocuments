@@ -1,13 +1,13 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import { readFileSync, existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
 export function stopCommand() {
   return new Command('stop')
-    .description('Stop the OpenDocs server')
+    .description('Stop the OpenDocuments server')
     .action(async () => {
-      const pidFile = join(process.env.HOME || '~', '.opendocs', 'server.pid')
+      const pidFile = join(process.env.HOME || '~', '.opendocuments', 'server.pid')
       if (!existsSync(pidFile)) {
         log.info('No running server found')
         return

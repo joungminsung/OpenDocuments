@@ -1,5 +1,5 @@
 {
-  "name": "@opendocs/parser-pdf",
+  "name": "@opendocuments/parser-pdf",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@opendocs/core": "*",
+    "@opendocuments/core": "*",
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
@@ -26,6 +26,6 @@
     "vitest": "^2.1.0"
   },
   "peerDependencies": {
-    "@opendocs/core": "^0.1.0"
+    "@opendocuments/core": "^0.1.0"
   }
 }

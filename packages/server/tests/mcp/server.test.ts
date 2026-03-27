@@ -33,7 +33,7 @@ describe('MCP Server', () => {
   })
 
   async function setupMCP() {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-mcp-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-mcp-test-'))
     ctx = await bootstrap({ dataDir: tempDir })
     const server = createMCPServer(ctx)
 
@@ -54,23 +54,23 @@ describe('MCP Server', () => {
     const result = await client.listTools()
     expect(result.tools).toHaveLength(19)
     const names = result.tools.map((t) => t.name)
-    expect(names).toContain('opendocs_ask')
-    expect(names).toContain('opendocs_search')
-    expect(names).toContain('opendocs_index_path')
-    expect(names).toContain('opendocs_document_list')
-    expect(names).toContain('opendocs_stats')
-    expect(names).toContain('opendocs_doctor')
-    expect(names).toContain('opendocs_connector_list')
-    expect(names).toContain('opendocs_connector_sync')
-    expect(names).toContain('opendocs_document_get')
-    expect(names).toContain('opendocs_document_delete')
-    expect(names).toContain('opendocs_config_get')
-    expect(names).toContain('opendocs_workspace_list')
+    expect(names).toContain('opendocuments_ask')
+    expect(names).toContain('opendocuments_search')
+    expect(names).toContain('opendocuments_index_path')
+    expect(names).toContain('opendocuments_document_list')
+    expect(names).toContain('opendocuments_stats')
+    expect(names).toContain('opendocuments_doctor')
+    expect(names).toContain('opendocuments_connector_list')
+    expect(names).toContain('opendocuments_connector_sync')
+    expect(names).toContain('opendocuments_document_get')
+    expect(names).toContain('opendocuments_document_delete')
+    expect(names).toContain('opendocuments_config_get')
+    expect(names).toContain('opendocuments_workspace_list')
   })
 
-  it('opendocs_ask returns an answer', async () => {
+  it('opendocuments_ask returns an answer', async () => {
     const { client } = await setupMCP()
-    const result = await client.callTool({ name: 'opendocs_ask', arguments: { query: 'What is OpenDocs?' } })
+    const result = await client.callTool({ name: 'opendocuments_ask', arguments: { query: 'What is OpenDocuments?' } })
     expect(result.content).toHaveLength(1)
     const text = (result.content[0] as { type: string; text: string }).text
     expect(text).toBeTruthy()
@@ -80,9 +80,9 @@ describe('MCP Server', () => {
     expect(parsed).toHaveProperty('confidence')
   })
 
-  it('opendocs_document_list returns empty list initially', async () => {
+  it('opendocuments_document_list returns empty list initially', async () => {
     const { client } = await setupMCP()
-    const result = await client.callTool({ name: 'opendocs_document_list', arguments: {} })
+    const result = await client.callTool({ name: 'opendocuments_document_list', arguments: {} })
     expect(result.content).toHaveLength(1)
     const text = (result.content[0] as { type: string; text: string }).text
     const docs = JSON.parse(text)
@@ -90,9 +90,9 @@ describe('MCP Server', () => {
     expect(docs).toHaveLength(0)
   })
 
-  it('opendocs_stats returns counts', async () => {
+  it('opendocuments_stats returns counts', async () => {
     const { client } = await setupMCP()
-    const result = await client.callTool({ name: 'opendocs_stats', arguments: {} })
+    const result = await client.callTool({ name: 'opendocuments_stats', arguments: {} })
     expect(result.content).toHaveLength(1)
     const text = (result.content[0] as { type: string; text: string }).text
     const stats = JSON.parse(text)

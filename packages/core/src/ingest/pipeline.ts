@@ -7,7 +7,7 @@ import { chunkText } from './chunker.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
 import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
-import type { OpenDocsConfig } from '../config/schema.js'
+import type { OpenDocumentsConfig } from '../config/schema.js'
 import type { PIIRedactor } from '../security/redactor.js'
 import type { DocumentVersionManager } from '../document/version-manager.js'
 
@@ -32,7 +32,7 @@ export interface IngestPipelineOptions {
   eventBus: EventBus
   middleware: MiddlewareRunner
   embeddingDimensions: number
-  config?: OpenDocsConfig
+  config?: OpenDocumentsConfig
   redactor?: PIIRedactor
   versionManager?: DocumentVersionManager
 }
@@ -49,7 +49,7 @@ export class IngestPipeline {
   private async parseWithFallback(
     raw: RawDocument,
     fileExt: string,
-    config?: OpenDocsConfig
+    config?: OpenDocumentsConfig
   ): Promise<ParsedChunk[]> {
     const { registry } = this.opts
 

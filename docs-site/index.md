@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: OpenDocs
+  name: OpenDocuments
   text: Self-hosted RAG Platform
   tagline: Unify organizational documents and answer questions with AI
   actions:
@@ -10,5 +10,5 @@ hero:
       link: /guide/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/opendocs/opendocs
+      link: https://github.com/opendocuments/opendocuments
 ---

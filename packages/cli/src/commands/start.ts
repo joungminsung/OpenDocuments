@@ -1,6 +1,6 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
-import { bootstrap, createApp, startMCPServer } from '@opendocs/server'
+import { log } from '@opendocuments/core'
+import { bootstrap, createApp, startMCPServer } from '@opendocuments/server'
 import { serve } from '@hono/node-server'
 import { resolve, dirname, join } from 'node:path'
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
@@ -21,7 +21,7 @@ function findWebDistDir(): string | null {
   // Try to find via require.resolve for npm-installed case
   try {
     // @ts-ignore
-    const webPkg = require.resolve('@opendocs/web/package.json')
+    const webPkg = require.resolve('@opendocuments/web/package.json')
     const webDist = resolve(dirname(webPkg), 'dist')
     if (existsSync(webDist)) return webDist
   } catch {}
@@ -31,12 +31,12 @@ function findWebDistDir(): string | null {
 
 export function startCommand() {
   return new Command('start')
-    .description('Start OpenDocs server')
+    .description('Start OpenDocuments server')
     .option('-p, --port <port>', 'Port number', '3000')
     .option('--mcp-only', 'Start MCP server only (stdio mode)')
     .option('--no-web', 'Disable web UI static serving')
     .action(async (opts) => {
-      log.heading('OpenDocs Server')
+      log.heading('OpenDocuments Server')
       if (opts.mcpOnly) {
         log.wait('Starting MCP server (stdio mode)...')
         const ctx = await bootstrap()
@@ -55,8 +55,8 @@ export function startCommand() {
 
       const app = createApp(ctx, { webDir })
       const port = parseInt(opts.port)
-      // Write PID file for `opendocs stop`
-      const pidDir = join(process.env.HOME || '~', '.opendocs')
+      // Write PID file for `opendocuments stop`
+      const pidDir = join(process.env.HOME || '~', '.opendocuments')
       const pidFile = join(pidDir, 'server.pid')
       mkdirSync(pidDir, { recursive: true })
       writeFileSync(pidFile, String(process.pid))

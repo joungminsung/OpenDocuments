@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 
 function createMockEmbedder(): ModelPlugin {
   return {
-    name: '@opendocs/model-mock', type: 'model', version: '0.1.0', coreVersion: '^0.1.0',
+    name: '@opendocuments/model-mock', type: 'model', version: '0.1.0', coreVersion: '^0.1.0',
     capabilities: { embedding: true },
     setup: async () => {},
     async embed(texts: string[]) {
@@ -32,7 +32,7 @@ function createMockEmbedder(): ModelPlugin {
 
 function createMockConnector(docs: { id: string; title: string; path: string; content: string }[]): ConnectorPlugin {
   return {
-    name: '@opendocs/connector-mock', type: 'connector', version: '0.1.0', coreVersion: '^0.1.0',
+    name: '@opendocuments/connector-mock', type: 'connector', version: '0.1.0', coreVersion: '^0.1.0',
     setup: async () => {},
     async *discover() {
       for (const doc of docs) {
@@ -56,7 +56,7 @@ describe('ConnectorManager', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
 
     const registry = new PluginRegistry()
@@ -91,7 +91,7 @@ describe('ConnectorManager', () => {
 
     const list = manager.listConnectors()
     expect(list).toHaveLength(1)
-    expect(list[0].name).toBe('@opendocs/connector-mock')
+    expect(list[0].name).toBe('@opendocuments/connector-mock')
   })
 
   it('syncs a connector and indexes discovered documents', async () => {
@@ -101,7 +101,7 @@ describe('ConnectorManager', () => {
     ])
     manager.registerConnector(connector)
 
-    const result = await manager.syncConnector('@opendocs/connector-mock')
+    const result = await manager.syncConnector('@opendocuments/connector-mock')
     expect(result.documentsDiscovered).toBe(2)
     expect(result.documentsIndexed).toBe(2)
     expect(result.errors).toHaveLength(0)
@@ -113,8 +113,8 @@ describe('ConnectorManager', () => {
     ])
     manager.registerConnector(connector)
 
-    await manager.syncConnector('@opendocs/connector-mock')
-    const result2 = await manager.syncConnector('@opendocs/connector-mock')
+    await manager.syncConnector('@opendocuments/connector-mock')
+    const result2 = await manager.syncConnector('@opendocuments/connector-mock')
     expect(result2.documentsSkipped).toBe(1)
     expect(result2.documentsIndexed).toBe(0)
   })
@@ -140,7 +140,7 @@ describe('ConnectorManager', () => {
       { id: '1', title: 'test.md', path: '/test.md', content: '# Test' },
     ])
     mgr.registerConnector(connector)
-    await mgr.syncConnector('@opendocs/connector-mock')
+    await mgr.syncConnector('@opendocuments/connector-mock')
 
     expect(events).toContain('connector:sync:started')
     expect(events).toContain('connector:sync:completed')

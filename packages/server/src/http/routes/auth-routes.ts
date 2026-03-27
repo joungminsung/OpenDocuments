@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
-import { OAuthProvider } from '@opendocs/core'
+import { OAuthProvider } from '@opendocuments/core'
 import { randomBytes } from 'node:crypto'
 
 // In-memory store for pending OAuth states (state -> timestamp)
@@ -72,7 +72,7 @@ export function authRoutes(ctx: AppContext) {
       })
 
       // Set HTTP-only cookie instead of leaking API key in URL
-      c.header('Set-Cookie', `opendocs_session=${rawKey}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`)
+      c.header('Set-Cookie', `opendocuments_session=${rawKey}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`)
       return c.redirect('/')
     } catch (err) {
       return c.json({ error: `OAuth error: ${(err as Error).message}` }, 500)

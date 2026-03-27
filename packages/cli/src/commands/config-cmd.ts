@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log, loadConfig } from '@opendocs/core'
+import { log, loadConfig } from '@opendocuments/core'
 import { existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -28,8 +28,8 @@ export function configCommand() {
     .description('Open config file in editor')
     .action(async () => {
       const editor = process.env.EDITOR || 'vi'
-      const configPath = join(process.cwd(), 'opendocs.config.ts')
-      if (!existsSync(configPath)) { log.fail('No config file found. Run: opendocs init'); return }
+      const configPath = join(process.cwd(), 'opendocuments.config.ts')
+      if (!existsSync(configPath)) { log.fail('No config file found. Run: opendocuments init'); return }
       const { execSync } = await import('node:child_process')
       execSync(`${editor} ${configPath}`, { stdio: 'inherit' })
     })
@@ -37,14 +37,14 @@ export function configCommand() {
   cmd.command('reset')
     .description('Reset config to defaults')
     .action(async () => {
-      const configPath = join(process.cwd(), 'opendocs.config.ts')
+      const configPath = join(process.cwd(), 'opendocuments.config.ts')
       if (existsSync(configPath)) {
         const { confirm } = await import('@inquirer/prompts')
         const yes = await confirm({ message: 'Reset configuration to defaults?' })
         if (!yes) return
         unlinkSync(configPath)
       }
-      log.ok('Configuration reset. Run: opendocs init')
+      log.ok('Configuration reset. Run: opendocuments init')
     })
 
   // Default action (no subcommand) -- show config

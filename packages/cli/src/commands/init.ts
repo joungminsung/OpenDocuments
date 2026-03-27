@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import chalk from 'chalk'
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -7,13 +7,13 @@ import { cpus, totalmem, platform, arch } from 'node:os'
 
 export function initCommand() {
   return new Command('init')
-    .description('Initialize OpenDocs project')
+    .description('Initialize OpenDocuments project')
     .argument('[directory]', 'Project directory', '.')
     .action(async (dir) => {
       // Dynamic import to avoid loading inquirer when not needed
       const { input, select, confirm } = await import('@inquirer/prompts')
 
-      log.heading('OpenDocs Setup')
+      log.heading('OpenDocuments Setup')
       log.blank()
 
       // 1. System detection
@@ -180,7 +180,7 @@ export function initCommand() {
         preset,
       })
 
-      const configPath = join(projectDir, 'opendocs.config.ts')
+      const configPath = join(projectDir, 'opendocuments.config.ts')
       writeFileSync(configPath, configContent)
 
       // Write .env file with the actual key (never written to config)
@@ -202,7 +202,7 @@ export function initCommand() {
           '.env.local',
           '*.db',
           '*.sqlite',
-          '.opendocs/',
+          '.opendocuments/',
           '',
         ].join('\n'))
         log.ok(`.gitignore created`)
@@ -229,9 +229,9 @@ export function initCommand() {
       if (backend === 'cloud') {
         log.arrow(`Set API key: export ${envVarName}=your-key-here`)
       }
-      log.arrow(`${dir === '.' ? '' : `cd ${dir} && `}opendocs start`)
-      log.arrow('opendocs index ./docs')
-      log.arrow('opendocs ask "your question"')
+      log.arrow(`${dir === '.' ? '' : `cd ${dir} && `}opendocuments start`)
+      log.arrow('opendocuments index ./docs')
+      log.arrow('opendocuments ask "your question"')
     })
 }
 
@@ -255,9 +255,9 @@ function detectSystem(): SystemSpecs {
 }
 
 const PRESET_PLUGINS: Record<string, string[]> = {
-  developer: ['@opendocs/parser-code', '@opendocs/connector-github'],
-  enterprise: ['@opendocs/parser-pdf', '@opendocs/parser-docx', '@opendocs/parser-xlsx', '@opendocs/connector-gdrive', '@opendocs/connector-notion', '@opendocs/connector-confluence'],
-  all: ['@opendocs/parser-pdf', '@opendocs/parser-docx', '@opendocs/parser-xlsx', '@opendocs/parser-html', '@opendocs/parser-jupyter', '@opendocs/parser-email', '@opendocs/parser-code', '@opendocs/connector-github', '@opendocs/connector-notion', '@opendocs/connector-gdrive', '@opendocs/connector-s3', '@opendocs/connector-confluence', '@opendocs/connector-web-crawler'],
+  developer: ['@opendocuments/parser-code', '@opendocuments/connector-github'],
+  enterprise: ['@opendocuments/parser-pdf', '@opendocuments/parser-docx', '@opendocuments/parser-xlsx', '@opendocuments/connector-gdrive', '@opendocuments/connector-notion', '@opendocuments/connector-confluence'],
+  all: ['@opendocuments/parser-pdf', '@opendocuments/parser-docx', '@opendocuments/parser-xlsx', '@opendocuments/parser-html', '@opendocuments/parser-jupyter', '@opendocuments/parser-email', '@opendocuments/parser-code', '@opendocuments/connector-github', '@opendocuments/connector-notion', '@opendocuments/connector-gdrive', '@opendocuments/connector-s3', '@opendocuments/connector-confluence', '@opendocuments/connector-web-crawler'],
 }
 
 interface ConfigOptions {
@@ -275,7 +275,7 @@ interface ConfigOptions {
 
 function generateConfigFile(opts: ConfigOptions): string {
   const lines = [
-    `import { defineConfig } from '@opendocs/core'`,
+    `import { defineConfig } from '@opendocuments/core'`,
     ``,
     `export default defineConfig({`,
     `  workspace: '${opts.projectName}',`,
@@ -309,7 +309,7 @@ function generateConfigFile(opts: ConfigOptions): string {
     `  storage: {`,
     `    db: 'sqlite',`,
     `    vectorDb: 'lancedb',`,
-    `    dataDir: '~/.opendocs',`,
+    `    dataDir: '~/.opendocuments',`,
     `  },`,
   )
 

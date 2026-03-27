@@ -25,7 +25,7 @@ describe('IngestPipeline', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
 
     const registry = new PluginRegistry()

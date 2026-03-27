@@ -1,5 +1,5 @@
-import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface NotionConfig {
   token?: string
@@ -8,7 +8,7 @@ export interface NotionConfig {
 }
 
 export class NotionConnector implements ConnectorPlugin {
-  name = '@opendocs/connector-notion'
+  name = '@opendocuments/connector-notion'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

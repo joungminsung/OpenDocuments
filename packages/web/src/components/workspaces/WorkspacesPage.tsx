@@ -25,7 +25,7 @@ export function WorkspacesPage() {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-gray-400">Manage workspaces via CLI: opendocs workspace create/switch/delete</p>
+      <p className="mt-4 text-xs text-gray-400">Manage workspaces via CLI: opendocuments workspace create/switch/delete</p>
     </div>
   )
 }

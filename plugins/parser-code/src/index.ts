@@ -1,4 +1,4 @@
-import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocs/core'
+import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocuments/core'
 
 const LANGUAGE_MAP: Record<string, string> = {
   '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript',
@@ -54,7 +54,7 @@ const PATTERNS: Record<string, RegExp[]> = {
 }
 
 export class CodeParser implements ParserPlugin {
-  name = '@opendocs/parser-code'
+  name = '@opendocuments/parser-code'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

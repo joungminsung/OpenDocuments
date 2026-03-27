@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 
@@ -29,7 +29,7 @@ export function askCommand() {
         const readline = await import('node:readline')
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
-        log.heading('OpenDocs Interactive')
+        log.heading('OpenDocuments Interactive')
         log.dim(`Profile: ${opts.profile} | Type /quit to exit`)
 
         const askLine = () => {
@@ -68,7 +68,7 @@ export function askCommand() {
           const result = await ctx.ragEngine.query({ query, profile: opts.profile })
           console.log(JSON.stringify(result, null, 2))
         } else {
-          log.heading('OpenDocs')
+          log.heading('OpenDocuments')
           log.dim(`Profile: ${opts.profile}`)
           log.blank()
           console.log(chalk.green('  >'), chalk.white(query))

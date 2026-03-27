@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'OpenDocs',
+  title: 'OpenDocuments',
   description: 'Self-hosted RAG platform documentation',
   themeConfig: {
     nav: [

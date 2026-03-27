@@ -25,7 +25,7 @@ describe('RAGEngine', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     db.run("INSERT INTO workspaces (id, name) VALUES ('ws-1', 'default')")
 
@@ -65,7 +65,7 @@ describe('RAGEngine', () => {
   it('handles greetings with direct response', async () => {
     const result = await engine.query({ query: 'Hello!' })
     expect(result.route).toBe('direct')
-    expect(result.answer).toContain('OpenDocs')
+    expect(result.answer).toContain('OpenDocuments')
     expect(result.sources).toHaveLength(0)
   })
 

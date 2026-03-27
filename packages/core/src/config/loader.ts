@@ -1,16 +1,16 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createJiti } from 'jiti'
-import { configSchema, type OpenDocsConfig } from './schema.js'
+import { configSchema, type OpenDocumentsConfig } from './schema.js'
 import { DEFAULT_CONFIG } from './defaults.js'
 
-export function validateConfig(raw: unknown): OpenDocsConfig {
+export function validateConfig(raw: unknown): OpenDocumentsConfig {
   return configSchema.parse(raw)
 }
 
-export function loadConfig(projectDir: string): OpenDocsConfig {
-  const tsPath = resolve(projectDir, 'opendocs.config.ts')
-  const jsPath = resolve(projectDir, 'opendocs.config.js')
+export function loadConfig(projectDir: string): OpenDocumentsConfig {
+  const tsPath = resolve(projectDir, 'opendocuments.config.ts')
+  const jsPath = resolve(projectDir, 'opendocuments.config.js')
 
   const configPath = existsSync(tsPath) ? tsPath : existsSync(jsPath) ? jsPath : null
 
@@ -36,6 +36,6 @@ export function loadConfig(projectDir: string): OpenDocsConfig {
   }
 }
 
-export function defineConfig(config: Partial<OpenDocsConfig>): OpenDocsConfig {
+export function defineConfig(config: Partial<OpenDocumentsConfig>): OpenDocumentsConfig {
   return validateConfig(config)
 }

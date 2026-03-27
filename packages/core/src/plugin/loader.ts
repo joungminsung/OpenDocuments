@@ -18,7 +18,7 @@ export async function loadPlugin(name: string): Promise<AnyPlugin> {
     const plugin = mod.default ?? mod
 
     if (!isValidPlugin(plugin)) {
-      throw new Error(`Plugin ${name} does not export a valid OpenDocs plugin`)
+      throw new Error(`Plugin ${name} does not export a valid OpenDocuments plugin`)
     }
 
     return plugin as AnyPlugin

@@ -13,7 +13,7 @@ describe('NotionConnector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-notion')
+    expect(connector.name).toBe('@opendocuments/connector-notion')
     expect(connector.type).toBe('connector')
   })
 

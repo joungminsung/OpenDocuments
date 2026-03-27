@@ -13,7 +13,7 @@ describe('GitHubConnector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-github')
+    expect(connector.name).toBe('@opendocuments/connector-github')
     expect(connector.type).toBe('connector')
   })
 

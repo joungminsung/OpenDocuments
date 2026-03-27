@@ -10,7 +10,7 @@ describe('HTMLParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-html')
+    expect(parser.name).toBe('@opendocuments/parser-html')
     expect(parser.supportedTypes).toEqual(['.html', '.htm'])
   })
 

@@ -10,7 +10,7 @@ describe('Auth Middleware', () => {
   let tempDir: string
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     // Bootstrap in team mode
     ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team' } })
   })
@@ -51,7 +51,7 @@ describe('Auth Middleware', () => {
   })
 
   it('allows all requests in personal mode', async () => {
-    const tempDir2 = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    const tempDir2 = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     const personalCtx = await bootstrap({ dataDir: tempDir2 })  // default personal mode
     const app = createApp(personalCtx)
     const res = await app.request('/api/v1/health')

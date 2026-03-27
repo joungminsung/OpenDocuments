@@ -1,5 +1,5 @@
 {
-  "name": "@opendocs/docs",
+  "name": "@opendocuments/docs",
   "private": true,
   "scripts": {
     "dev": "vitepress dev",

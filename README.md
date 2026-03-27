@@ -1,13 +1,13 @@
-# OpenDocs
+# OpenDocuments
 
 > Self-hosted open-source RAG platform that unifies scattered organizational documents and answers natural language queries with accurate, source-cited responses.
 
 ## Quick Start
 
 ```bash
-npm install -g @opendocs/cli
-opendocs init
-opendocs start
+npm install -g @opendocuments/cli
+opendocuments init
+opendocuments start
 ```
 
 Then open http://localhost:3000 in your browser.
@@ -15,27 +15,27 @@ Then open http://localhost:3000 in your browser.
 ## CLI Commands
 
 ```bash
-opendocs init              # Interactive setup wizard
-opendocs start             # Start server (Web UI + API + MCP)
-opendocs start --mcp-only  # MCP server for Claude Code / Cursor
-opendocs index ./docs      # Index local files
-opendocs ask "question"    # Ask from CLI
-opendocs doctor            # System health check
-opendocs config            # View configuration
-opendocs connector list    # List connectors
-opendocs connector sync    # Sync all connectors
-opendocs auth create-key   # Generate API key
-opendocs auth list-keys    # List API keys
-opendocs plugin list       # List installed plugins
-opendocs plugin create     # Scaffold a new plugin
-opendocs stop              # Stop the server
-opendocs search "keyword"  # Search without LLM
-opendocs document list     # List documents
-opendocs workspace list    # List workspaces
-opendocs export            # Export data backup
-opendocs import <path>     # Import from backup
-opendocs upgrade           # Upgrade to latest
-opendocs completion install # Install shell completions
+opendocuments init              # Interactive setup wizard
+opendocuments start             # Start server (Web UI + API + MCP)
+opendocuments start --mcp-only  # MCP server for Claude Code / Cursor
+opendocuments index ./docs      # Index local files
+opendocuments ask "question"    # Ask from CLI
+opendocuments doctor            # System health check
+opendocuments config            # View configuration
+opendocuments connector list    # List connectors
+opendocuments connector sync    # Sync all connectors
+opendocuments auth create-key   # Generate API key
+opendocuments auth list-keys    # List API keys
+opendocuments plugin list       # List installed plugins
+opendocuments plugin create     # Scaffold a new plugin
+opendocuments stop              # Stop the server
+opendocuments search "keyword"  # Search without LLM
+opendocuments document list     # List documents
+opendocuments workspace list    # List workspaces
+opendocuments export            # Export data backup
+opendocuments import <path>     # Import from backup
+opendocuments upgrade           # Upgrade to latest
+opendocuments completion install # Install shell completions
 ```
 
 ## Supported File Formats
@@ -61,8 +61,8 @@ opendocs completion install # Install shell completions
 ## Development
 
 ```bash
-git clone https://github.com/opendocs/opendocs
-cd opendocs
+git clone https://github.com/opendocuments/opendocuments
+cd opendocuments
 npm run setup    # Install + build
 npm run test     # Run all tests
 ```

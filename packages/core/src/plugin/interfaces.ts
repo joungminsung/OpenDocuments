@@ -48,7 +48,7 @@ export interface PluginContext {
 
 // --- Base Plugin ---
 
-export interface OpenDocsPlugin {
+export interface OpenDocumentsPlugin {
   name: string
   type: PluginType
   version: string
@@ -106,7 +106,7 @@ export interface AuthResult {
   message?: string
 }
 
-export interface ConnectorPlugin extends OpenDocsPlugin {
+export interface ConnectorPlugin extends OpenDocumentsPlugin {
   type: 'connector'
   discover(): AsyncIterable<DiscoveredDocument>
   fetch(docRef: DocumentRef): Promise<RawDocument>
@@ -128,7 +128,7 @@ export interface ParsedChunk {
   metadata?: Record<string, unknown>
 }
 
-export interface ParserPlugin extends OpenDocsPlugin {
+export interface ParserPlugin extends OpenDocumentsPlugin {
   type: 'parser'
   supportedTypes: string[]
   multimodal?: boolean
@@ -154,7 +154,7 @@ export interface RerankResult {
   indices: number[]
 }
 
-export interface ModelPlugin extends OpenDocsPlugin {
+export interface ModelPlugin extends OpenDocumentsPlugin {
   type: 'model'
   capabilities: {
     llm?: boolean
@@ -170,7 +170,7 @@ export interface ModelPlugin extends OpenDocsPlugin {
 
 // --- Middleware Plugin ---
 
-export interface MiddlewarePlugin extends OpenDocsPlugin {
+export interface MiddlewarePlugin extends OpenDocumentsPlugin {
   type: 'middleware'
   hooks: {
     stage: PipelineStage

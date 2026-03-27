@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SwaggerConnector } from '../src/index.js'
 
-vi.mock('@opendocs/core', async () => {
-  const actual = await vi.importActual('@opendocs/core')
+vi.mock('@opendocuments/core', async () => {
+  const actual = await vi.importActual('@opendocuments/core')
   return { ...actual, fetchWithTimeout: vi.fn() }
 })
-import { fetchWithTimeout } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 const SAMPLE_SPEC = {
   openapi: '3.0.0',
@@ -28,7 +28,7 @@ describe('SwaggerConnector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-swagger')
+    expect(connector.name).toBe('@opendocuments/connector-swagger')
     expect(connector.type).toBe('connector')
   })
 

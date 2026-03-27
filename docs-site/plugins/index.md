@@ -1,7 +1,7 @@
 # Creating Plugins
 
 ```bash
-opendocs plugin create my-parser --type parser
+opendocuments plugin create my-parser --type parser
 cd my-parser
 npm install
 npm run test

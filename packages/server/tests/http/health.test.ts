@@ -11,7 +11,7 @@ describe('Health Routes', () => {
   let tempDir: string
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir })
     app = createApp(ctx)
   })

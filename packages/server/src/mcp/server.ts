@@ -6,12 +6,12 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { discoverFiles } from '@opendocs/core'
+import { discoverFiles } from '@opendocuments/core'
 import type { AppContext } from '../bootstrap.js'
 
 const TOOLS = [
   {
-    name: 'opendocs_ask',
+    name: 'opendocuments_ask',
     description: 'Query the RAG engine with a natural language question and get an answer with sources',
     inputSchema: {
       type: 'object' as const,
@@ -23,7 +23,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_search',
+    name: 'opendocuments_search',
     description: 'Perform a vector similarity search without LLM generation, returning raw document chunks',
     inputSchema: {
       type: 'object' as const,
@@ -35,7 +35,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_index_path',
+    name: 'opendocuments_index_path',
     description: 'Index a local file or directory into the document store',
     inputSchema: {
       type: 'object' as const,
@@ -46,7 +46,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_document_list',
+    name: 'opendocuments_document_list',
     description: 'List all indexed documents in the document store',
     inputSchema: {
       type: 'object' as const,
@@ -54,7 +54,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_stats',
+    name: 'opendocuments_stats',
     description: 'Get system statistics including document count, workspace count, and plugin info',
     inputSchema: {
       type: 'object' as const,
@@ -62,20 +62,20 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_doctor',
-    description: 'Run a health check on the OpenDocs system and report status of all components',
+    name: 'opendocuments_doctor',
+    description: 'Run a health check on the OpenDocuments system and report status of all components',
     inputSchema: {
       type: 'object' as const,
       properties: {},
     },
   },
   {
-    name: 'opendocs_connector_list',
+    name: 'opendocuments_connector_list',
     description: 'List registered connectors and their sync status',
     inputSchema: { type: 'object' as const, properties: {} },
   },
   {
-    name: 'opendocs_connector_sync',
+    name: 'opendocuments_connector_sync',
     description: 'Sync a connector to discover and index new documents',
     inputSchema: {
       type: 'object' as const,
@@ -85,32 +85,32 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_document_get',
+    name: 'opendocuments_document_get',
     description: 'Get document details by ID',
     inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
   },
   {
-    name: 'opendocs_document_delete',
+    name: 'opendocuments_document_delete',
     description: 'Delete a document (soft)',
     inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
   },
   {
-    name: 'opendocs_config_get',
+    name: 'opendocuments_config_get',
     description: 'Get configuration value',
     inputSchema: { type: 'object' as const, properties: { key: { type: 'string' } } },
   },
   {
-    name: 'opendocs_workspace_list',
+    name: 'opendocuments_workspace_list',
     description: 'List workspaces',
     inputSchema: { type: 'object' as const, properties: {} },
   },
   {
-    name: 'opendocs_plugin_list',
+    name: 'opendocuments_plugin_list',
     description: 'List installed plugins',
     inputSchema: { type: 'object' as const, properties: {} },
   },
   {
-    name: 'opendocs_workspace_switch',
+    name: 'opendocuments_workspace_switch',
     description: 'Switch workspace',
     inputSchema: {
       type: 'object' as const,
@@ -119,35 +119,35 @@ const TOOLS = [
     },
   },
   {
-    name: 'opendocs_document_reindex',
+    name: 'opendocuments_document_reindex',
     description: 'Reindex a document',
     inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
   },
   {
-    name: 'opendocs_index_status',
+    name: 'opendocuments_index_status',
     description: 'Get indexing status',
     inputSchema: { type: 'object' as const, properties: {} },
   },
   {
-    name: 'opendocs_plugin_add',
+    name: 'opendocuments_plugin_add',
     description: 'Install a plugin',
     inputSchema: { type: 'object' as const, properties: { name: { type: 'string' } }, required: ['name'] },
   },
   {
-    name: 'opendocs_plugin_remove',
+    name: 'opendocuments_plugin_remove',
     description: 'Remove a plugin',
     inputSchema: { type: 'object' as const, properties: { name: { type: 'string' } }, required: ['name'] },
   },
   {
-    name: 'opendocs_config_set',
-    description: 'Set a config value (note: edit opendocs.config.ts directly)',
+    name: 'opendocuments_config_set',
+    description: 'Set a config value (note: edit opendocuments.config.ts directly)',
     inputSchema: { type: 'object' as const, properties: { key: { type: 'string' }, value: { type: 'string' } }, required: ['key', 'value'] },
   },
 ]
 
 export function createMCPServer(ctx: AppContext): Server {
   const server = new Server(
-    { name: 'opendocs', version: '0.1.0' },
+    { name: 'opendocuments', version: '0.1.0' },
     { capabilities: { tools: {}, resources: {} } }
   )
 
@@ -157,18 +157,18 @@ export function createMCPServer(ctx: AppContext): Server {
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
     resources: [
-      { uri: 'opendocs://documents', name: 'Document List', mimeType: 'application/json' },
-      { uri: 'opendocs://stats', name: 'System Stats', mimeType: 'application/json' },
+      { uri: 'opendocuments://documents', name: 'Document List', mimeType: 'application/json' },
+      { uri: 'opendocuments://stats', name: 'System Stats', mimeType: 'application/json' },
     ],
   }))
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const uri = request.params.uri
-    if (uri === 'opendocs://documents') {
+    if (uri === 'opendocuments://documents') {
       const docs = ctx.store.listDocuments()
       return { contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(docs) }] }
     }
-    if (uri === 'opendocs://stats') {
+    if (uri === 'opendocuments://stats') {
       const docs = ctx.store.listDocuments()
       const workspaces = ctx.workspaceManager.list()
       const plugins = ctx.registry.listAll()
@@ -188,7 +188,7 @@ export function createMCPServer(ctx: AppContext): Server {
 
     try {
       switch (name) {
-        case 'opendocs_ask': {
+        case 'opendocuments_ask': {
           const query = (args as Record<string, unknown>)?.query as string
           const profile = (args as Record<string, unknown>)?.profile as string | undefined
           if (!query) {
@@ -218,7 +218,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_search': {
+        case 'opendocuments_search': {
           const query = (args as Record<string, unknown>)?.query as string
           const topK = ((args as Record<string, unknown>)?.topK as number) ?? 5
           if (!query) {
@@ -229,7 +229,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
           const embedder = ctx.registry.getModels().find(m => m.capabilities.embedding)
           if (!embedder?.embed) {
-            return { content: [{ type: 'text' as const, text: 'No embedding model configured. Run opendocs init to set up a model.' }] }
+            return { content: [{ type: 'text' as const, text: 'No embedding model configured. Run opendocuments init to set up a model.' }] }
           }
 
           let embedResult
@@ -258,7 +258,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_index_path': {
+        case 'opendocuments_index_path': {
           const filePath = (args as Record<string, unknown>)?.path as string
           if (!filePath) {
             return {
@@ -308,7 +308,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_document_list': {
+        case 'opendocuments_document_list': {
           const docs = ctx.store.listDocuments()
           return {
             content: [
@@ -330,7 +330,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_stats': {
+        case 'opendocuments_stats': {
           const docs = ctx.store.listDocuments()
           const workspaces = ctx.workspaceManager.list()
           const plugins = ctx.registry.listAll()
@@ -353,7 +353,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_doctor': {
+        case 'opendocuments_doctor': {
           const plugins = ctx.registry.listAll()
           const docs = ctx.store.listDocuments()
           const workspaces = ctx.workspaceManager.list()
@@ -390,7 +390,7 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_connector_list': {
+        case 'opendocuments_connector_list': {
           const connectors = ctx.connectorManager.listConnectors()
           if (connectors.length === 0) {
             return { content: [{ type: 'text' as const, text: 'No connectors registered' }] }
@@ -401,7 +401,7 @@ export function createMCPServer(ctx: AppContext): Server {
           return { content: [{ type: 'text' as const, text: formatted }] }
         }
 
-        case 'opendocs_connector_sync': {
+        case 'opendocuments_connector_sync': {
           const connectorName = (args as Record<string, unknown>).name as string | undefined
           if (connectorName) {
             const result = await ctx.connectorManager.syncConnector(connectorName)
@@ -413,18 +413,18 @@ export function createMCPServer(ctx: AppContext): Server {
           }
         }
 
-        case 'opendocs_document_get': {
+        case 'opendocuments_document_get': {
           const doc = ctx.store.getDocument((args as Record<string, unknown>).id as string)
           if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
           return { content: [{ type: 'text' as const, text: JSON.stringify(doc, null, 2) }] }
         }
 
-        case 'opendocs_document_delete': {
+        case 'opendocuments_document_delete': {
           await ctx.store.softDeleteDocument((args as Record<string, unknown>).id as string)
           return { content: [{ type: 'text' as const, text: 'Document moved to trash' }] }
         }
 
-        case 'opendocs_config_get': {
+        case 'opendocuments_config_get': {
           const key = (args as Record<string, unknown>).key as string | undefined
           if (!key) return { content: [{ type: 'text' as const, text: JSON.stringify(ctx.config, null, 2) }] }
           const keys = key.split('.')
@@ -433,34 +433,34 @@ export function createMCPServer(ctx: AppContext): Server {
           return { content: [{ type: 'text' as const, text: JSON.stringify(val, null, 2) }] }
         }
 
-        case 'opendocs_workspace_list': {
+        case 'opendocuments_workspace_list': {
           const workspaces = ctx.workspaceManager.list()
           return { content: [{ type: 'text' as const, text: workspaces.map(w => `${w.name} (${w.mode})`).join('\n') }] }
         }
 
-        case 'opendocs_plugin_list': {
+        case 'opendocuments_plugin_list': {
           const plugins = ctx.registry.listAll()
           return { content: [{ type: 'text' as const, text: plugins.map(p => `${p.name} (${p.type}) v${p.version}`).join('\n') || 'No plugins installed' }] }
         }
 
-        case 'opendocs_workspace_switch': {
+        case 'opendocuments_workspace_switch': {
           const ws = ctx.workspaceManager.getByName((args as Record<string, unknown>).name as string)
           if (!ws) return { content: [{ type: 'text' as const, text: 'Workspace not found' }] }
           // Note: Full workspace switching requires server restart with different config.
           // MCP sessions are bound to the workspace configured at startup.
-          return { content: [{ type: 'text' as const, text: `Workspace "${ws.name}" exists. To switch, update opendocs.config.ts and restart the server. MCP sessions are bound to the startup workspace.` }] }
+          return { content: [{ type: 'text' as const, text: `Workspace "${ws.name}" exists. To switch, update opendocuments.config.ts and restart the server. MCP sessions are bound to the startup workspace.` }] }
         }
 
-        case 'opendocs_document_reindex': {
+        case 'opendocuments_document_reindex': {
           const id = (args as Record<string, unknown>).id as string
           const doc = ctx.store.getDocument(id)
           if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
           await ctx.store.softDeleteDocument(id)
           ctx.store.restoreDocument(id)
-          return { content: [{ type: 'text' as const, text: `Document "${doc.title}" reset to pending. Re-index it with: opendocs index ${doc.source_path}` }] }
+          return { content: [{ type: 'text' as const, text: `Document "${doc.title}" reset to pending. Re-index it with: opendocuments index ${doc.source_path}` }] }
         }
 
-        case 'opendocs_index_status': {
+        case 'opendocuments_index_status': {
           const docs = ctx.store.listDocuments()
           const indexed = docs.filter(d => d.status === 'indexed').length
           const pending = docs.filter(d => d.status === 'pending').length
@@ -468,16 +468,16 @@ export function createMCPServer(ctx: AppContext): Server {
           return { content: [{ type: 'text' as const, text: `Indexed: ${indexed}, Pending: ${pending}, Errors: ${errors}, Total: ${docs.length}` }] }
         }
 
-        case 'opendocs_plugin_add': {
+        case 'opendocuments_plugin_add': {
           return { content: [{ type: 'text' as const, text: `To install a plugin, run: npm install ${(args as Record<string, unknown>).name}` }] }
         }
 
-        case 'opendocs_plugin_remove': {
+        case 'opendocuments_plugin_remove': {
           return { content: [{ type: 'text' as const, text: `To remove a plugin, run: npm uninstall ${(args as Record<string, unknown>).name}` }] }
         }
 
-        case 'opendocs_config_set': {
-          return { content: [{ type: 'text' as const, text: `Config writing is not supported via MCP. Edit opendocs.config.ts directly.` }] }
+        case 'opendocuments_config_set': {
+          return { content: [{ type: 'text' as const, text: `Config writing is not supported via MCP. Edit opendocuments.config.ts directly.` }] }
         }
 
         default:

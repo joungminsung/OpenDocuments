@@ -13,7 +13,7 @@ export function ConnectorsPage() {
     <div className="max-w-4xl mx-auto px-4 py-6">
       <h2 className="text-xl font-semibold mb-4">Connectors</h2>
       {connectors.length === 0 ? (
-        <p className="text-gray-400 text-sm">No connectors configured. Add connectors in opendocs.config.ts</p>
+        <p className="text-gray-400 text-sm">No connectors configured. Add connectors in opendocuments.config.ts</p>
       ) : (
         <div className="space-y-2">
           {connectors.map(c => (

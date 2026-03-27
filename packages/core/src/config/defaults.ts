@@ -1,6 +1,6 @@
-import type { OpenDocsConfig } from './schema.js'
+import type { OpenDocumentsConfig } from './schema.js'
 
-export const DEFAULT_CONFIG: OpenDocsConfig = {
+export const DEFAULT_CONFIG: OpenDocumentsConfig = {
   workspace: 'default',
   mode: 'personal',
   model: { provider: 'ollama', llm: 'qwen2.5:14b', embedding: 'bge-m3', embeddingProvider: undefined, apiKey: undefined, embeddingApiKey: undefined, baseUrl: undefined, embeddingDimensions: undefined },
@@ -21,5 +21,5 @@ export const DEFAULT_CONFIG: OpenDocsConfig = {
   },
   ui: { locale: 'auto', theme: 'auto' },
   telemetry: { enabled: false },
-  storage: { db: 'sqlite', vectorDb: 'lancedb', dataDir: '~/.opendocs' },
+  storage: { db: 'sqlite', vectorDb: 'lancedb', dataDir: '~/.opendocuments' },
 }

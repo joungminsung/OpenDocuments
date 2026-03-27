@@ -4,11 +4,11 @@
 
 **Goal:** Build the ingest pipeline (discover -> fetch -> parse -> chunk -> embed -> store) and RAG engine (query route -> retrieve -> rerank -> generate) so that local markdown files can be indexed and queried with natural language answers.
 
-**Architecture:** The ingest pipeline orchestrates plugins (connectors, parsers, models) through a stage-based pipeline with middleware hooks and event bus integration. The RAG engine receives queries, retrieves relevant chunks from LanceDB, and generates streaming answers via the model plugin. Both systems sit inside `@opendocs/core` and are consumed by the server/CLI (Plan 3).
+**Architecture:** The ingest pipeline orchestrates plugins (connectors, parsers, models) through a stage-based pipeline with middleware hooks and event bus integration. The RAG engine receives queries, retrieves relevant chunks from LanceDB, and generates streaming answers via the model plugin. Both systems sit inside `@opendocuments/core` and are consumed by the server/CLI (Plan 3).
 
 **Tech Stack:** Built on Plan 1 foundation -- PluginRegistry, EventBus, DB, VectorDB, WorkspaceManager. New deps: a markdown parser lib, a tokenizer for chunk sizing.
 
-**Spec Reference:** `docs/superpowers/specs/2026-03-26-opendocs-design.md` sections 4 and 5
+**Spec Reference:** `docs/superpowers/specs/2026-03-26-opendocuments-design.md` sections 4 and 5
 
 **Depends on:** Plan 1 complete (all 43 tests passing)
 
@@ -16,7 +16,7 @@
 
 ## Scope for Plan 2
 
-Plan 2 covers the **core engines only** -- no HTTP server, no CLI, no Web UI. The output is importable functions/classes from `@opendocs/core` that Plan 3 (Server + CLI) will expose.
+Plan 2 covers the **core engines only** -- no HTTP server, no CLI, no Web UI. The output is importable functions/classes from `@opendocuments/core` that Plan 3 (Server + CLI) will expose.
 
 **In scope:**
 - Ingest pipeline orchestrator with middleware hooks
@@ -319,7 +319,7 @@ describe('MarkdownParser', () => {
   const parser = new MarkdownParser()
 
   it('has correct plugin metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-markdown')
+    expect(parser.name).toBe('@opendocuments/parser-markdown')
     expect(parser.type).toBe('parser')
     expect(parser.supportedTypes).toEqual(['.md', '.mdx'])
   })
@@ -407,7 +407,7 @@ import type {
  * Text sections are emitted as 'semantic' chunks.
  */
 export class MarkdownParser implements ParserPlugin {
-  name = '@opendocs/parser-markdown'
+  name = '@opendocuments/parser-markdown'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'
@@ -629,7 +629,7 @@ describe('DocumentStore', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     store = new DocumentStore(db, vectorDb, 'default-workspace-id')
     await store.initialize(3) // 3-dim vectors for test
@@ -748,7 +748,7 @@ import { randomUUID } from 'node:crypto'
 import type { DB } from '../storage/db.js'
 import type { VectorDB } from '../storage/vector-db.js'
 
-const COLLECTION = 'opendocs_chunks'
+const COLLECTION = 'opendocuments_chunks'
 
 export interface CreateDocumentInput {
   title: string
@@ -982,7 +982,7 @@ import { tmpdir } from 'node:os'
 // Mock embedding model that returns deterministic vectors
 function createMockModel(): ModelPlugin {
   return {
-    name: '@opendocs/model-mock',
+    name: '@opendocuments/model-mock',
     type: 'model',
     version: '0.1.0',
     coreVersion: '^0.1.0',
@@ -1009,7 +1009,7 @@ describe('IngestPipeline', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
 
     const registry = new PluginRegistry()
@@ -1634,7 +1634,7 @@ describe('Retriever', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     store = new DocumentStore(db, vectorDb, 'ws-1')
     await store.initialize(3)
@@ -1747,13 +1747,13 @@ export interface GenerateInput {
 }
 
 const INTENT_PROMPTS: Record<string, string> = {
-  code: 'You are OpenDocs, a document assistant. Prioritize code examples. Use fenced code blocks with language tags. Cite sources using [Source: filename#section].',
-  concept: 'You are OpenDocs, a document assistant. Explain clearly and concisely. Use analogies if helpful. Cite sources using [Source: filename#section].',
-  config: 'You are OpenDocs, a document assistant. Be precise with configuration details. Include file paths and exact values. Cite sources using [Source: filename#section].',
-  data: 'You are OpenDocs, a document assistant. Be precise with numbers. Present data in tables when appropriate. Cite sources using [Source: filename#section].',
-  search: 'You are OpenDocs, a document assistant. List relevant documents with brief summaries. Sort by relevance. Cite sources using [Source: filename#section].',
-  compare: 'You are OpenDocs, a document assistant. Present a structured comparison. Use tables for side-by-side when possible. Cite sources using [Source: filename#section].',
-  general: 'You are OpenDocs, a document assistant. Answer based ONLY on the provided context. If the context is insufficient, say so honestly. Cite sources using [Source: filename#section].',
+  code: 'You are OpenDocuments, a document assistant. Prioritize code examples. Use fenced code blocks with language tags. Cite sources using [Source: filename#section].',
+  concept: 'You are OpenDocuments, a document assistant. Explain clearly and concisely. Use analogies if helpful. Cite sources using [Source: filename#section].',
+  config: 'You are OpenDocuments, a document assistant. Be precise with configuration details. Include file paths and exact values. Cite sources using [Source: filename#section].',
+  data: 'You are OpenDocuments, a document assistant. Be precise with numbers. Present data in tables when appropriate. Cite sources using [Source: filename#section].',
+  search: 'You are OpenDocuments, a document assistant. List relevant documents with brief summaries. Sort by relevance. Cite sources using [Source: filename#section].',
+  compare: 'You are OpenDocuments, a document assistant. Present a structured comparison. Use tables for side-by-side when possible. Cite sources using [Source: filename#section].',
+  general: 'You are OpenDocuments, a document assistant. Answer based ONLY on the provided context. If the context is insufficient, say so honestly. Cite sources using [Source: filename#section].',
 }
 
 export function buildPrompt(input: GenerateInput): string {
@@ -1961,7 +1961,7 @@ export class RAGEngine {
   private directResponse(query: string): string {
     const lower = query.toLowerCase().trim()
     if (/^(hi|hello|hey|안녕|하이|반가워)/i.test(lower)) {
-      return 'Hello! I am OpenDocs. Ask me anything about your documents.'
+      return 'Hello! I am OpenDocuments. Ask me anything about your documents.'
     }
     return 'This is a direct response. For document-related queries, I will search through your indexed documents.'
   }
@@ -2023,7 +2023,7 @@ describe('RAGEngine', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     db.run("INSERT INTO workspaces (id, name) VALUES ('ws-1', 'default')")
 
@@ -2068,7 +2068,7 @@ describe('RAGEngine', () => {
     const result = await engine.query({ query: 'Hello!' })
 
     expect(result.route).toBe('direct')
-    expect(result.answer).toContain('OpenDocs')
+    expect(result.answer).toContain('OpenDocuments')
     expect(result.sources).toHaveLength(0)
   })
 

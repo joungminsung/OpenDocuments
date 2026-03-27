@@ -1,7 +1,7 @@
-import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocs/core'
+import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocuments/core'
 
 export class PPTXParser implements ParserPlugin {
-  name = '@opendocs/parser-pptx'
+  name = '@opendocuments/parser-pptx'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

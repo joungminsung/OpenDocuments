@@ -13,7 +13,7 @@ describe('WebSearchProvider', () => {
   })
 
   it('has correct metadata', () => {
-    expect(provider.name).toBe('@opendocs/connector-web-search')
+    expect(provider.name).toBe('@opendocuments/connector-web-search')
   })
 
   it('healthCheck passes with API key', async () => {

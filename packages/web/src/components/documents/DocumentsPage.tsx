@@ -48,7 +48,7 @@ export function DocumentsPage() {
       ) : docs.length === 0 ? (
         <div className="mt-8 text-center text-gray-400">
           <p>No documents indexed yet.</p>
-          <p className="text-sm mt-1">Upload files above or use <code className="text-primary-500">opendocs index ./docs</code></p>
+          <p className="text-sm mt-1">Upload files above or use <code className="text-primary-500">opendocuments index ./docs</code></p>
         </div>
       ) : (
         <div className="mt-4 space-y-2">

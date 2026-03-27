@@ -1,14 +1,14 @@
 services:
-  opendocs:
+  opendocuments:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
     volumes:
-      - opendocs-data:/data
+      - opendocuments-data:/data
     environment:
-      - OPENDOCS_DATA_DIR=/data
+      - OPENDOCUMENTS_DATA_DIR=/data
       - NODE_ENV=production
 
   ollama:
@@ -18,5 +18,5 @@ services:
     profiles: ["with-ollama"]  # Only start with: docker compose --profile with-ollama up
 
 volumes:
-  opendocs-data:
+  opendocuments-data:
   ollama_models:

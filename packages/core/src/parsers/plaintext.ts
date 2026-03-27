@@ -1,7 +1,7 @@
 import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '../plugin/interfaces.js'
 
 export class PlainTextParser implements ParserPlugin {
-  name = '@opendocs/parser-plaintext'
+  name = '@opendocuments/parser-plaintext'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

@@ -14,7 +14,7 @@ describe('bootstrap', () => {
   })
 
   it('initializes all core components with default config', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir })
     expect(ctx.config).toBeDefined()
     expect(ctx.db).toBeDefined()
@@ -27,7 +27,7 @@ describe('bootstrap', () => {
   })
 
   it('creates default workspace on bootstrap', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir })
     const ws = ctx.workspaceManager.getByName('default')
     expect(ws).toBeDefined()

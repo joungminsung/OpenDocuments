@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'

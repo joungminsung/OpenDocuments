@@ -1,5 +1,5 @@
-import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus, ChangeEvent, Disposable } from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus, ChangeEvent, Disposable } from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface GitHubConfig {
   repo: string         // owner/repo
@@ -10,7 +10,7 @@ export interface GitHubConfig {
 }
 
 export class GitHubConnector implements ConnectorPlugin {
-  name = '@opendocs/connector-github'
+  name = '@opendocuments/connector-github'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'
@@ -79,7 +79,7 @@ export class GitHubConnector implements ConnectorPlugin {
   private ghFetch(path: string): Promise<Response> {
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'OpenDocs/0.1.0',
+      'User-Agent': 'OpenDocuments/0.1.0',
     }
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`
     return fetchWithTimeout(`${this.baseUrl}${path}`, { headers })

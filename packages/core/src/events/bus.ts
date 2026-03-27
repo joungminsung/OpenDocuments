@@ -2,7 +2,7 @@
 import EventEmitter from 'eventemitter3'
 
 // Typed event map matching spec section 3.11
-export interface OpenDocsEventMap {
+export interface OpenDocumentsEventMap {
   // Document lifecycle
   'document:discovered': { documentId: string; source: string }
   'document:fetched': { documentId: string }
@@ -29,7 +29,7 @@ export interface OpenDocsEventMap {
   'server:started': { port: number }
 }
 
-export type EventName = keyof OpenDocsEventMap
+export type EventName = keyof OpenDocumentsEventMap
 
 type EventHandler<T = any> = (data: T) => void
 type WildcardHandler = (event: string, data: unknown) => void
@@ -38,19 +38,19 @@ export class EventBus {
   private emitter = new EventEmitter()
   private wildcardListeners = new Set<WildcardHandler>()
 
-  on<E extends EventName>(event: E, handler: EventHandler<OpenDocsEventMap[E]>): void {
+  on<E extends EventName>(event: E, handler: EventHandler<OpenDocumentsEventMap[E]>): void {
     this.emitter.on(event, handler)
   }
 
-  off<E extends EventName>(event: E, handler: EventHandler<OpenDocsEventMap[E]>): void {
+  off<E extends EventName>(event: E, handler: EventHandler<OpenDocumentsEventMap[E]>): void {
     this.emitter.off(event, handler)
   }
 
-  once<E extends EventName>(event: E, handler: EventHandler<OpenDocsEventMap[E]>): void {
+  once<E extends EventName>(event: E, handler: EventHandler<OpenDocumentsEventMap[E]>): void {
     this.emitter.once(event, handler)
   }
 
-  emit<E extends EventName>(event: E, data: OpenDocsEventMap[E]): void {
+  emit<E extends EventName>(event: E, data: OpenDocumentsEventMap[E]): void {
     this.emitter.emit(event, data)
     for (const handler of this.wildcardListeners) {
       handler(event, data)

@@ -11,7 +11,7 @@ describe('Admin Routes', () => {
   let tempDir: string
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir })  // personal mode -- no auth needed
     app = createApp(ctx)
   })
@@ -68,7 +68,7 @@ describe('Admin Routes (team mode)', () => {
   let tempDir: string
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team' } })
     app = createApp(ctx)
   })

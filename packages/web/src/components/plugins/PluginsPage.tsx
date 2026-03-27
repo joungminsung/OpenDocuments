@@ -22,7 +22,7 @@ export function PluginsPage() {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-gray-400">Create plugins: opendocs plugin create my-plugin --type parser</p>
+      <p className="mt-4 text-xs text-gray-400">Create plugins: opendocuments plugin create my-plugin --type parser</p>
     </div>
   )
 }

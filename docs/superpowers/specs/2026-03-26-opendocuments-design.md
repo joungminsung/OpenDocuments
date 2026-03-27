@@ -1,4 +1,4 @@
-# OpenDocs -- Design Specification
+# OpenDocuments -- Design Specification
 
 > **Version:** 1.0.0
 > **Date:** 2026-03-26
@@ -10,24 +10,24 @@
 
 | Item | Detail |
 |------|--------|
-| **Name** | OpenDocs |
-| **npm package** | `opendocs` (available), scoped: `@opendocs/*` |
+| **Name** | OpenDocuments |
+| **npm package** | `opendocuments` (available), scoped: `@opendocuments/*` |
 | **One-liner** | A self-hosted open-source RAG platform that unifies scattered organizational documents and answers natural language queries with accurate, source-cited responses |
 | **Purpose** | Production-grade open-source project with real daily usage value |
 | **Target users** | Individual developers, small teams, enterprise teams, open-source maintainers |
 | **License** | MIT |
 | **Runtime** | Node.js (TypeScript) -- single runtime for all components |
-| **Install** | `npm install -g @opendocs/cli` |
+| **Install** | `npm install -g @opendocuments/cli` |
 
 ### Key Differentiators from Original PRD
 
 | Item | PRD (original) | Design (this doc) |
 |------|---------------|-------------------|
-| **Name** | DocuMind | OpenDocs |
+| **Name** | DocuMind | OpenDocuments |
 | **Positioning** | Tech docs RAG | All organizational documents RAG platform |
 | **Runtime** | Python (FastAPI + Celery) | Node.js (TypeScript) unified |
 | **Interfaces** | Web UI only | Web UI + CLI + MCP (full API mirror) |
-| **Installation** | Docker Compose | `npm install -g @opendocs/cli` + interactive init |
+| **Installation** | Docker Compose | `npm install -g @opendocuments/cli` + interactive init |
 | **Model** | Ollama only (Qwen 3.5) | Local/Cloud selectable at install time |
 | **Infrastructure** | PostgreSQL + Redis + Qdrant | Default: SQLite + ChromaDB (zero deps) / Production: Docker Compose |
 | **Auth** | Phase 3 | MVP: multi-workspace (personal mode default) |
@@ -43,13 +43,13 @@
 
 ```
 +-----------------------------------------------------------+
-|                    @opendocs/cli                           |
+|                    @opendocuments/cli                           |
 |              (init, start, index, ask, plugin)             |
 +-----------------------------+-----------------------------+
                               |
                               v
 +-----------------------------------------------------------+
-|                   @opendocs/server                         |
+|                   @opendocuments/server                         |
 |          REST API + WebSocket + MCP Server                 |
 |         (Hono -- lightweight, edge-compatible HTTP)         |
 +---------+--------------+----------------------------------+
@@ -59,7 +59,7 @@
                               |
                               v
 +-----------------------------------------------------------+
-|                   @opendocs/core                           |
+|                   @opendocuments/core                           |
 +-----------------------------------------------------------+
 |                                                            |
 |  +-----------+  +-----------+  +------------+              |
@@ -85,7 +85,7 @@
                               |
                               v
 +-----------------------------------------------------------+
-|                   @opendocs/web                            |
+|                   @opendocuments/web                            |
 |          React SPA (built assets served by server)         |
 |          Chat / Docs / Connectors / Admin Dashboard        |
 +-----------------------------------------------------------+
@@ -93,12 +93,12 @@
 
 ### Core Design Principles
 
-1. **Plugin Registry is central** -- connectors, parsers, model providers, middleware all register via the same plugin interface. `@opendocs/core` ships with built-in markdown and txt parsers only; all other capabilities come from plugins that are auto-installed during `opendocs init`.
+1. **Plugin Registry is central** -- connectors, parsers, model providers, middleware all register via the same plugin interface. `@opendocuments/core` ships with built-in markdown and txt parsers only; all other capabilities come from plugins that are auto-installed during `opendocuments init`.
 2. **Storage Layer abstraction** -- SQLite/PostgreSQL, Chroma/Qdrant behind identical interfaces. Switch by config only. Note: ChromaDB does not support sparse vectors natively; in ChromaDB mode, sparse/lexical search is implemented via SQLite FTS5 full-text search as a fallback. Qdrant mode uses native sparse vector support for best hybrid search quality.
 3. **Server is a thin routing layer** -- all business logic in core. Server handles HTTP/WS/MCP protocol translation only.
-4. **Web is a build artifact** -- `opendocs start` serves pre-built React app as static files. No separate frontend server.
+4. **Web is a build artifact** -- `opendocuments start` serves pre-built React app as static files. No separate frontend server.
 5. **Event Bus for decoupling** -- plugins communicate through events, not direct calls.
-6. **Config as Code** -- `opendocs.config.ts` is the single source of truth, version-controllable via git.
+6. **Config as Code** -- `opendocuments.config.ts` is the single source of truth, version-controllable via git.
 
 ---
 
@@ -121,7 +121,7 @@ type PluginType = 'connector' | 'parser' | 'model' | 'middleware'
 
 ```typescript
 // Common interface for all plugins
-interface OpenDocsPlugin {
+interface OpenDocumentsPlugin {
   name: string
   type: PluginType
   version: string
@@ -142,7 +142,7 @@ interface OpenDocsPlugin {
 }
 
 // Connector plugin
-interface ConnectorPlugin extends OpenDocsPlugin {
+interface ConnectorPlugin extends OpenDocumentsPlugin {
   type: 'connector'
   discover(): AsyncIterable<DiscoveredDocument>
   fetch(docRef: DocumentRef): Promise<RawDocument>
@@ -151,7 +151,7 @@ interface ConnectorPlugin extends OpenDocsPlugin {
 }
 
 // Parser plugin
-interface ParserPlugin extends OpenDocsPlugin {
+interface ParserPlugin extends OpenDocumentsPlugin {
   type: 'parser'
   supportedTypes: string[]
   multimodal?: boolean
@@ -159,7 +159,7 @@ interface ParserPlugin extends OpenDocsPlugin {
 }
 
 // Model plugin
-interface ModelPlugin extends OpenDocsPlugin {
+interface ModelPlugin extends OpenDocumentsPlugin {
   type: 'model'
   capabilities: {
     llm?: boolean
@@ -174,7 +174,7 @@ interface ModelPlugin extends OpenDocsPlugin {
 }
 
 // Middleware plugin
-interface MiddlewarePlugin extends OpenDocsPlugin {
+interface MiddlewarePlugin extends OpenDocumentsPlugin {
   type: 'middleware'
   hooks: {
     stage: PipelineStage    // 'before:discover' | 'after:discover' | 'before:parse' | 'after:parse' |
@@ -202,27 +202,27 @@ Community plugins prompt the user for permission approval on install. Sandboxing
 ### 3.4 Plugin Naming Convention
 
 Official scoped packages use type-specific prefixes:
-- Connectors: `@opendocs/plugin-<service>` (e.g., `@opendocs/plugin-github`)
-- Parsers: `@opendocs/parser-<format>` (e.g., `@opendocs/parser-pdf`)
-- Models: `@opendocs/model-<provider>` (e.g., `@opendocs/model-ollama`)
-- Middleware: `@opendocs/middleware-<name>`
+- Connectors: `@opendocuments/plugin-<service>` (e.g., `@opendocuments/plugin-github`)
+- Parsers: `@opendocuments/parser-<format>` (e.g., `@opendocuments/parser-pdf`)
+- Models: `@opendocuments/model-<provider>` (e.g., `@opendocuments/model-ollama`)
+- Middleware: `@opendocuments/middleware-<name>`
 
-Community plugins use unscoped names with `opendocs-` prefix:
-- `opendocs-plugin-jira`, `opendocs-parser-epub`, `opendocs-model-together`
+Community plugins use unscoped names with `opendocuments-` prefix:
+- `opendocuments-plugin-jira`, `opendocuments-parser-epub`, `opendocuments-model-together`
 
 ### 3.5 Plugin Dev Kit
 
 ```bash
-opendocs plugin create <name>    # scaffold boilerplate
-opendocs plugin test             # interface compliance test
-opendocs plugin dev              # hot-reload linked to local OpenDocs
-opendocs plugin publish          # npm publish + registry
+opendocuments plugin create <name>    # scaffold boilerplate
+opendocuments plugin test             # interface compliance test
+opendocuments plugin dev              # hot-reload linked to local OpenDocuments
+opendocuments plugin publish          # npm publish + registry
 ```
 
 ### 3.6 Plugin Marketplace CLI
 
 ```bash
-opendocs plugin search <keyword>  # search npm registry for opendocs-plugin-*
+opendocuments plugin search <keyword>  # search npm registry for opendocuments-plugin-*
 ```
 
 Displays: compatibility, weekly downloads, rating, official/community badge.
@@ -230,7 +230,7 @@ Displays: compatibility, weekly downloads, rating, official/community badge.
 ### 3.7 Plugin Presets
 
 ```
-opendocs init
+opendocuments init
   [??] Select a preset:
        > Developer    -- GitHub, Swagger, code parser, Markdown
          Enterprise   -- Google Drive, Notion, Confluence, HWP, PDF, DOCX
@@ -242,16 +242,16 @@ opendocs init
 
 ```typescript
 parserFallbacks: {
-  '.hwp': ['@opendocs/parser-hwp', '@opendocs/parser-libreoffice', '@opendocs/parser-ocr'],
-  '.pdf': ['@opendocs/parser-pdf', '@opendocs/parser-ocr'],
+  '.hwp': ['@opendocuments/parser-hwp', '@opendocuments/parser-libreoffice', '@opendocuments/parser-ocr'],
+  '.pdf': ['@opendocuments/parser-pdf', '@opendocuments/parser-ocr'],
 }
 ```
 
 ### 3.9 Plugin Hot Reload
 
 ```bash
-opendocs plugin add @opendocs/plugin-confluence --hot    # no server restart
-opendocs plugin remove @opendocs/plugin-confluence --hot
+opendocuments plugin add @opendocuments/plugin-confluence --hot    # no server restart
+opendocuments plugin remove @opendocuments/plugin-confluence --hot
 ```
 
 ### 3.10 Plugin Config Migration
@@ -378,7 +378,7 @@ const ingestPool = new WorkerPool({
 
 - **Default:** OCR (Tesseract) for text extraction from images
 - **Optional:** OCR + Vision LLM in parallel, results merged for richer text
-- **Performance warning:** Vision LLM is resource-intensive; `opendocs init` recommends based on system specs. Low-spec systems prompted with warning before enabling.
+- **Performance warning:** Vision LLM is resource-intensive; `opendocuments init` recommends based on system specs. Low-spec systems prompted with warning before enabling.
 
 ### 4.7 Security -- Cloud Processing Policy
 
@@ -531,7 +531,7 @@ All templates share common rules: cite sources using `[Source: filename#section]
 ### 6.1 CLI Command Tree
 
 ```
-opendocs
+opendocuments
 |-- init                          # interactive setup
 |-- start [--port] [--mcp-only] [--no-web]
 |         --mcp-only: stdio MCP server only (no HTTP/WS/Web)
@@ -556,8 +556,8 @@ opendocs
 
 ### 6.2 CLI Features
 
-- **Interactive ask mode:** `opendocs ask` without query enters REPL with slash commands
-- **Pipe support:** stdin input (`cat file | opendocs ask --stdin`), JSON output (`--json`), stdin-list for batch indexing
+- **Interactive ask mode:** `opendocuments ask` without query enters REPL with slash commands
+- **Pipe support:** stdin input (`cat file | opendocuments ask --stdin`), JSON output (`--json`), stdin-list for batch indexing
 - **Shell completions:** zsh, bash, fish, powershell
 
 ### 6.3 Web UI Pages
@@ -592,16 +592,16 @@ opendocs
 Full API mirror -- every REST endpoint available as an MCP tool:
 
 ```
-opendocs_ask, opendocs_search
-opendocs_document_list|get|upload|delete|reindex
-opendocs_index_path|status
-opendocs_connector_add|list|sync|status|remove
-opendocs_plugin_list|add|remove
-opendocs_workspace_list|switch
-opendocs_stats, opendocs_doctor, opendocs_config_get|set
+opendocuments_ask, opendocuments_search
+opendocuments_document_list|get|upload|delete|reindex
+opendocuments_index_path|status
+opendocuments_connector_add|list|sync|status|remove
+opendocuments_plugin_list|add|remove
+opendocuments_workspace_list|switch
+opendocuments_stats, opendocuments_doctor, opendocuments_config_get|set
 ```
 
-MCP Resources: `opendocs://documents`, `opendocs://documents/{id}`, `opendocs://stats`
+MCP Resources: `opendocuments://documents`, `opendocuments://documents/{id}`, `opendocuments://stats`
 
 Connection modes: stdio (Claude Code, Cursor), SSE (remote).
 
@@ -610,7 +610,7 @@ Connection modes: stdio (Claude Code, Cursor), SSE (remote).
 ```html
 <script src="http://host:3000/widget.js"></script>
 <script>
-  OpenDocs.widget({
+  OpenDocuments.widget({
     server: 'http://host:3000',
     apiKey: 'od_live_...',       // required in team mode; omit in personal mode
     position: 'bottom-right',
@@ -623,8 +623,8 @@ Connection modes: stdio (Claude Code, Cursor), SSE (remote).
 ### 6.7 API Client SDK
 
 ```typescript
-import { OpenDocsClient } from '@opendocs/client'
-const client = new OpenDocsClient({ baseUrl, apiKey })
+import { OpenDocumentsClient } from '@opendocuments/client'
+const client = new OpenDocumentsClient({ baseUrl, apiKey })
 ```
 
 Auto-generated from OpenAPI spec. TypeScript first-class.
@@ -857,7 +857,7 @@ CREATE INDEX idx_doc_versions ON document_versions(document_id, version);
 
 ```typescript
 interface VectorCollection {
-  name: 'opendocs_chunks'
+  name: 'opendocuments_chunks'
   vectors: {
     dense: { dimensions: 'auto', distance: 'cosine' },  // determined by selected embedding model (BGE-M3: 1024, nomic: 768, etc.)
     sparse: { type: 'sparse' },
@@ -882,7 +882,7 @@ interface VectorCollection {
 
 ### 7.3 Soft Delete
 
-All major tables have `deleted_at` column. Deleted items move to trash, permanently removed after 30 days by an internal scheduler (node-cron, runs within the server process). `opendocs document restore` available for recovery.
+All major tables have `deleted_at` column. Deleted items move to trash, permanently removed after 30 days by an internal scheduler (node-cron, runs within the server process). `opendocuments document restore` available for recovery.
 
 ### 7.4 Schema Migration
 
@@ -896,11 +896,11 @@ migrations/
   ...
 ```
 
-A `schema_migrations` table tracks applied migrations. `opendocs upgrade` runs pending migrations automatically. Migrations are embedded in `@opendocs/core` and versioned with the package.
+A `schema_migrations` table tracks applied migrations. `opendocuments upgrade` runs pending migrations automatically. Migrations are embedded in `@opendocuments/core` and versioned with the package.
 
 ### 7.5 Config Source of Truth
 
-`opendocs.config.ts` is the **primary** source of truth for static configuration (model, RAG profile, security, plugins). The database stores **runtime state** (connector sync status, documents, conversations, user data). When a connector is added via Web UI, both the database record and `opendocs.config.ts` are updated. On startup, config file takes precedence; database state is reconciled.
+`opendocuments.config.ts` is the **primary** source of truth for static configuration (model, RAG profile, security, plugins). The database stores **runtime state** (connector sync status, documents, conversations, user data). When a connector is added via Web UI, both the database record and `opendocuments.config.ts` are updated. On startup, config file takes precedence; database state is reconciled.
 
 ---
 
@@ -961,7 +961,7 @@ rules: [
 
 ### 8.8 Personal to Team Migration
 
-`opendocs config mode team` -- interactive flow to set admin account, network access, API keys. Existing data preserved.
+`opendocuments config mode team` -- interactive flow to set admin account, network access, API keys. Existing data preserved.
 
 ---
 
@@ -998,7 +998,7 @@ rules: [
 
 ### 9.4 Auto-Recommendation
 
-`opendocs init` detects CPU, RAM, GPU/VRAM, disk and recommends optimal model + RAG profile. Performance warnings shown for resource-intensive options.
+`opendocuments init` detects CPU, RAM, GPU/VRAM, disk and recommends optimal model + RAG profile. Performance warnings shown for resource-intensive options.
 
 ---
 
@@ -1010,9 +1010,9 @@ rules: [
 |--------|--------|-------|
 | .md / .mdx | built-in (core) | code fence aware; only built-in parsers |
 | .txt | built-in (core) | plain text; only built-in parsers |
-| .pdf | @opendocs/parser-pdf | fallback: OCR for scanned PDFs |
-| .docx | @opendocs/parser-docx | mammoth-based |
-| .js/.ts/.py/.go/etc | @opendocs/parser-code | tree-sitter AST, function/class level chunking |
+| .pdf | @opendocuments/parser-pdf | fallback: OCR for scanned PDFs |
+| .docx | @opendocuments/parser-docx | mammoth-based |
+| .js/.ts/.py/.go/etc | @opendocuments/parser-code | tree-sitter AST, function/class level chunking |
 | .json / .yaml / .toml | built-in (core) | config/schema, simple parse |
 | .zip | built-in (core) | extract + recurse, re-enter each file to parser |
 
@@ -1020,14 +1020,14 @@ rules: [
 
 | Format | Plugin | Notes |
 |--------|--------|-------|
-| .hwp / .hwpx | @opendocs/parser-hwp | LibreOffice CLI; fallback: OCR |
-| .pptx | @opendocs/parser-pptx | 1 slide = 1 chunk |
-| .xlsx / .csv | @opendocs/parser-xlsx | xlsx + csv-parse |
-| .html | @opendocs/parser-html | cheerio-based |
-| .ipynb | @opendocs/parser-jupyter | code + markdown cells |
+| .hwp / .hwpx | @opendocuments/parser-hwp | LibreOffice CLI; fallback: OCR |
+| .pptx | @opendocuments/parser-pptx | 1 slide = 1 chunk |
+| .xlsx / .csv | @opendocuments/parser-xlsx | xlsx + csv-parse |
+| .html | @opendocuments/parser-html | cheerio-based |
+| .ipynb | @opendocuments/parser-jupyter | code + markdown cells |
 | .mp4/.mov/.avi | Whisper STT plugin | |
 | .mp3/.wav/.m4a | Whisper STT plugin | |
-| .jpg/.png/.webp | @opendocs/parser-ocr | OCR + Vision LLM |
+| .jpg/.png/.webp | @opendocuments/parser-ocr | OCR + Vision LLM |
 | .eml/.msg | mailparser plugin | |
 | .rst | text parse plugin | |
 | .proto/.graphql | text parse plugin | |
@@ -1088,8 +1088,8 @@ MCP client first: if an MCP server exists for a service, connect via MCP. Self-i
 ### 12.1 Config as Code
 
 ```typescript
-// opendocs.config.ts
-import { defineConfig } from '@opendocs/core'
+// opendocuments.config.ts
+import { defineConfig } from '@opendocuments/core'
 
 export default defineConfig({
   workspace: 'my-team',
@@ -1111,12 +1111,12 @@ export default defineConfig({
   ],
 
   plugins: [
-    '@opendocs/parser-pdf',
-    '@opendocs/parser-hwp',
+    '@opendocuments/parser-pdf',
+    '@opendocuments/parser-hwp',
   ],
 
   parserFallbacks: {
-    '.hwp': ['@opendocs/parser-hwp', '@opendocs/parser-libreoffice', '@opendocs/parser-ocr'],
+    '.hwp': ['@opendocuments/parser-hwp', '@opendocuments/parser-libreoffice', '@opendocuments/parser-ocr'],
   },
 
   middleware: {
@@ -1134,50 +1134,50 @@ export default defineConfig({
 })
 ```
 
-### 12.2 opendocs doctor
+### 12.2 opendocuments doctor
 
 Full system diagnosis: core, server, DB, vector DB, model, plugins (with per-plugin metrics), security settings, disk space, recent activity summary.
 
 ### 12.3 Opt-in Telemetry
 
-Anonymous usage stats (OS, Node version, plugins used, error counts). No personal data or document content. Prompted during `opendocs init`.
+Anonymous usage stats (OS, Node version, plugins used, error counts). No personal data or document content. Prompted during `opendocuments init`.
 
 ---
 
 ## 13. Project Structure (Monorepo)
 
 ```
-opendocs/
+opendocuments/
 |-- package.json              (turborepo root)
 |-- turbo.json
 |-- packages/
-|   |-- core/                 @opendocs/core
-|   |-- server/               @opendocs/server
-|   |-- cli/                  @opendocs/cli
-|   |-- web/                  @opendocs/web
-|   |-- client/               @opendocs/client (SDK)
+|   |-- core/                 @opendocuments/core
+|   |-- server/               @opendocuments/server
+|   |-- cli/                  @opendocuments/cli
+|   |-- web/                  @opendocuments/web
+|   |-- client/               @opendocuments/client (SDK)
 |-- plugins/
-|   |-- connector-github/     @opendocs/plugin-github
-|   |-- connector-notion/     @opendocs/plugin-notion
-|   |-- connector-gdrive/     @opendocs/plugin-gdrive
-|   |-- connector-confluence/ @opendocs/plugin-confluence
-|   |-- connector-web-crawler/@opendocs/plugin-web-crawler
-|   |-- connector-mcp/        @opendocs/plugin-mcp
-|   |-- connector-s3/         @opendocs/plugin-s3
-|   |-- parser-pdf/           @opendocs/parser-pdf
-|   |-- parser-docx/          @opendocs/parser-docx
-|   |-- parser-hwp/           @opendocs/parser-hwp
-|   |-- parser-pptx/          @opendocs/parser-pptx
-|   |-- parser-xlsx/          @opendocs/parser-xlsx
-|   |-- parser-html/          @opendocs/parser-html
-|   |-- parser-code/          @opendocs/parser-code
-|   |-- parser-jupyter/       @opendocs/parser-jupyter
-|   |-- parser-ocr/           @opendocs/parser-ocr
-|   |-- parser-libreoffice/   @opendocs/parser-libreoffice
-|   |-- model-ollama/         @opendocs/model-ollama
-|   |-- model-openai/         @opendocs/model-openai
-|   |-- model-anthropic/      @opendocs/model-anthropic
-|   |-- model-google/         @opendocs/model-google
+|   |-- connector-github/     @opendocuments/plugin-github
+|   |-- connector-notion/     @opendocuments/plugin-notion
+|   |-- connector-gdrive/     @opendocuments/plugin-gdrive
+|   |-- connector-confluence/ @opendocuments/plugin-confluence
+|   |-- connector-web-crawler/@opendocuments/plugin-web-crawler
+|   |-- connector-mcp/        @opendocuments/plugin-mcp
+|   |-- connector-s3/         @opendocuments/plugin-s3
+|   |-- parser-pdf/           @opendocuments/parser-pdf
+|   |-- parser-docx/          @opendocuments/parser-docx
+|   |-- parser-hwp/           @opendocuments/parser-hwp
+|   |-- parser-pptx/          @opendocuments/parser-pptx
+|   |-- parser-xlsx/          @opendocuments/parser-xlsx
+|   |-- parser-html/          @opendocuments/parser-html
+|   |-- parser-code/          @opendocuments/parser-code
+|   |-- parser-jupyter/       @opendocuments/parser-jupyter
+|   |-- parser-ocr/           @opendocuments/parser-ocr
+|   |-- parser-libreoffice/   @opendocuments/parser-libreoffice
+|   |-- model-ollama/         @opendocuments/model-ollama
+|   |-- model-openai/         @opendocuments/model-openai
+|   |-- model-anthropic/      @opendocuments/model-anthropic
+|   |-- model-google/         @opendocuments/model-google
 |-- templates/                plugin scaffolding templates
 |-- benchmarks/               RAG quality benchmarks
 |-- docs/                     documentation source
@@ -1191,7 +1191,7 @@ opendocs/
 
 ### Phase 1: Foundation (Week 1-6)
 
-**Goal:** `npm install -g @opendocs/cli && opendocs init && opendocs start` works end-to-end.
+**Goal:** `npm install -g @opendocuments/cli && opendocuments init && opendocuments start` works end-to-end.
 
 | Week | Milestone |
 |------|-----------|
@@ -1208,7 +1208,7 @@ opendocs/
 - fast/balanced/precise profiles
 - Confidence score + hallucination guard
 - Personal mode with multi-workspace schema ready
-- `opendocs doctor` working
+- `opendocuments doctor` working
 - Contributor setup: `npm run setup` one-command dev environment
 
 **MVP plugins:** local-fs, file-upload, markdown, txt, pdf, docx, code, json/yaml, ollama, openai
@@ -1236,7 +1236,7 @@ opendocs/
 | W16 | Multimodal: Whisper STT, Vision LLM, Jina-CLIP multimodal embedding |
 | W17 | SSO + advanced security: OAuth, SAML, Security Alerts, cross-workspace search |
 | W18 | Advanced features: Document Versioning, Tags + Collections, Chunk Relationships, conversation sharing |
-| W19 | Embeddable Widget + SDK: widget.js, @opendocs/client, i18n (ko/en) |
+| W19 | Embeddable Widget + SDK: widget.js, @opendocuments/client, i18n (ko/en) |
 | W20 | Release: Hot Reload, Import/Export, production Docker Compose, docs site, demo video |
 
 ### Phase 4+: Community-Driven

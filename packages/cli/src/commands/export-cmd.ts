@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -7,7 +7,7 @@ import { join } from 'node:path'
 export function exportCommand() {
   return new Command('export')
     .description('Export data for backup')
-    .option('--output <path>', 'Output directory', './opendocs-backup')
+    .option('--output <path>', 'Output directory', './opendocuments-backup')
     .option('--workspace <name>', 'Workspace to export')
     .action(async (opts) => {
       const ctx = await getContext()

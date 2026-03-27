@@ -79,7 +79,7 @@ export class OAuthProvider {
     const tokens = await tokenRes.json() as { access_token: string }
 
     const userRes = await fetchWithTimeout('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${tokens.access_token}`, 'User-Agent': 'OpenDocs' },
+      headers: { Authorization: `Bearer ${tokens.access_token}`, 'User-Agent': 'OpenDocuments' },
     })
     if (!userRes.ok) throw new Error(`GitHub user error: ${userRes.status}`)
     const user = await userRes.json() as { id: number; login: string; email: string; name: string }

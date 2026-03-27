@@ -1,4 +1,4 @@
-export interface OpenDocsClientOptions {
+export interface OpenDocumentsClientOptions {
   baseUrl: string
   apiKey?: string
 }
@@ -15,11 +15,11 @@ export interface StatsResponse {
   documents: number; workspaces: number; plugins: number
 }
 
-export class OpenDocsClient {
+export class OpenDocumentsClient {
   private baseUrl: string
   private headers: Record<string, string> = {}
 
-  constructor(opts: OpenDocsClientOptions) {
+  constructor(opts: OpenDocumentsClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, '')
     if (opts.apiKey) this.headers['X-API-Key'] = opts.apiKey
   }
@@ -29,7 +29,7 @@ export class OpenDocsClient {
       ...init,
       headers: { 'Content-Type': 'application/json', ...this.headers, ...init?.headers },
     })
-    if (!res.ok) throw new Error(`OpenDocs API error: ${res.status}`)
+    if (!res.ok) throw new Error(`OpenDocuments API error: ${res.status}`)
     return res.json()
   }
 

@@ -18,7 +18,7 @@ describe('OpenAIModelPlugin', () => {
   })
 
   it('has correct metadata', () => {
-    expect(plugin.name).toBe('@opendocs/model-openai')
+    expect(plugin.name).toBe('@opendocuments/model-openai')
     expect(plugin.type).toBe('model')
     expect(plugin.version).toBe('0.1.0')
     expect(plugin.capabilities.llm).toBe(true)

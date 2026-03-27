@@ -5,8 +5,8 @@ import type {
   RawDocument,
   PluginContext,
   HealthStatus,
-} from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+} from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export type S3Provider = 's3' | 'gcs'
 
@@ -26,7 +26,7 @@ export interface S3Config {
 const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.html', '.htm'])
 
 export class S3Connector implements ConnectorPlugin {
-  name = '@opendocs/connector-s3'
+  name = '@opendocuments/connector-s3'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

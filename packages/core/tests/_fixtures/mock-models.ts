@@ -3,7 +3,7 @@ import type { ModelPlugin } from '../../src/plugin/interfaces.js'
 
 export function createMockEmbedder(): ModelPlugin {
   return {
-    name: '@opendocs/model-mock-embedder',
+    name: '@opendocuments/model-mock-embedder',
     type: 'model',
     version: '0.1.0',
     coreVersion: '^0.1.0',
@@ -22,7 +22,7 @@ export function createMockEmbedder(): ModelPlugin {
 
 export function createMockLLM(): ModelPlugin {
   return {
-    name: '@opendocs/model-mock-llm',
+    name: '@opendocuments/model-mock-llm',
     type: 'model',
     version: '0.1.0',
     coreVersion: '^0.1.0',

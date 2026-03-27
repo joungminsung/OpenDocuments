@@ -13,7 +13,7 @@ describe('WebCrawlerConnector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-web-crawler')
+    expect(connector.name).toBe('@opendocuments/connector-web-crawler')
     expect(connector.type).toBe('connector')
   })
 

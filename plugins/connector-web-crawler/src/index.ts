@@ -1,5 +1,5 @@
-import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface WebCrawlerConfig {
   urls: string[]
@@ -9,7 +9,7 @@ export interface WebCrawlerConfig {
 }
 
 export class WebCrawlerConnector implements ConnectorPlugin {
-  name = '@opendocs/connector-web-crawler'
+  name = '@opendocuments/connector-web-crawler'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'
@@ -40,7 +40,7 @@ export class WebCrawlerConnector implements ConnectorPlugin {
 
   async fetch(ref: DocumentRef): Promise<RawDocument> {
     const res = await fetchWithTimeout(ref.sourcePath, {
-      headers: { 'User-Agent': 'OpenDocs/0.1.0', ...this.headers },
+      headers: { 'User-Agent': 'OpenDocuments/0.1.0', ...this.headers },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${ref.sourcePath}`)
 

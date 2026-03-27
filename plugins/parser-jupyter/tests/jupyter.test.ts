@@ -20,7 +20,7 @@ describe('JupyterParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-jupyter')
+    expect(parser.name).toBe('@opendocuments/parser-jupyter')
     expect(parser.supportedTypes).toEqual(['.ipynb'])
   })
 

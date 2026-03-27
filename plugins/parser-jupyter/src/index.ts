@@ -1,4 +1,4 @@
-import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocs/core'
+import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '@opendocuments/core'
 
 interface NotebookCell {
   cell_type: 'code' | 'markdown' | 'raw'
@@ -16,7 +16,7 @@ interface Notebook {
 }
 
 export class JupyterParser implements ParserPlugin {
-  name = '@opendocs/parser-jupyter'
+  name = '@opendocuments/parser-jupyter'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

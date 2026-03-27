@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
-import { TagManager } from '@opendocs/core'
+import { TagManager } from '@opendocuments/core'
 
 export function tagRoutes(ctx: AppContext) {
   const app = new Hono()

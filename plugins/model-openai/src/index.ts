@@ -4,8 +4,8 @@ import type {
   HealthStatus,
   GenerateOpts,
   EmbeddingResult,
-} from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+} from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface OpenAIConfig {
   apiKey?: string
@@ -15,7 +15,7 @@ export interface OpenAIConfig {
 }
 
 export class OpenAIModelPlugin implements ModelPlugin {
-  name = '@opendocs/model-openai'
+  name = '@opendocuments/model-openai'
   type = 'model' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log, discoverFiles, FileWatcher } from '@opendocs/core'
+import { log, discoverFiles, FileWatcher } from '@opendocuments/core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 import { readFileSync } from 'node:fs'
 import { extname, basename, resolve } from 'node:path'

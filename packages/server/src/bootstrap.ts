@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import {
   loadConfig,
   log,
-  type OpenDocsConfig,
+  type OpenDocumentsConfig,
   createSQLiteDB,
   runMigrations,
   createLanceDB,
@@ -32,18 +32,18 @@ import {
   type RerankResult,
   type GenerateOpts,
   type HealthStatus,
-} from '@opendocs/core'
+} from '@opendocuments/core'
 
 /* ------------------------------------------------------------------ */
 /*  Provider -> package mapping                                       */
 /* ------------------------------------------------------------------ */
 
 const PROVIDER_MAP: Record<string, string> = {
-  ollama: '@opendocs/model-ollama',
-  openai: '@opendocs/model-openai',
-  anthropic: '@opendocs/model-anthropic',
-  google: '@opendocs/model-google',
-  grok: '@opendocs/model-grok',
+  ollama: '@opendocuments/model-ollama',
+  openai: '@opendocuments/model-openai',
+  anthropic: '@opendocuments/model-anthropic',
+  google: '@opendocuments/model-google',
+  grok: '@opendocuments/model-grok',
 }
 
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
@@ -60,7 +60,7 @@ const EMBEDDING_DIMENSIONS: Record<string, number> = {
 
 function createStubEmbedder(dimensions: number): ModelPlugin {
   return {
-    name: '@opendocs/stub-embedder',
+    name: '@opendocuments/stub-embedder',
     type: 'model',
     version: '0.1.0',
     coreVersion: '^0.1.0',
@@ -79,7 +79,7 @@ function createStubEmbedder(dimensions: number): ModelPlugin {
 
 function createStubLLM(): ModelPlugin {
   return {
-    name: '@opendocs/stub-llm',
+    name: '@opendocuments/stub-llm',
     type: 'model',
     version: '0.1.0',
     coreVersion: '^0.1.0',
@@ -160,7 +160,7 @@ async function loadSinglePlugin(
 
 async function loadModelPlugin(
   provider: string,
-  modelConfig: OpenDocsConfig['model'],
+  modelConfig: OpenDocumentsConfig['model'],
   pluginCtx: PluginContext,
   embeddingDimensions: number,
 ): Promise<{ embedder: ModelPlugin; llm: ModelPlugin }> {
@@ -242,11 +242,11 @@ export interface BootstrapOptions {
   dataDir?: string
   projectDir?: string
   /** Partial config overrides applied on top of loaded config (useful for tests) */
-  configOverrides?: Partial<OpenDocsConfig>
+  configOverrides?: Partial<OpenDocumentsConfig>
 }
 
 export interface AppContext {
-  config: OpenDocsConfig
+  config: OpenDocumentsConfig
   db: DB
   vectorDb: VectorDB
   registry: PluginRegistry
@@ -271,7 +271,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
   // 1. Load config
   const projectDir = opts.projectDir || process.cwd()
   const baseConfig = loadConfig(projectDir)
-  let config: OpenDocsConfig = baseConfig
+  let config: OpenDocumentsConfig = baseConfig
   if (opts.configOverrides) {
     config = { ...baseConfig }
     const overrides = opts.configOverrides as Record<string, unknown>
@@ -285,7 +285,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
   }
 
   // Resolve dataDir
-  const dataDir = opts.dataDir || process.env.OPENDOCS_DATA_DIR || config.storage.dataDir.replace(/^~/, process.env.HOME || '~')
+  const dataDir = opts.dataDir || process.env.OPENDOCUMENTS_DATA_DIR || config.storage.dataDir.replace(/^~/, process.env.HOME || '~')
   mkdirSync(dataDir, { recursive: true })
 
   // Resolve embedding dimensions from config or provider default
@@ -295,7 +295,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     EMBEDDING_DIMENSIONS.default
 
   // 2. Create SQLite DB
-  const dbPath = join(dataDir, 'opendocs.db')
+  const dbPath = join(dataDir, 'opendocuments.db')
   let db: DB | null = null
   let vectorDb: VectorDB | null = null
 
@@ -339,14 +339,14 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Auto-register installed parser plugins
     const PARSER_PLUGINS = [
-      '@opendocs/parser-pdf',
-      '@opendocs/parser-docx',
-      '@opendocs/parser-xlsx',
-      '@opendocs/parser-html',
-      '@opendocs/parser-jupyter',
-      '@opendocs/parser-email',
-      '@opendocs/parser-pptx',
-      '@opendocs/parser-code',
+      '@opendocuments/parser-pdf',
+      '@opendocuments/parser-docx',
+      '@opendocuments/parser-xlsx',
+      '@opendocuments/parser-html',
+      '@opendocuments/parser-jupyter',
+      '@opendocuments/parser-email',
+      '@opendocuments/parser-pptx',
+      '@opendocuments/parser-code',
     ]
 
     for (const name of PARSER_PLUGINS) {
@@ -406,7 +406,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const tavilyApiKey = process.env.TAVILY_API_KEY
     if (tavilyApiKey) {
       try {
-        const { WebSearchProvider } = await import('@opendocs/connector-web-search')
+        const { WebSearchProvider } = await import('@opendocuments/connector-web-search')
         const wsp = new WebSearchProvider()
         await wsp.setup({
           config: { provider: 'tavily', apiKey: tavilyApiKey } as any,
@@ -465,16 +465,16 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Connector type -> package mapping
     const CONNECTOR_PLUGINS_MAP: Record<string, string> = {
-      github: '@opendocs/connector-github',
-      notion: '@opendocs/connector-notion',
-      'web-crawler': '@opendocs/connector-web-crawler',
-      'gdrive': '@opendocs/connector-gdrive',
-      'google-drive': '@opendocs/connector-gdrive',
-      's3': '@opendocs/connector-s3',
-      'gcs': '@opendocs/connector-s3',
-      'confluence': '@opendocs/connector-confluence',
-      'swagger': '@opendocs/connector-swagger',
-      'openapi': '@opendocs/connector-swagger',
+      github: '@opendocuments/connector-github',
+      notion: '@opendocuments/connector-notion',
+      'web-crawler': '@opendocuments/connector-web-crawler',
+      'gdrive': '@opendocuments/connector-gdrive',
+      'google-drive': '@opendocuments/connector-gdrive',
+      's3': '@opendocuments/connector-s3',
+      'gcs': '@opendocuments/connector-s3',
+      'confluence': '@opendocuments/connector-confluence',
+      'swagger': '@opendocuments/connector-swagger',
+      'openapi': '@opendocuments/connector-swagger',
     }
 
     // Config-driven connector registration

@@ -4,7 +4,7 @@ import type { ParserPlugin, ConnectorPlugin, PluginContext } from '../../src/plu
 
 function createMockParser(overrides: Partial<ParserPlugin> = {}): ParserPlugin {
   return {
-    name: '@opendocs/parser-test',
+    name: '@opendocuments/parser-test',
     type: 'parser',
     version: '1.0.0',
     coreVersion: '^0.1.0',
@@ -18,7 +18,7 @@ function createMockParser(overrides: Partial<ParserPlugin> = {}): ParserPlugin {
 
 function createMockConnector(overrides: Partial<ConnectorPlugin> = {}): ConnectorPlugin {
   return {
-    name: '@opendocs/plugin-test',
+    name: '@opendocuments/plugin-test',
     type: 'connector',
     version: '1.0.0',
     coreVersion: '^0.1.0',
@@ -34,7 +34,7 @@ describe('PluginRegistry', () => {
     const registry = new PluginRegistry()
     const parser = createMockParser()
     await registry.register(parser, { config: {}, dataDir: '/tmp', log: console as any })
-    expect(registry.get('@opendocs/parser-test')).toBe(parser)
+    expect(registry.get('@opendocuments/parser-test')).toBe(parser)
     expect(parser.setup).toHaveBeenCalled()
   })
 
@@ -54,7 +54,7 @@ describe('PluginRegistry', () => {
     const parser = createMockParser()
     const ctx: PluginContext = { config: {}, dataDir: '/tmp', log: console as any }
     await registry.register(parser, ctx)
-    await expect(registry.register(parser, ctx)).rejects.toThrow('Plugin @opendocs/parser-test is already registered')
+    await expect(registry.register(parser, ctx)).rejects.toThrow('Plugin @opendocuments/parser-test is already registered')
   })
 
   it('unregisters a plugin and calls teardown', async () => {
@@ -62,8 +62,8 @@ describe('PluginRegistry', () => {
     const parser = createMockParser()
     const ctx: PluginContext = { config: {}, dataDir: '/tmp', log: console as any }
     await registry.register(parser, ctx)
-    await registry.unregister('@opendocs/parser-test')
-    expect(registry.get('@opendocs/parser-test')).toBeUndefined()
+    await registry.unregister('@opendocuments/parser-test')
+    expect(registry.get('@opendocuments/parser-test')).toBeUndefined()
     expect(parser.teardown).toHaveBeenCalled()
   })
 
@@ -92,8 +92,8 @@ describe('PluginRegistry', () => {
     await registry.register(parser, ctx)
     await registry.register(connector, ctx)
     expect(registry.listAll()).toEqual([
-      { name: '@opendocs/parser-test', type: 'parser', version: '1.0.0' },
-      { name: '@opendocs/plugin-test', type: 'connector', version: '1.0.0' },
+      { name: '@opendocuments/parser-test', type: 'parser', version: '1.0.0' },
+      { name: '@opendocuments/plugin-test', type: 'connector', version: '1.0.0' },
     ])
   })
 })

@@ -43,7 +43,7 @@ export function ChatPage() {
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 && !isStreaming ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">OpenDocs</h2>
+            <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">OpenDocuments</h2>
             <p className="mt-2 text-gray-400 max-w-md">
               Ask questions about your indexed documents. Start by uploading documents in the Documents page.
             </p>

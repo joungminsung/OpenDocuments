@@ -1,5 +1,5 @@
-import type { ModelPlugin, PluginContext, HealthStatus, GenerateOpts } from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+import type { ModelPlugin, PluginContext, HealthStatus, GenerateOpts } from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface AnthropicConfig {
   apiKey?: string
@@ -10,7 +10,7 @@ export interface AnthropicConfig {
 }
 
 export class AnthropicModelPlugin implements ModelPlugin {
-  name = '@opendocs/model-anthropic'
+  name = '@opendocuments/model-anthropic'
   type = 'model' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

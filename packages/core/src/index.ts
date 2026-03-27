@@ -1,4 +1,4 @@
-// @opendocs/core - public API
+// @opendocuments/core - public API
 // Will be populated as modules are implemented
 
 export const VERSION = '0.1.0'
@@ -8,11 +8,11 @@ export { sha256 } from './utils/hash.js'
 export { discoverFiles } from './utils/file-discovery.js'
 export { fetchWithTimeout } from './utils/fetch.js'
 export { FileWatcher, type FileChange } from './utils/file-watcher.js'
-export { EventBus, type OpenDocsEventMap, type EventName } from './events/bus.js'
+export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
 
-export { configSchema, type OpenDocsConfig } from './config/schema.js'
+export { configSchema, type OpenDocumentsConfig } from './config/schema.js'
 export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
 export { DEFAULT_CONFIG } from './config/defaults.js'
 
@@ -79,7 +79,7 @@ export type {
   PluginMetrics,
   PluginPermissions,
   PluginContext,
-  OpenDocsPlugin,
+  OpenDocumentsPlugin,
   ConnectorPlugin,
   ParserPlugin,
   ModelPlugin,

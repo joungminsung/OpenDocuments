@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
-import type { APIKeyScope, ValidatedKey } from '@opendocs/core'
+import type { APIKeyScope, ValidatedKey } from '@opendocuments/core'
 
 export interface PersonalModeAuth {
   mode: 'personal'

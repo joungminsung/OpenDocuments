@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { OpenDocsClient } from '../src/index.js'
+import { OpenDocumentsClient } from '../src/index.js'
 
-describe('OpenDocsClient', () => {
-  let client: OpenDocsClient
+describe('OpenDocumentsClient', () => {
+  let client: OpenDocumentsClient
 
   beforeEach(() => {
-    client = new OpenDocsClient({ baseUrl: 'http://localhost:3000', apiKey: 'test-key' })
+    client = new OpenDocumentsClient({ baseUrl: 'http://localhost:3000', apiKey: 'test-key' })
   })
 
   it('constructs with correct base URL', () => {

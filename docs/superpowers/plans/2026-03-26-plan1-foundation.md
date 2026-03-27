@@ -2,20 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Establish the OpenDocs monorepo with a working plugin system, storage layer, event bus, and config system -- the foundation everything else builds on.
+**Goal:** Establish the OpenDocuments monorepo with a working plugin system, storage layer, event bus, and config system -- the foundation everything else builds on.
 
-**Architecture:** Turborepo monorepo with `@opendocs/core` as the central package. Core exposes a plugin registry where connectors, parsers, models, and middleware register via typed interfaces. Storage is abstracted behind interfaces (SQLite + ChromaDB for default mode). An event bus decouples components. `opendocs.config.ts` is the single source of truth loaded via a typed config loader.
+**Architecture:** Turborepo monorepo with `@opendocuments/core` as the central package. Core exposes a plugin registry where connectors, parsers, models, and middleware register via typed interfaces. Storage is abstracted behind interfaces (SQLite + ChromaDB for default mode). An event bus decouples components. `opendocuments.config.ts` is the single source of truth loaded via a typed config loader.
 
 **Tech Stack:** TypeScript 5.5+, Turborepo, Vitest, Zod (config validation), better-sqlite3, chromadb, eventemitter3, chalk (logging)
 
-**Spec Reference:** `docs/superpowers/specs/2026-03-26-opendocs-design.md`
+**Spec Reference:** `docs/superpowers/specs/2026-03-26-opendocuments-design.md`
 
 ---
 
 ## File Structure
 
 ```
-opendocs/
+opendocuments/
 ├── package.json                     # root workspace config
 ├── turbo.json                       # turborepo pipeline config
 ├── tsconfig.base.json               # shared TS config
@@ -34,7 +34,7 @@ opendocs/
         ├── src/
         │   ├── index.ts             # public API barrel export
         │   ├── config/
-        │   │   ├── schema.ts        # Zod schema for opendocs.config.ts
+        │   │   ├── schema.ts        # Zod schema for opendocuments.config.ts
         │   │   ├── loader.ts        # load + validate config file
         │   │   └── defaults.ts      # default config values
         │   ├── plugin/
@@ -92,7 +92,7 @@ opendocs/
 - [ ] **Step 1: Initialize git repo**
 
 ```bash
-cd /Users/dgsw36/Desktop/01_프로젝트-개발/AI/OpenDocs
+cd /Users/dgsw36/Desktop/01_프로젝트-개발/AI/OpenDocuments
 git init
 ```
 
@@ -100,7 +100,7 @@ git init
 
 ```json
 {
-  "name": "opendocs-monorepo",
+  "name": "opendocuments-monorepo",
   "private": true,
   "workspaces": ["packages/*", "plugins/*"],
   "scripts": {
@@ -209,7 +209,7 @@ coverage/
 
 ```json
 {
-  "name": "@opendocs/core",
+  "name": "@opendocuments/core",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -274,7 +274,7 @@ export default defineConfig({
 - [ ] **Step 10: Create packages/core/src/index.ts (empty barrel)**
 
 ```typescript
-// @opendocs/core - public API
+// @opendocuments/core - public API
 // Will be populated as modules are implemented
 
 export const VERSION = '0.1.0'
@@ -300,7 +300,7 @@ Expected: `packages/core/dist/index.js` created.
 
 ```bash
 git add package.json turbo.json tsconfig.base.json .gitignore .changeset/ packages/core/ docs/
-git commit -m "feat: bootstrap monorepo with turborepo and @opendocs/core skeleton"
+git commit -m "feat: bootstrap monorepo with turborepo and @opendocuments/core skeleton"
 ```
 
 ---
@@ -580,7 +580,7 @@ export interface PluginContext {
 
 // --- Base Plugin ---
 
-export interface OpenDocsPlugin {
+export interface OpenDocumentsPlugin {
   name: string
   type: PluginType
   version: string
@@ -638,7 +638,7 @@ export interface AuthResult {
   message?: string
 }
 
-export interface ConnectorPlugin extends OpenDocsPlugin {
+export interface ConnectorPlugin extends OpenDocumentsPlugin {
   type: 'connector'
   discover(): AsyncIterable<DiscoveredDocument>
   fetch(docRef: DocumentRef): Promise<RawDocument>
@@ -660,7 +660,7 @@ export interface ParsedChunk {
   metadata?: Record<string, unknown>
 }
 
-export interface ParserPlugin extends OpenDocsPlugin {
+export interface ParserPlugin extends OpenDocumentsPlugin {
   type: 'parser'
   supportedTypes: string[]
   multimodal?: boolean
@@ -686,7 +686,7 @@ export interface RerankResult {
   indices: number[]
 }
 
-export interface ModelPlugin extends OpenDocsPlugin {
+export interface ModelPlugin extends OpenDocumentsPlugin {
   type: 'model'
   capabilities: {
     llm?: boolean
@@ -702,7 +702,7 @@ export interface ModelPlugin extends OpenDocsPlugin {
 
 // --- Middleware Plugin ---
 
-export interface MiddlewarePlugin extends OpenDocsPlugin {
+export interface MiddlewarePlugin extends OpenDocumentsPlugin {
   type: 'middleware'
   hooks: {
     stage: PipelineStage
@@ -727,7 +727,7 @@ export type {
   PluginMetrics,
   PluginPermissions,
   PluginContext,
-  OpenDocsPlugin,
+  OpenDocumentsPlugin,
   ConnectorPlugin,
   ParserPlugin,
   ModelPlugin,
@@ -779,7 +779,7 @@ import type { ParserPlugin, ConnectorPlugin, PluginContext } from '../../src/plu
 
 function createMockParser(overrides: Partial<ParserPlugin> = {}): ParserPlugin {
   return {
-    name: '@opendocs/parser-test',
+    name: '@opendocuments/parser-test',
     type: 'parser',
     version: '1.0.0',
     coreVersion: '^0.1.0',
@@ -793,7 +793,7 @@ function createMockParser(overrides: Partial<ParserPlugin> = {}): ParserPlugin {
 
 function createMockConnector(overrides: Partial<ConnectorPlugin> = {}): ConnectorPlugin {
   return {
-    name: '@opendocs/plugin-test',
+    name: '@opendocuments/plugin-test',
     type: 'connector',
     version: '1.0.0',
     coreVersion: '^0.1.0',
@@ -811,7 +811,7 @@ describe('PluginRegistry', () => {
 
     await registry.register(parser, { config: {}, dataDir: '/tmp', log: console as any })
 
-    expect(registry.get('@opendocs/parser-test')).toBe(parser)
+    expect(registry.get('@opendocuments/parser-test')).toBe(parser)
     expect(parser.setup).toHaveBeenCalled()
   })
 
@@ -836,7 +836,7 @@ describe('PluginRegistry', () => {
     await registry.register(parser, ctx)
 
     await expect(registry.register(parser, ctx)).rejects.toThrow(
-      'Plugin @opendocs/parser-test is already registered'
+      'Plugin @opendocuments/parser-test is already registered'
     )
   })
 
@@ -846,9 +846,9 @@ describe('PluginRegistry', () => {
     const ctx: PluginContext = { config: {}, dataDir: '/tmp', log: console as any }
 
     await registry.register(parser, ctx)
-    await registry.unregister('@opendocs/parser-test')
+    await registry.unregister('@opendocuments/parser-test')
 
-    expect(registry.get('@opendocs/parser-test')).toBeUndefined()
+    expect(registry.get('@opendocuments/parser-test')).toBeUndefined()
     expect(parser.teardown).toHaveBeenCalled()
   })
 
@@ -873,8 +873,8 @@ describe('PluginRegistry', () => {
     await registry.register(connector, ctx)
 
     expect(registry.listAll()).toEqual([
-      { name: '@opendocs/parser-test', type: 'parser', version: '1.0.0' },
-      { name: '@opendocs/plugin-test', type: 'connector', version: '1.0.0' },
+      { name: '@opendocuments/parser-test', type: 'parser', version: '1.0.0' },
+      { name: '@opendocuments/plugin-test', type: 'connector', version: '1.0.0' },
     ])
   })
 })
@@ -1043,19 +1043,19 @@ describe('checkCompatibility', () => {
 
   it('fails when a dependency is missing', () => {
     const result = checkCompatibility(
-      fakePlugin({ dependencies: ['@opendocs/parser-pdf'] }),
+      fakePlugin({ dependencies: ['@opendocuments/parser-pdf'] }),
       '0.1.0',
-      ['@opendocs/parser-docx']
+      ['@opendocuments/parser-docx']
     )
     expect(result.compatible).toBe(false)
-    expect(result.errors[0]).toContain('@opendocs/parser-pdf')
+    expect(result.errors[0]).toContain('@opendocuments/parser-pdf')
   })
 
   it('passes when all dependencies are present', () => {
     const result = checkCompatibility(
-      fakePlugin({ dependencies: ['@opendocs/parser-pdf'] }),
+      fakePlugin({ dependencies: ['@opendocuments/parser-pdf'] }),
       '0.1.0',
-      ['@opendocs/parser-pdf']
+      ['@opendocuments/parser-pdf']
     )
     expect(result.compatible).toBe(true)
   })
@@ -1279,20 +1279,20 @@ export const configSchema = z.object({
     dbUrl: z.string().optional(),
     vectorDb: z.enum(['chroma', 'qdrant']).default('chroma'),
     vectorDbUrl: z.string().optional(),
-    dataDir: z.string().default('~/.opendocs'),
+    dataDir: z.string().default('~/.opendocuments'),
   }).default({}),
 })
 
-export type OpenDocsConfig = z.infer<typeof configSchema>
+export type OpenDocumentsConfig = z.infer<typeof configSchema>
 ```
 
 - [ ] **Step 2: Create defaults**
 
 ```typescript
 // packages/core/src/config/defaults.ts
-import type { OpenDocsConfig } from './schema.js'
+import type { OpenDocumentsConfig } from './schema.js'
 
-export const DEFAULT_CONFIG: OpenDocsConfig = {
+export const DEFAULT_CONFIG: OpenDocumentsConfig = {
   workspace: 'default',
   mode: 'personal',
   model: {
@@ -1319,7 +1319,7 @@ export const DEFAULT_CONFIG: OpenDocsConfig = {
   },
   ui: { locale: 'auto', theme: 'auto' },
   telemetry: { enabled: false },
-  storage: { db: 'sqlite', vectorDb: 'chroma', dataDir: '~/.opendocs' },
+  storage: { db: 'sqlite', vectorDb: 'chroma', dataDir: '~/.opendocuments' },
 }
 ```
 
@@ -1383,27 +1383,27 @@ Expected: FAIL -- cannot resolve `../../src/config/loader.js`
 // packages/core/src/config/loader.ts
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { configSchema, type OpenDocsConfig } from './schema.js'
+import { configSchema, type OpenDocumentsConfig } from './schema.js'
 import { DEFAULT_CONFIG } from './defaults.js'
 
-export function validateConfig(raw: unknown): OpenDocsConfig {
+export function validateConfig(raw: unknown): OpenDocumentsConfig {
   return configSchema.parse(raw)
 }
 
-export function loadConfig(projectDir: string): OpenDocsConfig {
-  const configPath = resolve(projectDir, 'opendocs.config.ts')
+export function loadConfig(projectDir: string): OpenDocumentsConfig {
+  const configPath = resolve(projectDir, 'opendocuments.config.ts')
 
   if (!existsSync(configPath)) {
     return DEFAULT_CONFIG
   }
 
   // For now, return defaults. Dynamic TS config loading will be added
-  // when the CLI package implements `opendocs start` (Plan 3).
+  // when the CLI package implements `opendocuments start` (Plan 3).
   // At that point, we'll use jiti or tsx to load the TS config at runtime.
   return DEFAULT_CONFIG
 }
 
-export function defineConfig(config: Partial<OpenDocsConfig>): OpenDocsConfig {
+export function defineConfig(config: Partial<OpenDocumentsConfig>): OpenDocumentsConfig {
   return validateConfig(config)
 }
 ```
@@ -1421,7 +1421,7 @@ Expected: 4 tests PASS.
 Add to `packages/core/src/index.ts`:
 
 ```typescript
-export { configSchema, type OpenDocsConfig } from './config/schema.js'
+export { configSchema, type OpenDocumentsConfig } from './config/schema.js'
 export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
 export { DEFAULT_CONFIG } from './config/defaults.js'
 ```

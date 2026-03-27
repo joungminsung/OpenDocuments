@@ -1,7 +1,7 @@
 import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from '../plugin/interfaces.js'
 
 export class StructuredDataParser implements ParserPlugin {
-  name = '@opendocs/parser-structured'
+  name = '@opendocuments/parser-structured'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

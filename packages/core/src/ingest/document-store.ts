@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { DB } from '../storage/db.js'
 import type { VectorDB } from '../storage/vector-db.js'
 
-const COLLECTION = 'opendocs_chunks'
+const COLLECTION = 'opendocuments_chunks'
 
 export interface CreateDocumentInput {
   title: string
@@ -224,7 +224,7 @@ export class DocumentStore {
 
   /**
    * Restore a soft-deleted document. Resets status to 'pending'.
-   * The document will need to be re-indexed (opendocs index) to regenerate embeddings.
+   * The document will need to be re-indexed (opendocuments index) to regenerate embeddings.
    */
   restoreDocument(documentId: string): void {
     this.db.run(

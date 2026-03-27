@@ -17,7 +17,7 @@ describe('XLSXParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-xlsx')
+    expect(parser.name).toBe('@opendocuments/parser-xlsx')
     expect(parser.supportedTypes).toEqual(['.xlsx', '.xls', '.csv'])
   })
 

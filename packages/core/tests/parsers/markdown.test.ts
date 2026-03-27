@@ -5,7 +5,7 @@ describe('MarkdownParser', () => {
   const parser = new MarkdownParser()
 
   it('has correct plugin metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-markdown')
+    expect(parser.name).toBe('@opendocuments/parser-markdown')
     expect(parser.type).toBe('parser')
     expect(parser.supportedTypes).toEqual(['.md', '.mdx'])
   })

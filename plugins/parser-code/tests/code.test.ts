@@ -10,7 +10,7 @@ describe('CodeParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-code')
+    expect(parser.name).toBe('@opendocuments/parser-code')
     expect(parser.type).toBe('parser')
     expect(parser.supportedTypes).toContain('.ts')
     expect(parser.supportedTypes).toContain('.py')

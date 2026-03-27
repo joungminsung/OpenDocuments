@@ -1,12 +1,12 @@
-# Contributing to OpenDocs
+# Contributing to OpenDocuments
 
 Thank you for your interest in contributing!
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/opendocs/opendocs
-cd opendocs
+git clone https://github.com/opendocuments/opendocuments
+cd opendocuments
 npm run setup
 npm run test
 ```
@@ -22,7 +22,7 @@ npm run test
 ## Plugin Development
 
 ```bash
-opendocs plugin create my-plugin --type parser
+opendocuments plugin create my-plugin --type parser
 cd my-plugin
 npm install && npm run test
 ```

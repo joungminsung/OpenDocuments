@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
-import { CollectionManager } from '@opendocs/core'
+import { CollectionManager } from '@opendocuments/core'
 
 export function collectionRoutes(ctx: AppContext) {
   const app = new Hono()

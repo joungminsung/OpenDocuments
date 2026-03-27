@@ -4,8 +4,8 @@ import type {
   HealthStatus,
   GenerateOpts,
   EmbeddingResult,
-} from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+} from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface GrokConfig {
   apiKey?: string
@@ -15,7 +15,7 @@ export interface GrokConfig {
 }
 
 export class GrokModelPlugin implements ModelPlugin {
-  name = '@opendocs/model-grok'
+  name = '@opendocuments/model-grok'
   type = 'model' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

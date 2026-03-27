@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { log } from '@opendocs/core'
+import { log } from '@opendocuments/core'
 import { writeFileSync, existsSync, readFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -18,7 +18,7 @@ export function completionCommand() {
         const zshDir = join(process.env.HOME || '~', '.zsh', 'completions')
         const { mkdirSync } = await import('node:fs')
         mkdirSync(zshDir, { recursive: true })
-        writeFileSync(join(zshDir, '_opendocs'), completionScript)
+        writeFileSync(join(zshDir, '_opendocuments'), completionScript)
 
         // Add to .zshrc if not already there
         const zshrc = join(process.env.HOME || '~', '.zshrc')
@@ -34,9 +34,9 @@ export function completionCommand() {
         const bashDir = join(process.env.HOME || '~', '.bash_completions')
         const { mkdirSync } = await import('node:fs')
         mkdirSync(bashDir, { recursive: true })
-        writeFileSync(join(bashDir, 'opendocs'), script)
+        writeFileSync(join(bashDir, 'opendocuments'), script)
         log.ok('Bash completions installed')
-        log.arrow(`Add to .bashrc: source ~/.bash_completions/opendocs`)
+        log.arrow(`Add to .bashrc: source ~/.bash_completions/opendocuments`)
       } else {
         log.fail(`Unsupported shell: ${shell}. Supported: zsh, bash`)
       }
@@ -54,11 +54,11 @@ function detectShell(): string {
 }
 
 function generateZshCompletion(): string {
-  return `#compdef opendocs
-_opendocs() {
+  return `#compdef opendocuments
+_opendocuments() {
   local -a commands
   commands=(
-    'init:Initialize OpenDocs project'
+    'init:Initialize OpenDocuments project'
     'start:Start the server'
     'stop:Stop the server'
     'ask:Ask a question'
@@ -77,15 +77,15 @@ _opendocs() {
   )
   _describe 'command' commands
 }
-compdef _opendocs opendocs
+compdef _opendocuments opendocuments
 `
 }
 
 function generateBashCompletion(): string {
-  return `_opendocs_completions() {
+  return `_opendocuments_completions() {
   local commands="init start stop ask search index document connector auth plugin workspace doctor config export import completion"
   COMPREPLY=($(compgen -W "$commands" -- "\${COMP_WORDS[COMP_CWORD]}"))
 }
-complete -F _opendocs_completions opendocs
+complete -F _opendocuments_completions opendocuments
 `
 }

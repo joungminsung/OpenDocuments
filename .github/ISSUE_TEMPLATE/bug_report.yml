@@ -13,7 +13,7 @@ body:
       label: Steps to Reproduce
   - type: input
     attributes:
-      label: OpenDocs Version
+      label: OpenDocuments Version
       placeholder: "0.1.0"
   - type: input
     attributes:

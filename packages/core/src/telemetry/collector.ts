@@ -39,7 +39,7 @@ export class TelemetryCollector {
     this.queue = []
 
     // TODO: Send to telemetry endpoint when configured
-    // try { await fetchWithTimeout('https://telemetry.opendocs.dev/events', { method: 'POST', body: JSON.stringify(events) }) } catch {}
+    // try { await fetchWithTimeout('https://telemetry.opendocuments.dev/events', { method: 'POST', body: JSON.stringify(events) }) } catch {}
   }
 
   isEnabled(): boolean {

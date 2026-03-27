@@ -14,7 +14,7 @@ describe('DOCXParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-docx')
+    expect(parser.name).toBe('@opendocuments/parser-docx')
     expect(parser.supportedTypes).toEqual(['.docx'])
   })
 

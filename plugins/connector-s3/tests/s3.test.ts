@@ -19,7 +19,7 @@ describe('S3Connector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-s3')
+    expect(connector.name).toBe('@opendocuments/connector-s3')
     expect(connector.type).toBe('connector')
     expect(connector.version).toBe('0.1.0')
   })

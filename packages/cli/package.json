@@ -1,9 +1,9 @@
 {
-  "name": "@opendocs/cli",
+  "name": "@opendocuments/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "opendocs": "./dist/index.js"
+    "opendocuments": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -15,8 +15,8 @@
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "@inquirer/prompts": "^8.3.2",
-    "@opendocs/core": "*",
-    "@opendocs/server": "*",
+    "@opendocuments/core": "*",
+    "@opendocuments/server": "*",
     "chalk": "^5.3.0",
     "commander": "^12.1.0"
   },

@@ -23,7 +23,7 @@ export async function crossWorkspaceSearch(
 
   // Search each workspace
   for (const wsId of workspaceIds) {
-    const results = await vectorDb.search('opendocs_chunks', {
+    const results = await vectorDb.search('opendocuments_chunks', {
       embedding: queryEmbedding,
       topK: Math.ceil(topK / workspaceIds.length) + 2, // extra to compensate for merging
       filter: { workspace_id: wsId },

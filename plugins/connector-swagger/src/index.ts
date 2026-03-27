@@ -1,5 +1,5 @@
-import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocs/core'
-import { fetchWithTimeout } from '@opendocs/core'
+import type { ConnectorPlugin, DiscoveredDocument, DocumentRef, RawDocument, PluginContext, HealthStatus } from '@opendocuments/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 export interface SwaggerConfig {
   url: string  // URL to swagger.json or openapi.yaml
@@ -7,7 +7,7 @@ export interface SwaggerConfig {
 }
 
 export class SwaggerConnector implements ConnectorPlugin {
-  name = '@opendocs/connector-swagger'
+  name = '@opendocuments/connector-swagger'
   type = 'connector' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

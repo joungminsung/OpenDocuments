@@ -20,8 +20,8 @@ import { upgradeCommand } from './commands/upgrade.js'
 
 const program = new Command()
 program
-  .name('opendocs')
-  .description('OpenDocs - Self-hosted RAG platform for organizational documents')
+  .name('opendocuments')
+  .description('OpenDocuments - Self-hosted RAG platform for organizational documents')
   .version('0.1.0')
 
 program.addCommand(startCommand())

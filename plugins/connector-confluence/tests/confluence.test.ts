@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ConfluenceConnector } from '../src/index.js'
 
-vi.mock('@opendocs/core', async () => {
-  const actual = await vi.importActual('@opendocs/core')
+vi.mock('@opendocuments/core', async () => {
+  const actual = await vi.importActual('@opendocuments/core')
   return { ...actual, fetchWithTimeout: vi.fn() }
 })
 
-import { fetchWithTimeout } from '@opendocs/core'
+import { fetchWithTimeout } from '@opendocuments/core'
 
 describe('ConfluenceConnector', () => {
   let connector: ConfluenceConnector
@@ -20,7 +20,7 @@ describe('ConfluenceConnector', () => {
   })
 
   it('has correct metadata', () => {
-    expect(connector.name).toBe('@opendocs/connector-confluence')
+    expect(connector.name).toBe('@opendocuments/connector-confluence')
     expect(connector.type).toBe('connector')
   })
 

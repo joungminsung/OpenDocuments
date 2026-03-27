@@ -15,7 +15,7 @@ describe('PDFParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-pdf')
+    expect(parser.name).toBe('@opendocuments/parser-pdf')
     expect(parser.type).toBe('parser')
     expect(parser.supportedTypes).toEqual(['.pdf'])
   })

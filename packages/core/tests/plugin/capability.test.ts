@@ -30,19 +30,19 @@ describe('checkCompatibility', () => {
 
   it('fails when a dependency is missing', () => {
     const result = checkCompatibility(
-      fakePlugin({ dependencies: ['@opendocs/parser-pdf'] }),
+      fakePlugin({ dependencies: ['@opendocuments/parser-pdf'] }),
       '0.1.0',
-      ['@opendocs/parser-docx']
+      ['@opendocuments/parser-docx']
     )
     expect(result.compatible).toBe(false)
-    expect(result.errors[0]).toContain('@opendocs/parser-pdf')
+    expect(result.errors[0]).toContain('@opendocuments/parser-pdf')
   })
 
   it('passes when all dependencies are present', () => {
     const result = checkCompatibility(
-      fakePlugin({ dependencies: ['@opendocs/parser-pdf'] }),
+      fakePlugin({ dependencies: ['@opendocuments/parser-pdf'] }),
       '0.1.0',
-      ['@opendocs/parser-pdf']
+      ['@opendocuments/parser-pdf']
     )
     expect(result.compatible).toBe(true)
   })

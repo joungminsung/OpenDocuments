@@ -21,7 +21,7 @@ describe('Retriever', () => {
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
-    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     vectorDb = await createLanceDB(tempDir)
     store = new DocumentStore(db, vectorDb, 'ws-1')
     await store.initialize(3)

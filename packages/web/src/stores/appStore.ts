@@ -25,23 +25,23 @@ function getEffectiveTheme(theme: Theme): 'light' | 'dark' {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  theme: (localStorage.getItem('opendocs-theme') as Theme) || 'system',
+  theme: (localStorage.getItem('opendocuments-theme') as Theme) || 'system',
   effectiveTheme: getEffectiveTheme(
-    (localStorage.getItem('opendocs-theme') as Theme) || 'system'
+    (localStorage.getItem('opendocuments-theme') as Theme) || 'system'
   ),
-  profile: (localStorage.getItem('opendocs-profile') as RAGProfile) || 'balanced',
+  profile: (localStorage.getItem('opendocuments-profile') as RAGProfile) || 'balanced',
   currentPage: 'chat',
   sidebarOpen: true,
 
   setTheme: (theme) => {
-    localStorage.setItem('opendocs-theme', theme)
+    localStorage.setItem('opendocuments-theme', theme)
     const effective = getEffectiveTheme(theme)
     document.documentElement.classList.toggle('dark', effective === 'dark')
     set({ theme, effectiveTheme: effective })
   },
 
   setProfile: (profile) => {
-    localStorage.setItem('opendocs-profile', profile)
+    localStorage.setItem('opendocuments-profile', profile)
     set({ profile })
   },
 

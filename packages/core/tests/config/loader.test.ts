@@ -41,11 +41,11 @@ describe('loadConfig', () => {
     expect(config).toEqual(DEFAULT_CONFIG)
   })
 
-  it('loads config from opendocs.config.ts file', () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'opendocs-config-'))
+  it('loads config from opendocuments.config.ts file', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-config-'))
 
     try {
-      writeFileSync(join(tempDir, 'opendocs.config.ts'), `
+      writeFileSync(join(tempDir, 'opendocuments.config.ts'), `
         export default {
           workspace: 'test-workspace',
           mode: 'team' as const,
@@ -65,10 +65,10 @@ describe('loadConfig', () => {
   })
 
   it('falls back to defaults on invalid config file', () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'opendocs-config-'))
+    const tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-config-'))
 
     try {
-      writeFileSync(join(tempDir, 'opendocs.config.ts'), `
+      writeFileSync(join(tempDir, 'opendocuments.config.ts'), `
         export default {
           mode: 'invalid-mode',
         }

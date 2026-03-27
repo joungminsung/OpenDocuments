@@ -1,5 +1,5 @@
 {
-  "name": "@opendocs/parser-html",
+  "name": "@opendocuments/parser-html",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@opendocs/core": "*",
+    "@opendocuments/core": "*",
     "cheerio": "^1.0.0"
   },
   "devDependencies": {
@@ -26,6 +26,6 @@
     "vitest": "^2.1.0"
   },
   "peerDependencies": {
-    "@opendocs/core": "^0.1.0"
+    "@opendocuments/core": "^0.1.0"
   }
 }

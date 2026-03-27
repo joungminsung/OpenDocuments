@@ -3,7 +3,7 @@ import type {
 } from '../plugin/interfaces.js'
 
 export class MarkdownParser implements ParserPlugin {
-  name = '@opendocs/parser-markdown'
+  name = '@opendocuments/parser-markdown'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'

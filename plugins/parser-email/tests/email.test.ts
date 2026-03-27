@@ -26,7 +26,7 @@ describe('EmailParser', () => {
   })
 
   it('has correct metadata', () => {
-    expect(parser.name).toBe('@opendocs/parser-email')
+    expect(parser.name).toBe('@opendocuments/parser-email')
     expect(parser.supportedTypes).toEqual(['.eml', '.msg'])
   })
 

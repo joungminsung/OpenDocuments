@@ -3,9 +3,9 @@
 ## Installation
 
 ```bash
-npm install -g @opendocs/cli
-opendocs init
-opendocs start
+npm install -g @opendocuments/cli
+opendocuments init
+opendocuments start
 ```
 
 Then open http://localhost:3000

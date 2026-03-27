@@ -4,7 +4,7 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 // For now, yield a placeholder indicating archive support is limited
 
 export class ArchiveParser implements ParserPlugin {
-  name = '@opendocs/parser-archive'
+  name = '@opendocuments/parser-archive'
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.1.0'
