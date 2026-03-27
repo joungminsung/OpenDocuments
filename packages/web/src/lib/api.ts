@@ -1,4 +1,4 @@
-import type { QueryResult, Document, StatsResponse } from './types'
+import type { QueryResult, Document, StatsResponse, AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from './types'
 
 const BASE = '/api/v1'
 
@@ -56,15 +56,15 @@ export async function getStats(): Promise<StatsResponse> {
 }
 
 // Admin
-export async function getAdminStats(): Promise<any> {
+export async function getAdminStats(): Promise<AdminStatsResponse> {
   return request('/admin/stats')
 }
 
-export async function getSearchQuality(): Promise<any> {
+export async function getSearchQuality(): Promise<SearchQualityResponse> {
   return request('/admin/search-quality')
 }
 
-export async function getQueryLogs(opts?: { limit?: number; offset?: number; intent?: string }): Promise<any> {
+export async function getQueryLogs(opts?: { limit?: number; offset?: number; intent?: string }): Promise<QueryLogsResponse> {
   const params = new URLSearchParams()
   if (opts?.limit) params.set('limit', String(opts.limit))
   if (opts?.offset) params.set('offset', String(opts.offset))
@@ -72,10 +72,10 @@ export async function getQueryLogs(opts?: { limit?: number; offset?: number; int
   return request(`/admin/query-logs?${params}`)
 }
 
-export async function getPluginHealth(): Promise<any> {
+export async function getPluginHealth(): Promise<PluginHealthResponse> {
   return request('/admin/plugins')
 }
 
-export async function getConnectorStatus(): Promise<any> {
+export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
 }

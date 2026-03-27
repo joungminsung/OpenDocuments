@@ -6,8 +6,8 @@ export function adminRoutes(ctx: AppContext) {
   const app = new Hono()
 
   app.get('/api/v1/admin/audit-logs', requireRole('admin'), requireScope('admin'), (c) => {
-    const limit = parseInt(c.req.query('limit') || '100', 10)
-    const offset = parseInt(c.req.query('offset') || '0', 10)
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 500)
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
     const eventType = c.req.query('eventType') || undefined
     const workspaceId = c.req.query('workspaceId') || undefined
 
@@ -50,51 +50,43 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   app.get('/api/v1/admin/search-quality', requireRole('admin'), requireScope('admin'), (c) => {
-    const logs = ctx.db.all<any>(
-      'SELECT * FROM query_logs ORDER BY created_at DESC LIMIT 1000'
+    // Aggregate in SQL
+    const summary = ctx.db.get<any>(
+      'SELECT COUNT(*) as totalQueries, AVG(confidence_score) as avgConfidence, AVG(response_time_ms) as avgResponseTime FROM query_logs'
     )
 
-    const totalQueries = logs.length
-    const avgConfidence = logs.length > 0
-      ? logs.reduce((sum: number, l: any) => sum + (l.confidence_score || 0), 0) / logs.length
-      : 0
-
-    // Intent distribution
+    const intents = ctx.db.all<any>(
+      'SELECT intent, COUNT(*) as count FROM query_logs GROUP BY intent'
+    )
     const intentDistribution: Record<string, number> = {}
-    for (const log of logs) {
-      const intent = log.intent || 'general'
-      intentDistribution[intent] = (intentDistribution[intent] || 0) + 1
-    }
+    for (const row of intents) intentDistribution[row.intent || 'general'] = row.count
 
-    // Route distribution
+    const routes = ctx.db.all<any>(
+      'SELECT route, COUNT(*) as count FROM query_logs GROUP BY route'
+    )
     const routeDistribution: Record<string, number> = {}
-    for (const log of logs) {
-      const route = log.route || 'unknown'
-      routeDistribution[route] = (routeDistribution[route] || 0) + 1
-    }
+    for (const row of routes) routeDistribution[row.route || 'unknown'] = row.count
 
-    // Feedback stats
-    const positive = logs.filter((l: any) => l.feedback === 'positive').length
-    const negative = logs.filter((l: any) => l.feedback === 'negative').length
-
-    // Avg response time
-    const avgResponseTime = logs.length > 0
-      ? logs.reduce((sum: number, l: any) => sum + (l.response_time_ms || 0), 0) / logs.length
-      : 0
+    const feedback = ctx.db.get<any>(
+      `SELECT
+        SUM(CASE WHEN feedback = 'positive' THEN 1 ELSE 0 END) as positive,
+        SUM(CASE WHEN feedback = 'negative' THEN 1 ELSE 0 END) as negative
+      FROM query_logs WHERE feedback IS NOT NULL`
+    )
 
     return c.json({
-      totalQueries,
-      avgConfidence: Math.round(avgConfidence * 100) / 100,
-      avgResponseTimeMs: Math.round(avgResponseTime),
+      totalQueries: summary?.totalQueries || 0,
+      avgConfidence: Math.round((summary?.avgConfidence || 0) * 100) / 100,
+      avgResponseTimeMs: Math.round(summary?.avgResponseTime || 0),
       intentDistribution,
       routeDistribution,
-      feedback: { positive, negative, total: positive + negative },
+      feedback: { positive: feedback?.positive || 0, negative: feedback?.negative || 0 },
     })
   })
 
   app.get('/api/v1/admin/query-logs', requireRole('admin'), requireScope('admin'), (c) => {
-    const limit = parseInt(c.req.query('limit') || '50')
-    const offset = parseInt(c.req.query('offset') || '0')
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '50', 10) || 50, 1), 500)
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
     const intent = c.req.query('intent')
     const route = c.req.query('route')
 
@@ -108,7 +100,12 @@ export function adminRoutes(ctx: AppContext) {
     params.push(limit, offset)
 
     const logs = ctx.db.all<any>(sql, params)
-    const total = ctx.db.get<any>('SELECT COUNT(*) as count FROM query_logs')
+
+    let countSql = 'SELECT COUNT(*) as count FROM query_logs WHERE 1=1'
+    const countParams: unknown[] = []
+    if (intent) { countSql += ' AND intent = ?'; countParams.push(intent) }
+    if (route) { countSql += ' AND route = ?'; countParams.push(route) }
+    const total = ctx.db.get<any>(countSql, countParams)
 
     return c.json({ logs, total: total?.count || 0, limit, offset })
   })
@@ -129,7 +126,9 @@ export function adminRoutes(ctx: AppContext) {
 
         try {
           if (plugin?.metrics) metrics = await plugin.metrics()
-        } catch {}
+        } catch (err) {
+          metrics = { error: (err as Error).message }
+        }
 
         return { ...p, health, metrics }
       })

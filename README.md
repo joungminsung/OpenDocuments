@@ -22,6 +22,12 @@ opendocs index ./docs      # Index local files
 opendocs ask "question"    # Ask from CLI
 opendocs doctor            # System health check
 opendocs config            # View configuration
+opendocs connector list    # List connectors
+opendocs connector sync    # Sync all connectors
+opendocs auth create-key   # Generate API key
+opendocs auth list-keys    # List API keys
+opendocs plugin list       # List installed plugins
+opendocs plugin create     # Scaffold a new plugin
 ```
 
 ## Supported File Formats

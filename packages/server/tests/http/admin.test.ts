@@ -61,3 +61,51 @@ describe('Admin Routes', () => {
     expect(body.connectors).toBeDefined()
   })
 })
+
+describe('Admin Routes (team mode)', () => {
+  let ctx: AppContext
+  let app: ReturnType<typeof createApp>
+  let tempDir: string
+
+  beforeEach(async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocs-test-'))
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team' } })
+    app = createApp(ctx)
+  })
+
+  afterEach(async () => {
+    await ctx.shutdown()
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('returns 401 without API key', async () => {
+    const res = await app.request('/api/v1/admin/stats')
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 with non-admin key', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'member-key',
+      workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'user-1',
+      role: 'member',
+    })
+    const res = await app.request('/api/v1/admin/stats', {
+      headers: { 'X-API-Key': rawKey },
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 200 with admin key', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'admin-key',
+      workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'user-1',
+      role: 'admin',
+    })
+    const res = await app.request('/api/v1/admin/stats', {
+      headers: { 'X-API-Key': rawKey },
+    })
+    expect(res.status).toBe(200)
+  })
+})

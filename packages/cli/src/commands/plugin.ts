@@ -66,7 +66,7 @@ export function pluginCommand() {
           test: 'vitest run',
           typecheck: 'tsc --noEmit',
         },
-        dependencies: { '@opendocs/core': '*' },
+        dependencies: { '@opendocs/core': '^0.1.0' },
         devDependencies: { typescript: '^5.5.0', vitest: '^2.1.0' },
         peerDependencies: { '@opendocs/core': '^0.1.0' },
       }, null, 2) + '\n')
@@ -177,6 +177,7 @@ export default MyMiddleware
       // Generate test
       writeFileSync(join(dir, 'tests', 'index.test.ts'),
         `import { describe, it, expect } from 'vitest'
+// Note: .js extension is resolved to .ts by vitest's TypeScript support
 import Plugin from '../src/index.js'
 
 describe('${name}', () => {

@@ -60,3 +60,44 @@ export interface StatsResponse {
 }
 
 export type RAGProfile = 'fast' | 'balanced' | 'precise'
+
+export interface AdminStatsResponse {
+  documents: number
+  chunks: number
+  workspaces: number
+  plugins: number
+  sourceDistribution: Record<string, number>
+  statusDistribution: Record<string, number>
+  fileTypeDistribution: Record<string, number>
+}
+
+export interface SearchQualityResponse {
+  totalQueries: number
+  avgConfidence: number
+  avgResponseTimeMs: number
+  intentDistribution: Record<string, number>
+  routeDistribution: Record<string, number>
+  feedback: { positive: number; negative: number }
+}
+
+export interface QueryLogsResponse {
+  logs: Array<{
+    query: string; intent: string; profile: string; route: string
+    confidence_score: number; response_time_ms: number; feedback: string | null; created_at: string
+  }>
+  total: number; limit: number; offset: number
+}
+
+export interface PluginHealthResponse {
+  plugins: Array<{
+    name: string; type: string; version: string
+    health: { healthy: boolean; message?: string }
+    metrics: Record<string, unknown>
+  }>
+}
+
+export interface ConnectorStatusResponse {
+  connectors: Array<{
+    name: string; connectorId: string; status: string; lastSyncedAt: string | null
+  }>
+}

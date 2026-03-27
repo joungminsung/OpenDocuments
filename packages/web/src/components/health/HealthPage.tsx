@@ -1,30 +1,41 @@
 import { useState, useEffect } from 'react'
 import { getAdminStats, getSearchQuality, getQueryLogs, getPluginHealth, getConnectorStatus } from '../../lib/api'
+import type { AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from '../../lib/types'
 
 export function HealthPage() {
-  const [stats, setStats] = useState<any>(null)
-  const [quality, setQuality] = useState<any>(null)
-  const [logs, setLogs] = useState<any>(null)
-  const [plugins, setPlugins] = useState<any>(null)
-  const [connectors, setConnectors] = useState<any>(null)
+  const [stats, setStats] = useState<AdminStatsResponse | null>(null)
+  const [quality, setQuality] = useState<SearchQualityResponse | null>(null)
+  const [logs, setLogs] = useState<QueryLogsResponse | null>(null)
+  const [plugins, setPlugins] = useState<PluginHealthResponse | null>(null)
+  const [connectors, setConnectors] = useState<ConnectorStatusResponse | null>(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'queries' | 'plugins' | 'connectors'>('overview')
 
   useEffect(() => {
-    Promise.all([
-      getAdminStats().catch(() => null),
-      getSearchQuality().catch(() => null),
-      getQueryLogs({ limit: 20 }).catch(() => null),
-      getPluginHealth().catch(() => null),
-      getConnectorStatus().catch(() => null),
-    ]).then(([s, q, l, p, c]) => {
-      setStats(s)
-      setQuality(q)
-      setLogs(l)
-      setPlugins(p)
-      setConnectors(c)
-    }).catch(err => setError(err.message))
-  }, [])
+    setLoading(true)
+    if (activeTab === 'overview') {
+      Promise.all([getAdminStats(), getSearchQuality()])
+        .then(([s, q]) => { setStats(s); setQuality(q) })
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false))
+    } else if (activeTab === 'queries') {
+      getQueryLogs({ limit: 20 })
+        .then(setLogs)
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false))
+    } else if (activeTab === 'plugins') {
+      getPluginHealth()
+        .then(setPlugins)
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false))
+    } else if (activeTab === 'connectors') {
+      getConnectorStatus()
+        .then(setConnectors)
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false))
+    }
+  }, [activeTab])
 
   if (error) {
     return (
@@ -36,6 +47,8 @@ export function HealthPage() {
       </div>
     )
   }
+
+  if (loading) return <div className="p-8 text-gray-400">Loading dashboard...</div>
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -62,7 +75,7 @@ export function HealthPage() {
       {activeTab === 'overview' && stats && (
         <div className="space-y-6">
           {/* Stat Cards */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Documents', value: stats.documents },
               { label: 'Chunks', value: stats.chunks },
