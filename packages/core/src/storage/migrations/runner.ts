@@ -29,6 +29,7 @@ export function runMigrations(db: DB): { applied: string[] } {
     )
     if (already) continue
 
+    // Note: Sync I/O is acceptable here since migrations run only at bootstrap before server accepts requests
     const sql = readFileSync(join(migrationDir, file), 'utf-8')
     db.transaction(() => {
       try {

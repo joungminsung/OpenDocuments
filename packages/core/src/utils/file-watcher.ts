@@ -58,9 +58,15 @@ export class FileWatcher {
         const fullPath = join(dir, entry.name)
         if (entry.isDirectory()) this.walkDir(fullPath, files)
         else if (this.extensions.has(extname(entry.name))) {
-          try { files.set(fullPath, statSync(fullPath).mtimeMs) } catch {}
+          try { files.set(fullPath, statSync(fullPath).mtimeMs) } catch (err) {
+            // Log but don't crash -- file may be temporarily unavailable
+            console.error(`FileWatcher error: ${(err as Error).message}`)
+          }
         }
       }
-    } catch {}
+    } catch (err) {
+      // Log but don't crash -- file may be temporarily unavailable
+      console.error(`FileWatcher error: ${(err as Error).message}`)
+    }
   }
 }

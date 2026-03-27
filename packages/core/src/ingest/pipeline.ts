@@ -118,6 +118,8 @@ export class IngestPipeline {
         metadata: { sourcePath: input.sourcePath, sourceType: input.sourceType },
       }
 
+      eventBus.emit('document:fetched', { documentId })
+
       // Apply before:parse middleware
       await middleware.run('before:parse', rawDoc)
 

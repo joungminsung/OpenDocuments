@@ -161,9 +161,18 @@ export class DocumentStore {
   }
 
   searchFTS(query: string, topK: number): SearchResult[] {
-    const rows = this.db.all<any>(
+    // Escape FTS5 special characters by wrapping each word in double quotes
+    const safeQuery = query
+      .split(/\s+/)
+      .filter(w => w.length > 0)
+      .map(w => `"${w.replace(/"/g, '""')}"`)
+      .join(' ')
+    if (!safeQuery) return []
+
+    interface FTSRow { chunk_id: string; content: string; rank: number; [key: string]: unknown }
+    const rows = this.db.all<FTSRow>(
       `SELECT chunk_id, content, rank FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?`,
-      [query, topK]
+      [safeQuery, topK]
     )
     return rows.map((r) => {
       const docId = r.chunk_id.split('_chunk_')[0]
@@ -181,6 +190,11 @@ export class DocumentStore {
     })
   }
 
+  /**
+   * Soft-delete a document. Sets deleted_at timestamp.
+   * NOTE: Vector embeddings are permanently deleted from LanceDB (no soft-delete support).
+   * To make the document searchable again after restore, it must be re-indexed.
+   */
   async softDeleteDocument(documentId: string): Promise<void> {
     // Soft delete: set deleted_at timestamp
     const now = new Date().toISOString()
@@ -207,6 +221,10 @@ export class DocumentStore {
     return this.hardDeleteDocument(documentId)
   }
 
+  /**
+   * Restore a soft-deleted document. Resets status to 'pending'.
+   * The document will need to be re-indexed (opendocs index) to regenerate embeddings.
+   */
   restoreDocument(documentId: string): void {
     this.db.run(
       'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ?',

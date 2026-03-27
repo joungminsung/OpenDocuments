@@ -4,7 +4,15 @@ export interface OpenDocsClientOptions {
 }
 
 export interface QueryResult {
-  queryId: string; answer: string; sources: any[]; confidence: any; route: string; profile: string
+  queryId: string; answer: string; sources: Array<{ documentId: string; content: string; score: number }>; confidence: number; route: string; profile: string
+}
+
+export interface DocumentListResponse {
+  documents: Array<{ id: string; title: string; source_type: string; status: string; chunk_count: number }>
+}
+
+export interface StatsResponse {
+  documents: number; workspaces: number; plugins: number
 }
 
 export class OpenDocsClient {
@@ -29,11 +37,11 @@ export class OpenDocsClient {
     return this.request('/chat', { method: 'POST', body: JSON.stringify({ query, profile }) })
   }
 
-  async listDocuments(): Promise<{ documents: any[] }> {
+  async listDocuments(): Promise<DocumentListResponse> {
     return this.request('/documents')
   }
 
-  async uploadDocument(file: File): Promise<any> {
+  async uploadDocument(file: File): Promise<{ id: string; status: string }> {
     const formData = new FormData()
     formData.append('file', file)
     const res = await fetch(`${this.baseUrl}/api/v1/documents/upload`, {
@@ -51,7 +59,7 @@ export class OpenDocsClient {
     return this.request('/health')
   }
 
-  async getStats(): Promise<any> {
+  async getStats(): Promise<StatsResponse> {
     return this.request('/stats')
   }
 }

@@ -18,10 +18,10 @@ export class ArchiveParser implements ParserPlugin {
     // ZIP parsing requires a proper library (adm-zip, unzipper, etc.)
     // For now, yield a placeholder indicating archive support is limited
     yield {
-      content: `Archive file: ${raw.title}. Full ZIP extraction requires @opendocs/parser-archive with adm-zip dependency.`,
+      content: `[ZIP Archive] ${raw.title}\nFull ZIP extraction requires the 'adm-zip' package. Install it and re-index to extract contents.\nTo add ZIP support: npm install adm-zip`,
       chunkType: 'semantic',
-      headingHierarchy: ['Archive'],
-      metadata: { type: 'archive-placeholder' },
+      headingHierarchy: ['Archive: ' + raw.title],
+      metadata: { type: 'archive-placeholder', needsExtraction: true },
     }
   }
 }

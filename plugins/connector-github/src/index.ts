@@ -43,12 +43,12 @@ export class GitHubConnector implements ConnectorPlugin {
     if (!treeRes.ok) throw new Error(`GitHub tree API error: ${treeRes.status}`)
 
     const data = await treeRes.json() as { tree: { path: string; type: string; sha: string }[] }
-    const mdExtensions = new Set(['.md', '.mdx', '.txt', '.rst'])
+    const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.js', '.ts', '.py', '.go', '.java', '.rs', '.html', '.json', '.yaml', '.yml'])
 
     for (const item of data.tree) {
       if (item.type !== 'blob') continue
       const ext = '.' + item.path.split('.').pop()?.toLowerCase()
-      if (!mdExtensions.has(ext)) continue
+      if (!SUPPORTED_EXTENSIONS.has(ext)) continue
 
       yield {
         sourceId: item.sha,

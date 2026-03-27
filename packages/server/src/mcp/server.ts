@@ -234,7 +234,7 @@ export function createMCPServer(ctx: AppContext): Server {
 
           let embedResult
           try {
-            embedResult = await embedder.embed([(args as any).query])
+            embedResult = await embedder.embed([(args as Record<string, unknown>).query as string])
           } catch (err) {
             return { content: [{ type: 'text' as const, text: `Embedding failed: ${(err as Error).message}` }] }
           }
@@ -402,7 +402,7 @@ export function createMCPServer(ctx: AppContext): Server {
         }
 
         case 'opendocs_connector_sync': {
-          const connectorName = (args as any).name
+          const connectorName = (args as Record<string, unknown>).name as string | undefined
           if (connectorName) {
             const result = await ctx.connectorManager.syncConnector(connectorName)
             return { content: [{ type: 'text' as const, text: `Discovered: ${result.documentsDiscovered}, Indexed: ${result.documentsIndexed}, Skipped: ${result.documentsSkipped}${result.errors.length > 0 ? '\nErrors: ' + result.errors.join(', ') : ''}` }] }
@@ -414,18 +414,18 @@ export function createMCPServer(ctx: AppContext): Server {
         }
 
         case 'opendocs_document_get': {
-          const doc = ctx.store.getDocument((args as any).id)
+          const doc = ctx.store.getDocument((args as Record<string, unknown>).id as string)
           if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
           return { content: [{ type: 'text' as const, text: JSON.stringify(doc, null, 2) }] }
         }
 
         case 'opendocs_document_delete': {
-          await ctx.store.softDeleteDocument((args as any).id)
+          await ctx.store.softDeleteDocument((args as Record<string, unknown>).id as string)
           return { content: [{ type: 'text' as const, text: 'Document moved to trash' }] }
         }
 
         case 'opendocs_config_get': {
-          const key = (args as any).key
+          const key = (args as Record<string, unknown>).key as string | undefined
           if (!key) return { content: [{ type: 'text' as const, text: JSON.stringify(ctx.config, null, 2) }] }
           const keys = key.split('.')
           let val: any = ctx.config
@@ -444,13 +444,13 @@ export function createMCPServer(ctx: AppContext): Server {
         }
 
         case 'opendocs_workspace_switch': {
-          const ws = ctx.workspaceManager.getByName((args as any).name)
+          const ws = ctx.workspaceManager.getByName((args as Record<string, unknown>).name as string)
           if (!ws) return { content: [{ type: 'text' as const, text: 'Workspace not found' }] }
           return { content: [{ type: 'text' as const, text: `Switched to workspace: ${ws.name}` }] }
         }
 
         case 'opendocs_document_reindex': {
-          const id = (args as any).id
+          const id = (args as Record<string, unknown>).id as string
           const doc = ctx.store.getDocument(id)
           if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
           await ctx.store.hardDeleteDocument(id)
@@ -466,11 +466,11 @@ export function createMCPServer(ctx: AppContext): Server {
         }
 
         case 'opendocs_plugin_add': {
-          return { content: [{ type: 'text' as const, text: `To install a plugin, run: npm install ${(args as any).name}` }] }
+          return { content: [{ type: 'text' as const, text: `To install a plugin, run: npm install ${(args as Record<string, unknown>).name}` }] }
         }
 
         case 'opendocs_plugin_remove': {
-          return { content: [{ type: 'text' as const, text: `To remove a plugin, run: npm uninstall ${(args as any).name}` }] }
+          return { content: [{ type: 'text' as const, text: `To remove a plugin, run: npm uninstall ${(args as Record<string, unknown>).name}` }] }
         }
 
         case 'opendocs_config_set': {

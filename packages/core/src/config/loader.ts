@@ -23,7 +23,12 @@ export function loadConfig(projectDir: string): OpenDocsConfig {
     const loaded = jiti(configPath) as Record<string, unknown>
     const raw = loaded.default ?? loaded
 
-    return validateConfig(raw)
+    const config = validateConfig(raw)
+    const key = config.model?.apiKey
+    if (key && (key.startsWith('sk-') || key.startsWith('od_live_'))) {
+      console.warn('[!!] WARNING: API key detected in config. Consider using environment variables instead.')
+    }
+    return config
   } catch (err) {
     console.warn(`Failed to load config from ${configPath}: ${(err as Error).message}`)
     console.warn('Using default configuration.')

@@ -389,7 +389,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const vectorDbRef = vectorDb
 
     // Load web search provider if Tavily API key is configured
-    let webSearchProvider: any = undefined
+    let webSearchProvider: unknown = undefined
     const tavilyApiKey = process.env.TAVILY_API_KEY
     if (tavilyApiKey) {
       try {
@@ -431,6 +431,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
 
     // 15. Start auto-purge scheduler (hard-delete soft-deleted records older than 30 days)
+    // Auto-purge timer. Cleared in shutdown(). If bootstrap is called multiple times
+    // (e.g., in tests), each instance must be properly shut down to prevent timer leaks.
     const PURGE_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
     const purgeTimer = setInterval(() => {
       try {

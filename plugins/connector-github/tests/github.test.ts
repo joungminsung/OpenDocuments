@@ -46,7 +46,7 @@ describe('GitHubConnector', () => {
 
     const docs: any[] = []
     for await (const doc of connector.discover()) docs.push(doc)
-    expect(docs).toHaveLength(2)  // only .md files
+    expect(docs).toHaveLength(3)  // .md and .ts files (expanded extension set)
     expect(docs[0].title).toBe('README.md')
     expect(docs[1].sourcePath).toContain('docs/guide.md')
     vi.unstubAllGlobals()

@@ -28,6 +28,14 @@ opendocs auth create-key   # Generate API key
 opendocs auth list-keys    # List API keys
 opendocs plugin list       # List installed plugins
 opendocs plugin create     # Scaffold a new plugin
+opendocs stop              # Stop the server
+opendocs search "keyword"  # Search without LLM
+opendocs document list     # List documents
+opendocs workspace list    # List workspaces
+opendocs export            # Export data backup
+opendocs import <path>     # Import from backup
+opendocs upgrade           # Upgrade to latest
+opendocs completion install # Install shell completions
 ```
 
 ## Supported File Formats

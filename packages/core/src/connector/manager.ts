@@ -68,6 +68,7 @@ export class ConnectorManager {
     try {
       for await (const discovered of plugin.discover()) {
         result.documentsDiscovered++
+        this.eventBus.emit('document:discovered', { documentId: discovered.sourceId, source: plugin.name })
 
         try {
           // Check if document already exists with same content hash

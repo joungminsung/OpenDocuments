@@ -13,6 +13,7 @@ export class SwaggerConnector implements ConnectorPlugin {
   coreVersion = '^0.1.0'
 
   private url = ''
+  private cachedSpec: any = null
 
   async setup(ctx: PluginContext): Promise<void> {
     const config = ctx.config as unknown as SwaggerConfig
@@ -29,12 +30,15 @@ export class SwaggerConnector implements ConnectorPlugin {
     }
   }
 
-  async *discover(): AsyncIterable<DiscoveredDocument> {
+  private async fetchSpec(): Promise<any> {
     const res = await fetchWithTimeout(this.url, {})
     if (!res.ok) throw new Error(`Swagger fetch error: ${res.status}`)
+    return res.json()
+  }
 
-    const spec = await res.json() as any
-    const paths = spec.paths || {}
+  async *discover(): AsyncIterable<DiscoveredDocument> {
+    this.cachedSpec = await this.fetchSpec()
+    const paths = this.cachedSpec.paths || {}
 
     for (const [path, methods] of Object.entries(paths)) {
       for (const [method, details] of Object.entries(methods as Record<string, any>)) {
@@ -51,10 +55,7 @@ export class SwaggerConnector implements ConnectorPlugin {
   }
 
   async fetch(ref: DocumentRef): Promise<RawDocument> {
-    const res = await fetchWithTimeout(this.url, {})
-    if (!res.ok) throw new Error(`Swagger fetch error: ${res.status}`)
-
-    const spec = await res.json() as any
+    const spec = this.cachedSpec || await this.fetchSpec()
     const [method, path] = ref.sourceId.split(' ')
     const details = spec.paths?.[path]?.[method.toLowerCase()] || {}
 

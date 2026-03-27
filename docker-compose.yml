@@ -13,5 +13,12 @@ services:
       - OPENDOCS_DATA_DIR=/data
       - NODE_ENV=production
 
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: ["ollama_models:/root/.ollama"]
+    profiles: ["with-ollama"]  # Only start with: docker compose --profile with-ollama up
+
 volumes:
   opendocs-data:
+  ollama_models:

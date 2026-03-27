@@ -24,6 +24,8 @@ export class Retriever {
 
   async retrieve(query: string, opts: RetrieveOptions): Promise<SearchResult[]> {
     // L2 embedding cache
+    // SHA-256 is used for consistency with other hash functions in the codebase.
+    // CPU overhead is negligible compared to the embedding API call itself.
     const cacheKey = sha256(query)
     let queryEmbedding = this.embeddingCache.get(cacheKey)
     if (!queryEmbedding) {

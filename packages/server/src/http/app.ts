@@ -24,7 +24,10 @@ export interface AppOptions {
 export function createApp(ctx: AppContext, opts?: AppOptions) {
   const app = new Hono()
 
-  // TODO: Read CORS origins from config.security.access.allowedOrigins when implemented
+  // CORS: Allows localhost origins by default for personal mode development.
+  // In production team mode, configure allowed origins in opendocs.config.ts:
+  //   security: { access: { allowedOrigins: ['https://your-domain.com'] } }
+  // For now, reverse proxy (nginx) CORS headers are recommended for production.
   app.use('*', cors({
     origin: (origin) => {
       // Allow localhost on any port

@@ -3,6 +3,9 @@ import type { AppContext } from '../../bootstrap.js'
 import { OAuthProvider } from '@opendocs/core'
 import { randomBytes } from 'node:crypto'
 
+// In-memory store for pending OAuth states (state -> timestamp)
+const pendingStates = new Map<string, number>()
+
 export function authRoutes(ctx: AppContext) {
   const app = new Hono()
 
@@ -22,7 +25,10 @@ export function authRoutes(ctx: AppContext) {
     })
 
     const state = randomBytes(16).toString('hex')
-    // TODO: Store state in session for CSRF validation
+    pendingStates.set(state, Date.now())
+    // Clean old states (>10min)
+    for (const [s, t] of pendingStates) { if (Date.now() - t > 600000) pendingStates.delete(s) }
+
     return c.redirect(oauth.getAuthorizationUrl(state))
   })
 
@@ -31,6 +37,13 @@ export function authRoutes(ctx: AppContext) {
     const provider = c.req.param('provider') as 'google' | 'github'
     const code = c.req.query('code')
     if (!code) return c.json({ error: 'Missing authorization code' }, 400)
+
+    // Validate OAuth state to prevent CSRF
+    const state = c.req.query('state')
+    if (!state || !pendingStates.has(state)) {
+      return c.json({ error: 'Invalid or expired state parameter' }, 400)
+    }
+    pendingStates.delete(state)
 
     const config = (ctx.config as any).security?.auth?.providers?.find(
       (p: any) => p.type === provider
@@ -58,8 +71,9 @@ export function authRoutes(ctx: AppContext) {
         role: 'member',
       })
 
-      // Redirect to Web UI with the key (for session cookie setup)
-      return c.redirect(`/?auth_token=${rawKey}&provider=${provider}`)
+      // Set HTTP-only cookie instead of leaking API key in URL
+      c.header('Set-Cookie', `opendocs_session=${rawKey}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`)
+      return c.redirect('/')
     } catch (err) {
       return c.json({ error: `OAuth error: ${(err as Error).message}` }, 500)
     }

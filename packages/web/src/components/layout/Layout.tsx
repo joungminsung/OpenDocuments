@@ -15,6 +15,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           >
             {sidebarOpen ? '◀' : '▶'}
           </button>
+          {/* TODO: Show degraded mode banner when stub models are active (check /api/v1/admin/plugins for stub names) */}
           <span className="text-sm text-gray-500">OpenDocs</span>
         </header>
         <div className="flex-1 overflow-auto">

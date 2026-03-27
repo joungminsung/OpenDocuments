@@ -10,6 +10,8 @@ export function rateLimit(opts: { max: number; windowMs: number }) {
   const store = new Map<string, RateLimitEntry>()
 
   return async (c: Context, next: Next) => {
+    // WARNING: x-forwarded-for can be spoofed. In production, use a reverse proxy (nginx/cloudflare) for rate limiting.
+    // This is a best-effort rate limiter for development and personal mode.
     // Use API key or first IP from x-forwarded-for as identifier
     const rawKey = c.req.header('x-api-key') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous'
     const key = createHash('sha256').update(rawKey).digest('hex').substring(0, 16) // short hash for memory efficiency
