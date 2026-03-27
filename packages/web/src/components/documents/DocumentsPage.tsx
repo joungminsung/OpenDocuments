@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { listDocuments, deleteDocument } from '../../lib/api'
 import { UploadZone } from './UploadZone'
+import { DocumentDetail } from './DocumentDetail'
 import type { Document } from '../../lib/types'
 
 export function DocumentsPage() {
   const [docs, setDocs] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
 
   const refresh = async () => {
     setLoading(true)
@@ -31,6 +33,10 @@ export function DocumentsPage() {
     }
   }
 
+  if (selectedDocId) {
+    return <DocumentDetail documentId={selectedDocId} onBack={() => setSelectedDocId(null)} />
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <h2 className="text-xl font-semibold mb-4">Documents</h2>
@@ -51,8 +57,8 @@ export function DocumentsPage() {
               key={doc.id}
               className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
             >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">{doc.title}</p>
+              <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setSelectedDocId(doc.id)}>
+                <p className="text-sm font-medium truncate hover:text-primary-500 transition-colors">{doc.title}</p>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {doc.source_type} · {doc.chunk_count} chunks · {doc.status}
                   {doc.indexed_at && ` · ${new Date(doc.indexed_at).toLocaleDateString()}`}

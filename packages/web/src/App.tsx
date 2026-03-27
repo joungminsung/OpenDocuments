@@ -6,6 +6,7 @@ import { DocumentsPage } from './components/documents/DocumentsPage'
 import { SettingsPage } from './components/settings/SettingsPage'
 import { HealthPage } from './components/health/HealthPage'
 import { ConnectorsPage } from './components/connectors/ConnectorsPage'
+import { CommandPalette } from './components/layout/CommandPalette'
 
 const PAGES: Record<string, () => React.ReactElement> = {
   chat: ChatPage,
@@ -25,8 +26,11 @@ export function App() {
   const Page = PAGES[currentPage] || ChatPage
 
   return (
-    <Layout>
-      <Page />
-    </Layout>
+    <>
+      <CommandPalette />
+      <Layout>
+        <Page />
+      </Layout>
+    </>
   )
 }
