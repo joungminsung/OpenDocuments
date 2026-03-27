@@ -406,7 +406,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const tavilyApiKey = process.env.TAVILY_API_KEY
     if (tavilyApiKey) {
       try {
-        const { WebSearchProvider } = await import('@opendocuments/connector-web-search')
+        const wsModuleName = '@opendocuments/connector-web-search'
+        const { WebSearchProvider } = await import(/* @vite-ignore */ wsModuleName)
         const wsp = new WebSearchProvider()
         await wsp.setup({
           config: { provider: 'tavily', apiKey: tavilyApiKey } as any,
