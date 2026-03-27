@@ -14,6 +14,7 @@ import { collectionRoutes } from './routes/collections.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import type { AppContext } from '../bootstrap.js'
+import { generateWidgetScript } from '../widget/widget.js'
 
 export interface AppOptions {
   webDir?: string
@@ -49,6 +50,10 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
       return c.json({ error: 'Request body too large (max 50MB)' }, 413)
     }
     await next()
+  })
+
+  app.get('/widget.js', (c) => {
+    return c.body(generateWidgetScript(), { headers: { 'Content-Type': 'application/javascript' } })
   })
 
   app.route('/', healthRoutes(ctx))
