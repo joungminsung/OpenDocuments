@@ -38,6 +38,7 @@ export interface RAGEngineOptions {
   defaultProfile: string
   customProfileConfig?: Partial<RAGProfileConfig>
   rerankerModel?: ModelPlugin
+  webSearchProvider?: any
 }
 
 export type StreamEvent =
@@ -56,6 +57,7 @@ export class RAGEngine {
   private customProfileConfig: Partial<RAGProfileConfig> | undefined
   private retriever: Retriever
   private rerankerModel: ModelPlugin | undefined
+  private webSearchProvider: any | undefined
   private queryCache = createQueryCache()
 
   constructor(opts: RAGEngineOptions) {
@@ -66,6 +68,7 @@ export class RAGEngine {
     this.defaultProfile = opts.defaultProfile
     this.customProfileConfig = opts.customProfileConfig
     this.rerankerModel = opts.rerankerModel
+    this.webSearchProvider = opts.webSearchProvider
     this.retriever = new Retriever(this.store, this.embedder)
   }
 
@@ -124,8 +127,6 @@ export class RAGEngine {
     // Calculate confidence
     const confidence = this.computeConfidence(input.query, sources)
     yield { type: 'confidence', data: confidence }
-
-    // TODO: Web search integration when config.features.webSearch is true/fallback
 
     // Generate (streaming)
     const genInput: GenerateInput = {
@@ -190,9 +191,6 @@ export class RAGEngine {
 
     // Calculate confidence
     const confidence = this.computeConfidence(query, sources)
-
-    // TODO: Web search integration when config.features.webSearch is true/fallback
-    // Web results would be merged into sources here before generation.
 
     // Generate
     const genInput: GenerateInput = {
@@ -275,6 +273,32 @@ export class RAGEngine {
 
     // Trim to finalTopK after merging/reranking
     results = results.slice(0, config.retrieval.finalTopK)
+
+    // Web search integration
+    if (this.webSearchProvider && config.features.webSearch) {
+      const shouldSearch = config.features.webSearch === true ||
+        (config.features.webSearch === 'fallback' && results.length < 3)
+
+      if (shouldSearch) {
+        try {
+          const webResults = await this.webSearchProvider.search(query, 5)
+          const webSearchResults: SearchResult[] = webResults.map((r: any, i: number) => ({
+            chunkId: `web_${i}`,
+            content: r.content,
+            score: r.score,
+            documentId: 'web-search',
+            chunkType: 'semantic',
+            headingHierarchy: [r.title],
+            sourcePath: r.url,
+            sourceType: 'web',
+          }))
+          results = reciprocalRankFusion([results, webSearchResults], 60, (item) => item.chunkId)
+            .slice(0, config.retrieval.finalTopK)
+        } catch {
+          // Don't fail the query if web search fails
+        }
+      }
+    }
 
     this.eventBus.emit('query:retrieved', { queryId, chunks: results.length })
 

@@ -56,4 +56,26 @@ describe('Retriever', () => {
     const results = await retriever.retrieve('quantum physics', { k: 3, finalTopK: 2, minScore: 0.99 })
     expect(results).toHaveLength(0)
   })
+
+  it('uses hybrid search (dense + FTS5 sparse)', async () => {
+    // FTS5 should find "Redis" by exact keyword match
+    const results = await retriever.retrieve('Redis', { k: 3, finalTopK: 3, minScore: 0 })
+    expect(results.length).toBeGreaterThan(0)
+    // The Redis chunk should appear in results (boosted by both dense and sparse)
+    const redisResult = results.find(r => r.content.includes('Redis'))
+    expect(redisResult).toBeDefined()
+  })
+
+  it('FTS5 searchFTS returns results for keyword match', () => {
+    const results = store.searchFTS('Redis', 5)
+    expect(results.length).toBeGreaterThan(0)
+    expect(results[0].content).toContain('Redis')
+    expect(results[0].score).toBeGreaterThan(0)
+    expect(results[0].score).toBeLessThanOrEqual(1)
+  })
+
+  it('FTS5 searchFTS returns empty for non-matching query', () => {
+    const results = store.searchFTS('nonexistentterm12345', 5)
+    expect(results).toHaveLength(0)
+  })
 })

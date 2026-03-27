@@ -116,7 +116,13 @@ export class DocumentStore {
     // Step 1: Upsert vectors
     await this.vectorDb.upsert(COLLECTION, vectorDocs)
 
-    // Step 2: Update SQLite -- if this fails, compensate by deleting the vectors we just inserted
+    // Step 2: Insert into FTS5 index
+    for (const chunk of chunks) {
+      const chunkId = `${documentId}_chunk_${chunk.position}`
+      this.db.run('INSERT OR REPLACE INTO chunks_fts (chunk_id, content) VALUES (?, ?)', [chunkId, chunk.content])
+    }
+
+    // Step 3: Update SQLite -- if this fails, compensate by deleting the vectors we just inserted
     try {
       const now = new Date().toISOString()
       this.db.run(
@@ -154,6 +160,27 @@ export class DocumentStore {
     })
   }
 
+  searchFTS(query: string, topK: number): SearchResult[] {
+    const rows = this.db.all<any>(
+      `SELECT chunk_id, content, rank FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?`,
+      [query, topK]
+    )
+    return rows.map((r) => {
+      const docId = r.chunk_id.split('_chunk_')[0]
+      const doc = this.getDocument(docId)
+      return {
+        chunkId: r.chunk_id,
+        content: r.content,
+        score: 1 / (1 + Math.abs(r.rank)), // normalize FTS5 rank to 0-1
+        documentId: docId,
+        chunkType: 'semantic',
+        headingHierarchy: [],
+        sourcePath: doc?.source_path || '',
+        sourceType: doc?.source_type || '',
+      }
+    })
+  }
+
   async softDeleteDocument(documentId: string): Promise<void> {
     // Soft delete: set deleted_at timestamp
     const now = new Date().toISOString()
@@ -161,6 +188,8 @@ export class DocumentStore {
       'UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ?',
       [now, now, documentId]
     )
+    // Clean FTS index
+    this.db.run('DELETE FROM chunks_fts WHERE chunk_id LIKE ?', [documentId + '_%'])
     // Also remove vectors (they can't be soft-deleted in LanceDB)
     await this.vectorDb.deleteByFilter(COLLECTION, { document_id: documentId })
   }

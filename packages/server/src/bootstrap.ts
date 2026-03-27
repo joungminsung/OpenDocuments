@@ -380,6 +380,28 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const dbRef = db
     const vectorDbRef = vectorDb
 
+    // Load web search provider if Tavily API key is configured
+    let webSearchProvider: any = undefined
+    const tavilyApiKey = process.env.TAVILY_API_KEY
+    if (tavilyApiKey) {
+      try {
+        const { WebSearchProvider } = await import('@opendocs/connector-web-search')
+        const wsp = new WebSearchProvider()
+        await wsp.setup({
+          config: { provider: 'tavily', apiKey: tavilyApiKey } as any,
+          dataDir,
+          log: pluginCtx.log,
+        })
+        const health = await wsp.healthCheck()
+        if (health.healthy) {
+          webSearchProvider = wsp
+          log.ok('Web search provider (Tavily) loaded')
+        }
+      } catch {
+        // connector-web-search not installed or failed -- skip silently
+      }
+    }
+
     const ragEngine = new RAGEngine({
       store,
       llm,
@@ -387,13 +409,11 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       eventBus,
       defaultProfile: config.rag.profile,
       customProfileConfig: config.rag.custom,
+      webSearchProvider,
     })
 
     // 12. Create ConversationManager
     const conversationManager = new ConversationManager(db, defaultWorkspace.id)
-
-    // Note: @opendocs/connector-web-search is a query-time utility, not an index-time connector.
-    // It is loaded on-demand by the RAG engine when webSearch profile feature is enabled.
 
     // 13. Create APIKeyManager and AuditLogger
     const apiKeyManager = new APIKeyManager(db)
