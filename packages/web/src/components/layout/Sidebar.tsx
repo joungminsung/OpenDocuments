@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { id: 'chat' as const, label: 'Chat', icon: '💬' },
   { id: 'documents' as const, label: 'Documents', icon: '📄' },
   { id: 'settings' as const, label: 'Settings', icon: '⚙️' },
-  { id: 'health' as const, label: 'Health', icon: '🏥' },
+  { id: 'health' as const, label: 'Admin', icon: '📊' },
 ]
 
 export function Sidebar() {

@@ -8,6 +8,7 @@ import { configCommand } from './commands/config-cmd.js'
 import { initCommand } from './commands/init.js'
 import { connectorCommand } from './commands/connector.js'
 import { authCommand } from './commands/auth.js'
+import { pluginCommand } from './commands/plugin.js'
 
 const program = new Command()
 program
@@ -23,5 +24,6 @@ program.addCommand(configCommand())
 program.addCommand(initCommand())
 program.addCommand(connectorCommand())
 program.addCommand(authCommand())
+program.addCommand(pluginCommand())
 
 program.parse()
