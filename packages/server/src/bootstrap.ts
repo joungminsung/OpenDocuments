@@ -335,6 +335,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       '@opendocs/parser-html',
       '@opendocs/parser-jupyter',
       '@opendocs/parser-email',
+      '@opendocs/parser-pptx',
+      '@opendocs/parser-code',
     ]
 
     for (const name of PARSER_PLUGINS) {
@@ -428,6 +430,24 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // 14. Create ConnectorManager
     const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
 
+    // 15. Start auto-purge scheduler (hard-delete soft-deleted records older than 30 days)
+    const PURGE_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
+    const purgeTimer = setInterval(() => {
+      try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        // Hard delete documents that have been soft-deleted for 30+ days
+        const expired = dbRef.all<any>(
+          'SELECT id FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+          [thirtyDaysAgo]
+        )
+        for (const doc of expired) {
+          store.hardDeleteDocument(doc.id).catch(() => {})
+        }
+        // Also clean expired conversations
+        dbRef.run('DELETE FROM conversations WHERE deleted_at IS NOT NULL AND deleted_at < ?', [thirtyDaysAgo])
+      } catch {}
+    }, PURGE_INTERVAL)
+
     // Connector type -> package mapping
     const CONNECTOR_PLUGINS_MAP: Record<string, string> = {
       github: '@opendocs/connector-github',
@@ -438,6 +458,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       's3': '@opendocs/connector-s3',
       'gcs': '@opendocs/connector-s3',
       'confluence': '@opendocs/connector-confluence',
+      'swagger': '@opendocs/connector-swagger',
+      'openapi': '@opendocs/connector-swagger',
     }
 
     // Config-driven connector registration
@@ -471,6 +493,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Shutdown function
     const shutdown = async (): Promise<void> => {
+      clearInterval(purgeTimer)
       connectorManager.stopAll()
       await registry.teardownAll()
       eventBus.removeAllListeners()

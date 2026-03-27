@@ -30,13 +30,18 @@ export function rateLimit(opts: { max: number; windowMs: number }) {
 
     entry.count++
 
-    if (entry.count > opts.max) {
+    // Support per-key rate limits from APIKeyManager (overrides global opts.max)
+    const auth = c.get('auth') as any
+    const keyRateLimit = auth?.record?.rateLimit
+    const effectiveMax = keyRateLimit || opts.max
+
+    if (entry.count > effectiveMax) {
       c.header('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)))
       return c.json({ error: 'Rate limit exceeded' }, 429)
     }
 
-    c.header('X-RateLimit-Limit', String(opts.max))
-    c.header('X-RateLimit-Remaining', String(Math.max(0, opts.max - entry.count)))
+    c.header('X-RateLimit-Limit', String(effectiveMax))
+    c.header('X-RateLimit-Remaining', String(Math.max(0, effectiveMax - entry.count)))
 
     return next()
   }

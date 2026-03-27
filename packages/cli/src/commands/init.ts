@@ -150,7 +150,18 @@ export function initCommand() {
         default: 'balanced',
       })
 
-      // 8. Generate config
+      // 8. Plugin presets
+      const preset = await select({
+        message: 'Plugin preset:',
+        choices: [
+          { name: `Developer ${chalk.dim('-- GitHub, Swagger, code parser, Markdown')}`, value: 'developer' },
+          { name: `Enterprise ${chalk.dim('-- Google Drive, Notion, Confluence, PDF, DOCX')}`, value: 'enterprise' },
+          { name: `All ${chalk.dim('-- all connectors + all parsers')}`, value: 'all' },
+          { name: 'Custom -- pick individually', value: 'custom' },
+        ],
+      })
+
+      // 9. Generate config
       const projectDir = resolve(dir)
       if (!existsSync(projectDir)) {
         mkdirSync(projectDir, { recursive: true })
@@ -166,6 +177,7 @@ export function initCommand() {
         llmModel,
         embeddingModel,
         profile,
+        preset,
       })
 
       const configPath = join(projectDir, 'opendocs.config.ts')
@@ -207,6 +219,7 @@ export function initCommand() {
       log.dim(`  LLM        ${llmModel}`)
       log.dim(`  Embedding  ${embeddingModel}`)
       log.dim(`  Profile    ${profile}`)
+      log.dim(`  Preset     ${preset}`)
       log.blank()
       log.heading('Next Steps')
       if (backend === 'ollama') {
@@ -241,6 +254,12 @@ function detectSystem(): SystemSpecs {
   }
 }
 
+const PRESET_PLUGINS: Record<string, string[]> = {
+  developer: ['@opendocs/parser-code', '@opendocs/connector-github'],
+  enterprise: ['@opendocs/parser-pdf', '@opendocs/parser-docx', '@opendocs/parser-xlsx', '@opendocs/connector-gdrive', '@opendocs/connector-notion', '@opendocs/connector-confluence'],
+  all: ['@opendocs/parser-pdf', '@opendocs/parser-docx', '@opendocs/parser-xlsx', '@opendocs/parser-html', '@opendocs/parser-jupyter', '@opendocs/parser-email', '@opendocs/parser-code', '@opendocs/connector-github', '@opendocs/connector-notion', '@opendocs/connector-gdrive', '@opendocs/connector-s3', '@opendocs/connector-confluence', '@opendocs/connector-web-crawler'],
+}
+
 interface ConfigOptions {
   projectName: string
   mode: 'personal' | 'team'
@@ -251,6 +270,7 @@ interface ConfigOptions {
   llmModel: string
   embeddingModel: string
   profile: string
+  preset: string
 }
 
 function generateConfigFile(opts: ConfigOptions): string {
@@ -291,9 +311,24 @@ function generateConfigFile(opts: ConfigOptions): string {
     `    vectorDb: 'lancedb',`,
     `    dataDir: '~/.opendocs',`,
     `  },`,
-    `})`,
-    ``,
   )
+
+  const presetPlugins = PRESET_PLUGINS[opts.preset] || []
+  if (presetPlugins.length > 0) {
+    lines.push(
+      ``,
+      `  plugins: [`,
+      ...presetPlugins.map(p => `    '${p}',`),
+      `  ],`,
+    )
+  } else {
+    lines.push(
+      ``,
+      `  plugins: [],`,
+    )
+  }
+
+  lines.push(`})`, ``)
 
   return lines.join('\n')
 }

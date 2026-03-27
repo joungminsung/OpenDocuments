@@ -15,6 +15,7 @@ import { documentCommand } from './commands/document.js'
 import { workspaceCommand } from './commands/workspace.js'
 import { stopCommand } from './commands/stop.js'
 import { searchCommand } from './commands/search.js'
+import { completionCommand } from './commands/completion.js'
 
 const program = new Command()
 program
@@ -37,5 +38,6 @@ program.addCommand(documentCommand())
 program.addCommand(workspaceCommand())
 program.addCommand(stopCommand())
 program.addCommand(searchCommand())
+program.addCommand(completionCommand())
 
 program.parse()
