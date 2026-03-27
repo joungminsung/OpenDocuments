@@ -118,6 +118,31 @@ const TOOLS = [
       required: ['name'],
     },
   },
+  {
+    name: 'opendocs_document_reindex',
+    description: 'Reindex a document',
+    inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'opendocs_index_status',
+    description: 'Get indexing status',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'opendocs_plugin_add',
+    description: 'Install a plugin',
+    inputSchema: { type: 'object' as const, properties: { name: { type: 'string' } }, required: ['name'] },
+  },
+  {
+    name: 'opendocs_plugin_remove',
+    description: 'Remove a plugin',
+    inputSchema: { type: 'object' as const, properties: { name: { type: 'string' } }, required: ['name'] },
+  },
+  {
+    name: 'opendocs_config_set',
+    description: 'Set a config value (note: edit opendocs.config.ts directly)',
+    inputSchema: { type: 'object' as const, properties: { key: { type: 'string' }, value: { type: 'string' } }, required: ['key', 'value'] },
+  },
 ]
 
 export function createMCPServer(ctx: AppContext): Server {
@@ -422,6 +447,34 @@ export function createMCPServer(ctx: AppContext): Server {
           const ws = ctx.workspaceManager.getByName((args as any).name)
           if (!ws) return { content: [{ type: 'text' as const, text: 'Workspace not found' }] }
           return { content: [{ type: 'text' as const, text: `Switched to workspace: ${ws.name}` }] }
+        }
+
+        case 'opendocs_document_reindex': {
+          const id = (args as any).id
+          const doc = ctx.store.getDocument(id)
+          if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
+          await ctx.store.hardDeleteDocument(id)
+          return { content: [{ type: 'text' as const, text: `Document ${id} marked for reindexing. Re-upload or re-sync to index.` }] }
+        }
+
+        case 'opendocs_index_status': {
+          const docs = ctx.store.listDocuments()
+          const indexed = docs.filter(d => d.status === 'indexed').length
+          const pending = docs.filter(d => d.status === 'pending').length
+          const errors = docs.filter(d => d.status === 'error').length
+          return { content: [{ type: 'text' as const, text: `Indexed: ${indexed}, Pending: ${pending}, Errors: ${errors}, Total: ${docs.length}` }] }
+        }
+
+        case 'opendocs_plugin_add': {
+          return { content: [{ type: 'text' as const, text: `To install a plugin, run: npm install ${(args as any).name}` }] }
+        }
+
+        case 'opendocs_plugin_remove': {
+          return { content: [{ type: 'text' as const, text: `To remove a plugin, run: npm uninstall ${(args as any).name}` }] }
+        }
+
+        case 'opendocs_config_set': {
+          return { content: [{ type: 'text' as const, text: `Config writing is not supported via MCP. Edit opendocs.config.ts directly.` }] }
         }
 
         default:

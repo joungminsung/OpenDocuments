@@ -69,5 +69,17 @@ export function authCommand() {
       }
     })
 
+  cmd.command('login').description('Login with API key').action(async () => {
+    const { input } = await import('@inquirer/prompts')
+    const key = await input({ message: 'Enter API key:' })
+
+    const { writeFileSync, mkdirSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const dir = join(process.env.HOME || '~', '.opendocs')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'auth-token'), key)
+    log.ok('Logged in. API key saved to ~/.opendocs/auth-token')
+  })
+
   return cmd
 }

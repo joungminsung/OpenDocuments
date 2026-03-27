@@ -246,5 +246,34 @@ describe('${name}', () => {
       try { execSync('npx tsc --watch', { stdio: 'inherit' }) } catch {}
     })
 
+  cmd.command('add <name>').description('Install a plugin').action(async (name) => {
+    const { execSync } = await import('node:child_process')
+    log.wait(`Installing ${name}...`)
+    try {
+      execSync(`npm install ${name}`, { stdio: 'inherit' })
+      log.ok(`${name} installed. Restart server to activate.`)
+    } catch { log.fail(`Failed to install ${name}`) }
+  })
+
+  cmd.command('remove <name>').description('Remove a plugin').action(async (name) => {
+    const { execSync } = await import('node:child_process')
+    log.wait(`Removing ${name}...`)
+    try {
+      execSync(`npm uninstall ${name}`, { stdio: 'inherit' })
+      log.ok(`${name} removed. Restart server to apply.`)
+    } catch { log.fail(`Failed to remove ${name}`) }
+  })
+
+  cmd.command('update [name]').description('Update plugins').action(async (name) => {
+    const { execSync } = await import('node:child_process')
+    if (name) {
+      log.wait(`Updating ${name}...`)
+      try { execSync(`npm update ${name}`, { stdio: 'inherit' }); log.ok('Updated') } catch { log.fail('Failed') }
+    } else {
+      log.wait('Updating all plugins...')
+      try { execSync('npm update', { stdio: 'inherit' }); log.ok('All plugins updated') } catch { log.fail('Failed') }
+    }
+  })
+
   return cmd
 }

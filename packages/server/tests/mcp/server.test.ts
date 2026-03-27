@@ -49,10 +49,10 @@ describe('MCP Server', () => {
     return { server, client, clientTransport, serverTransport }
   }
 
-  it('lists 14 available tools', async () => {
+  it('lists 19 available tools', async () => {
     const { client } = await setupMCP()
     const result = await client.listTools()
-    expect(result.tools).toHaveLength(14)
+    expect(result.tools).toHaveLength(19)
     const names = result.tools.map((t) => t.name)
     expect(names).toContain('opendocs_ask')
     expect(names).toContain('opendocs_search')
