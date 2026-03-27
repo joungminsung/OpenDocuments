@@ -328,6 +328,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       '@opendocs/parser-xlsx',
       '@opendocs/parser-html',
       '@opendocs/parser-jupyter',
+      '@opendocs/parser-email',
     ]
 
     for (const name of PARSER_PLUGINS) {
@@ -406,6 +407,11 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       github: '@opendocs/connector-github',
       notion: '@opendocs/connector-notion',
       'web-crawler': '@opendocs/connector-web-crawler',
+      'gdrive': '@opendocs/connector-gdrive',
+      'google-drive': '@opendocs/connector-gdrive',
+      's3': '@opendocs/connector-s3',
+      'gcs': '@opendocs/connector-s3',
+      'confluence': '@opendocs/connector-confluence',
     }
 
     // Config-driven connector registration

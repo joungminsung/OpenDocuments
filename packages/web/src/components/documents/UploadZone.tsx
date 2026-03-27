@@ -63,7 +63,7 @@ export function UploadZone({ onUploaded }: Props) {
           <p className="text-sm text-gray-500">
             Drop files here or <span className="text-primary-500 font-medium">click to browse</span>
           </p>
-          <p className="text-xs text-gray-400 mt-1">Supports .md, .txt, .pdf, .docx, .xlsx, .csv, .html, .ipynb</p>
+          <p className="text-xs text-gray-400 mt-1">Supports .md, .txt, .pdf, .docx, .xlsx, .csv, .html, .ipynb, .eml</p>
         </>
       )}
       {message && <p className="text-xs text-green-500 mt-2">{message}</p>}

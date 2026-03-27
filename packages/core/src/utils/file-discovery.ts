@@ -7,6 +7,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.xlsx', '.xls', '.csv',        // spreadsheet parsers
   '.html', '.htm',                 // HTML parser
   '.ipynb',                        // Jupyter parser
+  '.eml',                          // email parser
 ])
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv', 'dist', 'build', '.next', '.turbo', 'coverage'])
 
