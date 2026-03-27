@@ -10,6 +10,10 @@
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.5%2B-blue.svg" alt="TypeScript"></a>
 </p>
 
+<p align="center">
+  <img src="assets/demo.gif" alt="OpenDocuments Demo" width="800">
+</p>
+
 ---
 
 ## The Problem
