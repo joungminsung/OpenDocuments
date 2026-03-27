@@ -9,6 +9,8 @@ import { initCommand } from './commands/init.js'
 import { connectorCommand } from './commands/connector.js'
 import { authCommand } from './commands/auth.js'
 import { pluginCommand } from './commands/plugin.js'
+import { exportCommand } from './commands/export-cmd.js'
+import { importCommand } from './commands/import-cmd.js'
 
 const program = new Command()
 program
@@ -25,5 +27,7 @@ program.addCommand(initCommand())
 program.addCommand(connectorCommand())
 program.addCommand(authCommand())
 program.addCommand(pluginCommand())
+program.addCommand(exportCommand())
+program.addCommand(importCommand())
 
 program.parse()

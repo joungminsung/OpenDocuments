@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  opendocs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - opendocs-data:/data
+    environment:
+      - OPENDOCS_DATA_DIR=/data
+      - NODE_ENV=production
+
+volumes:
+  opendocs-data:
