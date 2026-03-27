@@ -56,6 +56,7 @@ export { ConversationManager, type Conversation, type Message } from './conversa
 export { DocumentVersionManager, type DocumentVersion } from './document/version-manager.js'
 export { TagManager, type Tag } from './document/tag-manager.js'
 export { CollectionManager, type Collection } from './document/collection-manager.js'
+export { ChunkRelationManager, type ChunkRelation, type RelationType } from './document/chunk-relations.js'
 
 export { APIKeyManager, generateAPIKey, type APIKeyRecord, type APIKeyScope, type UserRole, type CreateKeyInput, type ValidatedKey } from './auth/api-key.js'
 

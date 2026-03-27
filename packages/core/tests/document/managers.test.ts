@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { DocumentVersionManager } from '../../src/document/version-manager.js'
 import { TagManager } from '../../src/document/tag-manager.js'
 import { CollectionManager } from '../../src/document/collection-manager.js'
+import { ChunkRelationManager } from '../../src/document/chunk-relations.js'
 import { createSQLiteDB } from '../../src/storage/sqlite.js'
 import { runMigrations } from '../../src/storage/migrations/runner.js'
 import type { DB } from '../../src/storage/db.js'
@@ -83,6 +84,30 @@ describe('Document Managers', () => {
       const col = mgr.create('Auto', undefined, { source_type: 'github', tags: ['backend'] })
       const retrieved = mgr.list()
       expect(retrieved[0].autoRules).toEqual({ source_type: 'github', tags: ['backend'] })
+    })
+  })
+
+  describe('ChunkRelationManager', () => {
+    it('adds and retrieves relations', () => {
+      const mgr = new ChunkRelationManager(db)
+      mgr.addRelation('doc-1_chunk_0', 'doc-1_chunk_1', 'next')
+      mgr.addRelation('doc-1_chunk_0', 'doc-1_chunk_2', 'references')
+      const related = mgr.getRelated('doc-1_chunk_0')
+      expect(related).toHaveLength(2)
+    })
+
+    it('filters by relation type', () => {
+      const mgr = new ChunkRelationManager(db)
+      mgr.addRelation('doc-1_chunk_0', 'doc-1_chunk_1', 'next')
+      mgr.addRelation('doc-1_chunk_0', 'doc-1_chunk_2', 'references')
+      expect(mgr.getRelated('doc-1_chunk_0', 'next')).toHaveLength(1)
+    })
+
+    it('removes relations for document', () => {
+      const mgr = new ChunkRelationManager(db)
+      mgr.addRelation('doc-1_chunk_0', 'doc-1_chunk_1', 'next')
+      mgr.removeRelationsForDocument('doc-1')
+      expect(mgr.getRelated('doc-1_chunk_0')).toHaveLength(0)
     })
   })
 })
