@@ -54,3 +54,28 @@ export async function getHealth(): Promise<{ status: string; version: string }> 
 export async function getStats(): Promise<StatsResponse> {
   return request('/stats')
 }
+
+// Admin
+export async function getAdminStats(): Promise<any> {
+  return request('/admin/stats')
+}
+
+export async function getSearchQuality(): Promise<any> {
+  return request('/admin/search-quality')
+}
+
+export async function getQueryLogs(opts?: { limit?: number; offset?: number; intent?: string }): Promise<any> {
+  const params = new URLSearchParams()
+  if (opts?.limit) params.set('limit', String(opts.limit))
+  if (opts?.offset) params.set('offset', String(opts.offset))
+  if (opts?.intent) params.set('intent', opts.intent)
+  return request(`/admin/query-logs?${params}`)
+}
+
+export async function getPluginHealth(): Promise<any> {
+  return request('/admin/plugins')
+}
+
+export async function getConnectorStatus(): Promise<any> {
+  return request('/admin/connectors')
+}
