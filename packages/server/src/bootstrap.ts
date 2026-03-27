@@ -16,6 +16,8 @@ import {
   RAGEngine,
   MarkdownParser,
   PlainTextParser,
+  StructuredDataParser,
+  ArchiveParser,
   ConversationManager,
   ConnectorManager,
   APIKeyManager,
@@ -320,6 +322,10 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     await registry.register(markdownParser, pluginCtx)
     const plainTextParser = new PlainTextParser()
     await registry.register(plainTextParser, pluginCtx)
+    const structuredDataParser = new StructuredDataParser()
+    await registry.register(structuredDataParser, pluginCtx)
+    const archiveParser = new ArchiveParser()
+    await registry.register(archiveParser, pluginCtx)
 
     // Auto-register installed parser plugins
     const PARSER_PLUGINS = [

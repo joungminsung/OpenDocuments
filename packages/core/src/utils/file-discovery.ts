@@ -3,6 +3,8 @@ import { join, extname } from 'node:path'
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.md', '.mdx', '.txt',          // built-in
+  '.json', '.yaml', '.yml', '.toml', // structured data parsers
+  '.zip',                          // archive parser
   '.pdf', '.docx',                 // document parsers
   '.xlsx', '.xls', '.csv',        // spreadsheet parsers
   '.html', '.htm',                 // HTML parser

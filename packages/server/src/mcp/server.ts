@@ -84,6 +84,26 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'opendocs_document_get',
+    description: 'Get document details by ID',
+    inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'opendocs_document_delete',
+    description: 'Delete a document (soft)',
+    inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'opendocs_config_get',
+    description: 'Get configuration value',
+    inputSchema: { type: 'object' as const, properties: { key: { type: 'string' } } },
+  },
+  {
+    name: 'opendocs_workspace_list',
+    description: 'List workspaces',
+    inputSchema: { type: 'object' as const, properties: {} },
+  },
 ]
 
 export function createMCPServer(ctx: AppContext): Server {
@@ -352,6 +372,31 @@ export function createMCPServer(ctx: AppContext): Server {
             const formatted = results.map(r => `${r.connectorName}: ${r.documentsIndexed} indexed, ${r.documentsSkipped} skipped`).join('\n')
             return { content: [{ type: 'text' as const, text: formatted || 'No connectors to sync' }] }
           }
+        }
+
+        case 'opendocs_document_get': {
+          const doc = ctx.store.getDocument((args as any).id)
+          if (!doc) return { content: [{ type: 'text' as const, text: 'Document not found' }] }
+          return { content: [{ type: 'text' as const, text: JSON.stringify(doc, null, 2) }] }
+        }
+
+        case 'opendocs_document_delete': {
+          await ctx.store.softDeleteDocument((args as any).id)
+          return { content: [{ type: 'text' as const, text: 'Document moved to trash' }] }
+        }
+
+        case 'opendocs_config_get': {
+          const key = (args as any).key
+          if (!key) return { content: [{ type: 'text' as const, text: JSON.stringify(ctx.config, null, 2) }] }
+          const keys = key.split('.')
+          let val: any = ctx.config
+          for (const k of keys) val = val?.[k]
+          return { content: [{ type: 'text' as const, text: JSON.stringify(val, null, 2) }] }
+        }
+
+        case 'opendocs_workspace_list': {
+          const workspaces = ctx.workspaceManager.list()
+          return { content: [{ type: 'text' as const, text: workspaces.map(w => `${w.name} (${w.mode})`).join('\n') }] }
         }
 
         default:
