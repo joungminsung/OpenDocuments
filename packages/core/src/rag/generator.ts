@@ -53,6 +53,7 @@ export async function* generateAnswer(
 
   yield* model.generate(prompt, {
     temperature: 0.3,
+    maxTokens: 4096,
     systemPrompt: INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general,
   })
 }

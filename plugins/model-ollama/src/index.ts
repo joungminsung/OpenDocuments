@@ -46,7 +46,7 @@ export class OllamaModelPlugin implements ModelPlugin {
   async *generate(prompt: string, opts?: GenerateOpts): AsyncIterable<string> {
     const options = {
       temperature: opts?.temperature ?? 0.3,
-      num_predict: opts?.maxTokens,
+      num_predict: opts?.maxTokens || 4096,  // Large default for thinking models (Qwen 3.5)
       stop: opts?.stop,
     }
 
@@ -74,8 +74,10 @@ export class OllamaModelPlugin implements ModelPlugin {
     if (!res.body) throw new Error('No response body')
 
     for await (const chunk of this.parseNdjsonStream(res.body)) {
+      // Qwen 3.5+ uses thinking mode: response may be empty while model thinks
       if (chunk.response) yield chunk.response
     }
+
   }
 
   async embed(texts: string[]): Promise<EmbeddingResult> {

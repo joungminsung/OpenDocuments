@@ -39,11 +39,11 @@ import {
 /* ------------------------------------------------------------------ */
 
 const PROVIDER_MAP: Record<string, string> = {
-  ollama: '@opendocuments/model-ollama',
-  openai: '@opendocuments/model-openai',
-  anthropic: '@opendocuments/model-anthropic',
-  google: '@opendocuments/model-google',
-  grok: '@opendocuments/model-grok',
+  ollama: 'opendocuments-model-ollama',
+  openai: 'opendocuments-model-openai',
+  anthropic: 'opendocuments-model-anthropic',
+  google: 'opendocuments-model-google',
+  grok: 'opendocuments-model-grok',
 }
 
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
@@ -339,14 +339,14 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Auto-register installed parser plugins
     const PARSER_PLUGINS = [
-      '@opendocuments/parser-pdf',
-      '@opendocuments/parser-docx',
-      '@opendocuments/parser-xlsx',
-      '@opendocuments/parser-html',
-      '@opendocuments/parser-jupyter',
-      '@opendocuments/parser-email',
-      '@opendocuments/parser-pptx',
-      '@opendocuments/parser-code',
+      'opendocuments-parser-pdf',
+      'opendocuments-parser-docx',
+      'opendocuments-parser-xlsx',
+      'opendocuments-parser-html',
+      'opendocuments-parser-jupyter',
+      'opendocuments-parser-email',
+      'opendocuments-parser-pptx',
+      'opendocuments-parser-code',
     ]
 
     for (const name of PARSER_PLUGINS) {
@@ -466,16 +466,16 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Connector type -> package mapping
     const CONNECTOR_PLUGINS_MAP: Record<string, string> = {
-      github: '@opendocuments/connector-github',
-      notion: '@opendocuments/connector-notion',
-      'web-crawler': '@opendocuments/connector-web-crawler',
+      github: 'opendocuments-connector-github',
+      notion: 'opendocuments-connector-notion',
+      'web-crawler': 'opendocuments-connector-web-crawler',
       'gdrive': '@opendocuments/connector-gdrive',
       'google-drive': '@opendocuments/connector-gdrive',
       's3': '@opendocuments/connector-s3',
       'gcs': '@opendocuments/connector-s3',
       'confluence': '@opendocuments/connector-confluence',
-      'swagger': '@opendocuments/connector-swagger',
-      'openapi': '@opendocuments/connector-swagger',
+      'swagger': 'opendocuments-connector-swagger',
+      'openapi': 'opendocuments-connector-swagger',
     }
 
     // Config-driven connector registration

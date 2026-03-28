@@ -1,6 +1,6 @@
 {
-  "name": "@opendocuments/model-ollama",
-  "version": "0.1.0",
+  "name": "opendocuments-model-ollama",
+  "version": "0.1.2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,5 +25,14 @@
   },
   "peerDependencies": {
     "opendocuments-core": "^0.1.0"
+  },
+  "license": "MIT",
+  "files": [
+    "dist/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "plugins/model-ollama"
   }
 }

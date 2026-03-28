@@ -1,5 +1,5 @@
 {
-  "name": "@opendocuments/parser-docx",
+  "name": "opendocuments-parser-docx",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,5 +26,14 @@
   },
   "peerDependencies": {
     "opendocuments-core": "^0.1.0"
+  },
+  "license": "MIT",
+  "files": [
+    "dist/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "plugins/parser-docx"
   }
 }
