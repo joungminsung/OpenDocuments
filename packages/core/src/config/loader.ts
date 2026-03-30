@@ -30,9 +30,12 @@ export function loadConfig(projectDir: string): OpenDocumentsConfig {
     }
     return config
   } catch (err) {
-    console.warn(`Failed to load config from ${configPath}: ${(err as Error).message}`)
-    console.warn('Using default configuration.')
-    return DEFAULT_CONFIG
+    console.error(`\x1b[31m[ERROR] Failed to load config from ${configPath}:\x1b[0m`)
+    console.error((err as Error).message)
+    console.error('Fix your config file or delete it to use defaults:')
+    console.error(`  rm ${configPath}`)
+    console.error('  opendocuments init')
+    process.exit(1)
   }
 }
 
