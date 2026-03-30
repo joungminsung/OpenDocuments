@@ -24,4 +24,5 @@ jobs:
       - run: npm ci
       - run: npx turbo build
       - run: npx turbo typecheck
+      - run: npx turbo lint
       - run: npx turbo test
