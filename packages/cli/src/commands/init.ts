@@ -5,6 +5,66 @@ import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { cpus, totalmem, platform, arch } from 'node:os'
 
+async function checkOllamaRunning(): Promise<boolean> {
+  try {
+    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+async function getOllamaModels(): Promise<string[]> {
+  try {
+    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
+    if (!res.ok) return []
+    const data = await res.json() as { models?: Array<{ name: string }> }
+    return (data.models || []).map(m => m.name)
+  } catch {
+    return []
+  }
+}
+
+async function pullOllamaModel(model: string): Promise<boolean> {
+  const { execSync } = await import('node:child_process')
+  try {
+    console.log(`  Pulling ${model}... (this may take a few minutes)`)
+    execSync(`ollama pull ${model}`, { stdio: 'inherit', timeout: 600000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function validateCloudApiKey(provider: string, apiKey: string): Promise<boolean> {
+  if (!apiKey) return true
+  const endpoints: Record<string, { url: string; headers: Record<string, string> }> = {
+    openai: {
+      url: 'https://api.openai.com/v1/models',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    },
+    anthropic: {
+      url: 'https://api.anthropic.com/v1/messages',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    },
+    google: {
+      url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+      headers: {},
+    },
+  }
+  const endpoint = endpoints[provider]
+  if (!endpoint) return true
+  try {
+    const res = await fetch(endpoint.url, {
+      headers: endpoint.headers,
+      signal: AbortSignal.timeout(10000),
+    })
+    return res.status !== 401 && res.status !== 403
+  } catch {
+    return true
+  }
+}
+
 export function initCommand() {
   return new Command('init')
     .description('Initialize OpenDocuments project')
@@ -80,6 +140,21 @@ export function initCommand() {
           default: '',
         })
 
+        if (apiKey) {
+          log.wait('Validating API key...')
+          const valid = await validateCloudApiKey(provider, apiKey)
+          if (valid) {
+            log.ok('API key is valid')
+          } else {
+            log.fail('API key appears to be invalid (401/403 response)')
+            const proceed = await confirm({
+              message: 'Continue with this key anyway?',
+              default: false,
+            })
+            if (!proceed) return
+          }
+        }
+
         // Set defaults based on provider
         const providerDefaults: Record<string, { llm: string; embedding: string }> = {
           openai: { llm: 'gpt-4o', embedding: 'text-embedding-3-small' },
@@ -143,9 +218,9 @@ export function initCommand() {
       const profile = await select({
         message: 'RAG search profile:',
         choices: [
-          { name: `fast ${chalk.dim('-- quick answers, minimal resources')}`, value: 'fast' },
-          { name: `balanced ${chalk.dim('-- recommended for most use cases')}`, value: 'balanced' },
-          { name: `precise ${chalk.dim('-- thorough search, more resources')}`, value: 'precise' },
+          { name: `fast ${chalk.dim('-- 10 docs, no reranking, ~1s response')}`, value: 'fast' },
+          { name: `balanced ${chalk.dim('-- 20 docs, light reranking, ~3s response')}`, value: 'balanced' },
+          { name: `precise ${chalk.dim('-- 50 docs, full reranking + web search, ~5s+')}`, value: 'precise' },
         ],
         default: 'balanced',
       })
@@ -181,6 +256,16 @@ export function initCommand() {
       })
 
       const configPath = join(projectDir, 'opendocuments.config.ts')
+      if (existsSync(configPath)) {
+        const overwrite = await confirm({
+          message: 'Config file already exists. Overwrite?',
+          default: false,
+        })
+        if (!overwrite) {
+          log.info('Aborted. Existing config preserved.')
+          return
+        }
+      }
       writeFileSync(configPath, configContent)
 
       // Write .env file with the actual key (never written to config)
@@ -223,10 +308,47 @@ export function initCommand() {
       log.blank()
       log.heading('Next Steps')
       if (backend === 'ollama') {
-        log.arrow('Install Ollama: https://ollama.com')
-        log.arrow(`Pull models: ollama pull ${llmModel} && ollama pull ${embeddingModel}`)
+        log.blank()
+        log.wait('Checking Ollama availability...')
+        const ollamaRunning = await checkOllamaRunning()
+        if (ollamaRunning) {
+          log.ok('Ollama is running')
+          const models = await getOllamaModels()
+          const needsPull: string[] = []
+          for (const model of [llmModel, embeddingModel]) {
+            if (models.some(m => m.startsWith(model.split(':')[0]))) {
+              log.ok(`Model ${model} is available`)
+            } else {
+              needsPull.push(model)
+            }
+          }
+          if (needsPull.length > 0) {
+            const autoPull = await confirm({
+              message: `Pull missing models (${needsPull.join(', ')})?`,
+              default: true,
+            })
+            if (autoPull) {
+              for (const model of needsPull) {
+                const success = await pullOllamaModel(model)
+                if (success) {
+                  log.ok(`${model} pulled successfully`)
+                } else {
+                  log.fail(`Failed to pull ${model}. Run manually: ollama pull ${model}`)
+                }
+              }
+            } else {
+              log.arrow(`Pull models later: ollama pull ${needsPull.join(' && ollama pull ')}`)
+            }
+          }
+        } else {
+          log.fail('Ollama is not running or not installed')
+          log.arrow('Install Ollama: https://ollama.com')
+          log.arrow('Then start it:  ollama serve')
+          log.arrow(`Then pull models: ollama pull ${llmModel} && ollama pull ${embeddingModel}`)
+        }
       }
-      if (backend === 'cloud') {
+      if (backend === 'cloud' && !apiKey) {
+        const envVarName = getEnvVarName(provider)
         log.arrow(`Set API key: export ${envVarName}=your-key-here`)
       }
       log.arrow(`${dir === '.' ? '' : `cd ${dir} && `}opendocuments start`)
