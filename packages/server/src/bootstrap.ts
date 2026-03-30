@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import {
   loadConfig,
   log,
@@ -194,10 +195,23 @@ async function loadModelPlugin(
     // required model installed). Fall back to stubs on any failure so that the
     // server can still start and serve requests in degraded mode.
     if (mainPlugin.capabilities.embedding && mainPlugin.embed) {
-      try {
-        await mainPlugin.embed(['probe'])
-      } catch (probeErr) {
-        log.fail(`Model plugin ${packageName} embed probe failed: ${(probeErr as Error).message}. Using stub models.`)
+      let probeSuccess = false
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await mainPlugin.embed(['probe'])
+          probeSuccess = true
+          break
+        } catch (probeErr) {
+          const msg = (probeErr as Error).message
+          if (attempt < 3) {
+            log.wait(`Model embed probe failed (attempt ${attempt}/3): ${msg}. Retrying in 3s...`)
+            await new Promise(r => setTimeout(r, 3000))
+          } else {
+            log.fail(`Model plugin ${packageName} embed probe failed after 3 attempts: ${msg}. Using stub models.`)
+          }
+        }
+      }
+      if (!probeSuccess) {
         return createStubModels(embeddingDimensions)
       }
     }
@@ -217,11 +231,24 @@ async function loadModelPlugin(
       )
 
       if (embeddingPlugin && embeddingPlugin.capabilities.embedding && embeddingPlugin.embed) {
-        try {
-          await embeddingPlugin.embed(['probe'])
+        let secondaryProbeSuccess = false
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await embeddingPlugin.embed(['probe'])
+            secondaryProbeSuccess = true
+            break
+          } catch (probeErr) {
+            const msg = (probeErr as Error).message
+            if (attempt < 3) {
+              log.wait(`Secondary embedding probe failed (attempt ${attempt}/3): ${msg}. Retrying in 3s...`)
+              await new Promise(r => setTimeout(r, 3000))
+            } else {
+              log.fail(`Secondary embedding provider '${embeddingProvider}' probe failed after 3 attempts: ${msg}. Falling back to stub embedder.`)
+            }
+          }
+        }
+        if (secondaryProbeSuccess) {
           return { embedder: embeddingPlugin, llm: mainPlugin }
-        } catch (probeErr) {
-          log.fail(`Secondary embedding provider '${embeddingProvider}' probe failed: ${(probeErr as Error).message}. Falling back to stub embedder.`)
         }
       } else if (embeddingPlugin) {
         log.fail(`Secondary embedding provider '${embeddingProvider}' does not support embedding. Falling back to stub embedder.`)
@@ -289,7 +316,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
   }
 
   // Resolve dataDir
-  const dataDir = opts.dataDir || process.env.OPENDOCUMENTS_DATA_DIR || config.storage.dataDir.replace(/^~/, process.env.HOME || '~')
+  const dataDir = opts.dataDir || process.env.OPENDOCUMENTS_DATA_DIR || config.storage.dataDir.replace(/^~/, homedir())
   mkdirSync(dataDir, { recursive: true })
 
   // Resolve embedding dimensions from config or provider default

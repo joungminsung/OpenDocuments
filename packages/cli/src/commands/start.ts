@@ -3,6 +3,7 @@ import { log } from 'opendocuments-core'
 import { bootstrap, createApp, startMCPServer } from 'opendocuments-server'
 import { serve } from '@hono/node-server'
 import { resolve, dirname, join } from 'node:path'
+import { homedir } from 'node:os'
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
@@ -89,7 +90,7 @@ export function startCommand() {
       const app = createApp(ctx, { webDir })
       const port = parseInt(opts.port)
       // Write PID file for `opendocuments stop`
-      const pidDir = join(process.env.HOME || '~', '.opendocuments')
+      const pidDir = join(homedir(), '.opendocuments')
       const pidFile = join(pidDir, 'server.pid')
       mkdirSync(pidDir, { recursive: true })
       writeFileSync(pidFile, String(process.pid))
