@@ -20,6 +20,7 @@ export interface QueryInput {
   query: string
   profile?: string
   conversationId?: string
+  conversationHistory?: string
 }
 
 export interface QueryResult {
@@ -98,7 +99,7 @@ export class RAGEngine {
       return { ...cached, queryId }
     }
 
-    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route)
+    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route, input.conversationHistory)
     // Note: Full QueryResult including source content is cached.
     // Memory impact: ~500 entries * ~10KB average = ~5MB max. Acceptable for L1 cache.
     this.queryCache.set(cacheKey, result)
@@ -144,6 +145,7 @@ export class RAGEngine {
       query: trimmedQuery,
       context: sources,
       intent,
+      conversationHistory: input.conversationHistory,
     }
 
     let fullAnswer = ''
@@ -193,6 +195,7 @@ export class RAGEngine {
     config: RAGProfileConfig,
     profileName: string,
     route: QueryRoute,
+    conversationHistory?: string,
   ): Promise<QueryResult> {
     // Classify intent
     const intent = classifyIntent(query)
@@ -208,6 +211,7 @@ export class RAGEngine {
       query,
       context: sources,
       intent,
+      conversationHistory,
     }
 
     let answer = ''

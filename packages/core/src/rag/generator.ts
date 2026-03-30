@@ -6,6 +6,7 @@ export interface GenerateInput {
   context: SearchResult[]
   intent: string
   systemPrompt?: string
+  conversationHistory?: string
 }
 
 const INTENT_PROMPTS: Record<string, string> = {
@@ -29,11 +30,15 @@ export function buildPrompt(input: GenerateInput): string {
     }).join('\n\n')
     : 'No relevant documentation found.'
 
+  const historyBlock = input.conversationHistory
+    ? `\n## Conversation History\n${input.conversationHistory}\n`
+    : ''
+
   return `${systemPrompt}
 
 ## Context
 ${contextBlock}
-
+${historyBlock}
 ## Question
 ${input.query}
 

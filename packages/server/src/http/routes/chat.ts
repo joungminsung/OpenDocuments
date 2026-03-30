@@ -16,8 +16,23 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const workspaceId = body.workspaceId || ctx.config.workspace || 'default'
+
+    // Build conversation history if continuing a conversation
+    let conversationHistory: string | undefined
+    if (body.conversationId) {
+      try {
+        const messages = ctx.conversationManager.getMessages(body.conversationId)
+        if (messages.length > 0) {
+          const recent = messages.slice(-6) // Last 3 turns (6 messages)
+          conversationHistory = recent
+            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.substring(0, 500)}`)
+            .join('\n')
+        }
+      } catch {}
+    }
+
     const startTime = Date.now()
-    const result = await ctx.ragEngine.query({ query: body.query.trim(), profile: body.profile })
+    const result = await ctx.ragEngine.query({ query: body.query.trim(), profile: body.profile, conversationHistory })
     const responseTimeMs = Date.now() - startTime
 
     // Query logging
@@ -59,13 +74,27 @@ export function chatRoutes(ctx: AppContext) {
     }
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
+    // Build conversation history if continuing a conversation
+    let streamConversationHistory: string | undefined
+    if (body.conversationId) {
+      try {
+        const messages = ctx.conversationManager.getMessages(body.conversationId)
+        if (messages.length > 0) {
+          const recent = messages.slice(-6) // Last 3 turns (6 messages)
+          streamConversationHistory = recent
+            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.substring(0, 500)}`)
+            .join('\n')
+        }
+      } catch {}
+    }
+
     return streamSSE(c, async (stream) => {
       let fullAnswer = ''
       let sources: any[] = []
       let confidence: any = null
 
       try {
-        for await (const event of ctx.ragEngine.queryStream({ query: body.query.trim(), profile: body.profile })) {
+        for await (const event of ctx.ragEngine.queryStream({ query: body.query.trim(), profile: body.profile, conversationHistory: streamConversationHistory })) {
           await stream.writeSSE({ event: event.type, data: JSON.stringify(event.data) })
 
           if (event.type === 'chunk') fullAnswer += event.data
