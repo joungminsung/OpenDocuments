@@ -75,18 +75,22 @@ export class RAGEngine {
   }
 
   async query(input: QueryInput): Promise<QueryResult> {
+    const trimmedQuery = (input.query || '').trim()
+    if (!trimmedQuery) {
+      throw new Error('Query cannot be empty')
+    }
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
-    const route = routeQuery(input.query)
+    const route = routeQuery(trimmedQuery)
 
-    this.eventBus.emit('query:received', { queryId, query: input.query })
+    this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
 
     // L1 cache check (null byte delimiter prevents "queryA" + "B" == "query" + "AB" collisions)
-    const cacheKey = sha256(`${input.query}\x00${profileName}`)
+    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
 
     if (route === 'direct') {
-      return this.handleDirect(queryId, input.query, profileName)
+      return this.handleDirect(queryId, trimmedQuery, profileName)
     }
 
     const cached = this.queryCache.get(cacheKey) as QueryResult | undefined
@@ -94,7 +98,7 @@ export class RAGEngine {
       return { ...cached, queryId }
     }
 
-    const result = await this.handleRAG(queryId, input.query, config, profileName, route)
+    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route)
     // Note: Full QueryResult including source content is cached.
     // Memory impact: ~500 entries * ~10KB average = ~5MB max. Acceptable for L1 cache.
     this.queryCache.set(cacheKey, result)
@@ -102,15 +106,19 @@ export class RAGEngine {
   }
 
   async *queryStream(input: QueryInput): AsyncIterable<StreamEvent> {
+    const trimmedQuery = (input.query || '').trim()
+    if (!trimmedQuery) {
+      throw new Error('Query cannot be empty')
+    }
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
-    const route = routeQuery(input.query)
+    const route = routeQuery(trimmedQuery)
 
-    this.eventBus.emit('query:received', { queryId, query: input.query })
+    this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
 
     if (route === 'direct') {
-      const result = await this.handleDirect(queryId, input.query, profileName)
+      const result = await this.handleDirect(queryId, trimmedQuery, profileName)
       yield { type: 'chunk', data: result.answer }
       yield { type: 'sources', data: result.sources }
       yield { type: 'confidence', data: result.confidence }
@@ -119,21 +127,21 @@ export class RAGEngine {
     }
 
     // Classify intent
-    const intent = classifyIntent(input.query)
+    const intent = classifyIntent(trimmedQuery)
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, input.query, config)
+    const sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
 
     yield { type: 'sources', data: sources }
 
     // Calculate confidence
-    const confidence = this.computeConfidence(input.query, sources)
+    const confidence = this.computeConfidence(trimmedQuery, sources)
     yield { type: 'confidence', data: confidence }
 
     // Generate (streaming)
     const genInput: GenerateInput = {
-      query: input.query,
+      query: trimmedQuery,
       context: sources,
       intent,
     }
@@ -156,7 +164,7 @@ export class RAGEngine {
     }
 
     // Cache the streamed result
-    const cacheKey = sha256(`${input.query}\x00${profileName}`)
+    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
     this.queryCache.set(cacheKey, {
       queryId, answer: fullAnswer, sources, confidence, route, profile: profileName,
     })
@@ -288,20 +296,22 @@ export class RAGEngine {
       if (shouldSearch) {
         try {
           const webResults = await this.webSearchProvider.search(query, 5)
-          const webSearchResults: SearchResult[] = webResults.map((r: any, i: number) => ({
-            chunkId: `web_${i}`,
-            content: r.content,
-            score: r.score,
-            documentId: 'web-search',
-            chunkType: 'semantic',
-            headingHierarchy: [r.title],
-            sourcePath: r.url,
-            sourceType: 'web',
-          }))
+          const webSearchResults: SearchResult[] = webResults
+            .filter((r: any) => r && typeof r.content === 'string' && typeof r.score === 'number')
+            .map((r: any, i: number) => ({
+              chunkId: `web_${i}`,
+              content: r.content,
+              score: r.score,
+              documentId: 'web-search',
+              chunkType: 'semantic' as const,
+              headingHierarchy: [r.title || 'Web Result'],
+              sourcePath: r.url || '',
+              sourceType: 'web',
+            }))
           results = reciprocalRankFusion([results, webSearchResults], 60, (item) => item.chunkId)
             .slice(0, config.retrieval.finalTopK)
-        } catch {
-          // Don't fail the query if web search fails
+        } catch (err) {
+          console.error('[web-search] Failed:', err instanceof Error ? err.message : String(err))
         }
       }
     }
