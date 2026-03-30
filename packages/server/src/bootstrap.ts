@@ -68,7 +68,7 @@ function createStubEmbedder(dimensions: number): ModelPlugin {
     async setup(_ctx: PluginContext): Promise<void> {},
     async teardown(): Promise<void> {},
     async healthCheck(): Promise<HealthStatus> {
-      return { healthy: true, message: 'Stub embedder' }
+      return { healthy: false, message: 'Stub embedder -- no real model configured. Search will not work.' }
     },
     async embed(texts: string[]): Promise<EmbeddingResult> {
       const dense = texts.map(() => new Array(dimensions).fill(0))
@@ -87,10 +87,14 @@ function createStubLLM(): ModelPlugin {
     async setup(_ctx: PluginContext): Promise<void> {},
     async teardown(): Promise<void> {},
     async healthCheck(): Promise<HealthStatus> {
-      return { healthy: true, message: 'Stub LLM' }
+      return { healthy: false, message: 'Stub LLM -- no real model configured. Generation will not work.' }
     },
     async *generate(_prompt: string, _opts?: GenerateOpts): AsyncIterable<string> {
-      yield 'This is a placeholder response. Configure a real LLM model plugin for actual generation.'
+      yield '[ERROR] No LLM model configured. Please set up a model provider:\n'
+      yield '  1. Install Ollama: https://ollama.com\n'
+      yield '  2. Start Ollama: ollama serve\n'
+      yield '  3. Pull a model: ollama pull qwen2.5:14b\n'
+      yield '  4. Restart: opendocuments start\n'
     },
   }
 }
@@ -371,6 +375,32 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     )
     await registry.register(embedder, pluginCtx)
     if (llm.name !== embedder.name) await registry.register(llm, pluginCtx)
+
+    // Print degraded mode warning if using stub models
+    const usingStubEmbedder = embedder.name.includes('stub')
+    const usingStubLLM = llm.name.includes('stub')
+    if (usingStubEmbedder || usingStubLLM) {
+      log.blank()
+      log.fail('╔══════════════════════════════════════════════════════════╗')
+      log.fail('║  ⚠  DEGRADED MODE -- Model plugins not fully loaded     ║')
+      log.fail('╚══════════════════════════════════════════════════════════╝')
+      if (usingStubEmbedder) log.fail('  Embedding: using zero-vector stubs (search will not work)')
+      if (usingStubLLM)      log.fail('  LLM:       using placeholder (generation will not work)')
+      log.blank()
+      log.info('To fix:')
+      if (config.model.provider === 'ollama') {
+        log.arrow('1. Ensure Ollama is running:  ollama serve')
+        log.arrow(`2. Pull required models:      ollama pull ${config.model.llm}`)
+        if (config.model.embedding !== config.model.llm) {
+          log.arrow(`                              ollama pull ${config.model.embedding}`)
+        }
+        log.arrow('3. Restart:                   opendocuments start')
+      } else {
+        log.arrow(`1. Check your ${config.model.provider} API key is set correctly`)
+        log.arrow('2. Run: opendocuments doctor')
+      }
+      log.blank()
+    }
 
     // 9. Create WorkspaceManager, ensure default workspace
     const workspaceManager = new WorkspaceManager(db)
