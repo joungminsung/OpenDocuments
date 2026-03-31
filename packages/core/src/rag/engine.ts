@@ -294,6 +294,9 @@ export class RAGEngine {
     // Trim to finalTopK after merging/reranking
     results = results.slice(0, config.retrieval.finalTopK)
 
+    // Expand with sibling chunks for additional context
+    results = this.retriever.expandWithSiblings(results, this.store, 1)
+
     // Fit chunks into context window budget
     results = fitToContextWindow(results)
 
