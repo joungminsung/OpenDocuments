@@ -48,5 +48,5 @@ SQLite for metadata/FTS + LanceDB for vectors. Designed for single-machine deplo
 
 ## Contributing
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for development setup and guidelines.
-See [Plugin System](../plugins/index.md) for plugin development.
+See [CONTRIBUTING.md](https://github.com/joungminsung/OpenDocuments/blob/main/CONTRIBUTING.md) for development setup and guidelines.
+See [Plugin System](/plugins/) for plugin development.

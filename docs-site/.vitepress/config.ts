@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'OpenDocuments',
   description: 'Open source self-hosted RAG tool for AI document search — connect GitHub, Notion, Google Drive, and more. Ask questions in natural language with source citations.',
   lang: 'en-US',
+  ignoreDeadLinks: [/localhost/],
 
   head: [
     ['meta', { name: 'keywords', content: 'rag tool, ai document search, self-hosted knowledge base, open source rag, retrieval augmented generation, llm document search, ollama rag, vector search, ai knowledge management, document qa, enterprise search, mcp server' }],
