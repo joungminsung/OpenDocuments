@@ -45,7 +45,7 @@ export class Retriever {
 
     // RRF merge if we have sparse results
     if (sparseResults.length > 0) {
-      const merged = reciprocalRankFusion([denseResults, sparseResults], 60, (item) => item.chunkId)
+      const merged = reciprocalRankFusion([denseResults, sparseResults], 60, (item) => item.chunkId, true)
       return merged.slice(0, opts.finalTopK)
     }
 
