@@ -7,7 +7,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /OpenDocuments/guide/
+      link: /guide/
     - theme: alt
       text: GitHub
       link: https://github.com/joungminsung/OpenDocuments
@@ -64,4 +64,4 @@ opendocuments init    # Auto-detects Ollama, pulls models
 opendocuments start   # Opens Web UI at localhost:3000
 ```
 
-Three commands. Under 5 minutes. [Get started →](/OpenDocuments/guide/)
+Three commands. Under 5 minutes. [Get started →](/guide/)
