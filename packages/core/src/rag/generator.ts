@@ -36,14 +36,21 @@ export function buildPrompt(input: GenerateInput): string {
 
   return `${systemPrompt}
 
+## RULES
+1. ONLY use information from the Context section below. Do not add external knowledge.
+2. Quote or closely paraphrase source text when possible.
+3. If sources conflict, mention both perspectives.
+4. If the context lacks sufficient information, say exactly what is missing.
+5. Cite every claim using [Source: filename#section] format.
+
 ## Context
 ${contextBlock}
 ${historyBlock}
 ## Question
 ${input.query}
 
-## Instructions
-Answer based on the context above. If the context does not contain enough information to answer fully, acknowledge what is missing. Cite sources using [Source: filename#section] format.`
+## RESPONSE FORMAT
+Start with a direct answer in 1-2 sentences, then provide supporting details with citations.`
 }
 
 export async function* generateAnswer(
