@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'OpenDocuments',
   description: 'Open source self-hosted RAG tool for AI document search — connect GitHub, Notion, Google Drive, and more. Ask questions in natural language with source citations.',
   lang: 'en-US',
+  base: '/OpenDocuments/',
   ignoreDeadLinks: [/localhost/],
 
   head: [
