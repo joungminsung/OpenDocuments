@@ -17,14 +17,18 @@ export async function rerankResults(
     try {
       const docs = results.map(r => r.content)
       const reranked = await model.rerank(query, docs)
-      return reranked.indices
-        .filter(idx => idx >= 0 && idx < results.length)
-        .map((idx, i) => ({
-          ...results[idx],
-          score: reranked.scores[i] ?? 0,
-        }))
-    } catch {
-      // Fallback to keyword scoring
+      if (!reranked.indices || !reranked.scores || reranked.indices.length !== reranked.scores.length) {
+        console.warn('[reranker] Invalid rerank response: indices/scores length mismatch, falling back to keyword scoring')
+      } else {
+        return reranked.indices
+          .filter(idx => idx >= 0 && idx < results.length)
+          .map((idx, i) => ({
+            ...results[idx],
+            score: reranked.scores[i] ?? 0,
+          }))
+      }
+    } catch (err) {
+      console.warn('[reranker] Rerank failed, falling back to keyword scoring:', err instanceof Error ? err.message : String(err))
     }
   }
 

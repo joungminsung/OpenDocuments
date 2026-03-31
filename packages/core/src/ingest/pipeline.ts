@@ -190,13 +190,24 @@ export class IngestPipeline {
       const texts = finalChunks.map(c => c.content)
       const allEmbeddings: number[][] = []
 
+      let expectedDim: number | null = null
       for (let i = 0; i < texts.length; i += BATCH_SIZE) {
         const batch = texts.slice(i, i + BATCH_SIZE)
         const result = await embeddingModel.embed(batch)
         if (result.dense.length !== batch.length) {
           throw new Error(
-            `Embedding dimension mismatch: sent ${batch.length} texts, got ${result.dense.length} embeddings`
+            `Embedding count mismatch: sent ${batch.length} texts, got ${result.dense.length} embeddings`
           )
+        }
+        // Validate consistent dimensions across batches
+        for (const vec of result.dense) {
+          if (expectedDim === null) {
+            expectedDim = vec.length
+          } else if (vec.length !== expectedDim) {
+            throw new Error(
+              `Embedding dimension mismatch: expected ${expectedDim}D, got ${vec.length}D`
+            )
+          }
         }
         allEmbeddings.push(...result.dense)
       }

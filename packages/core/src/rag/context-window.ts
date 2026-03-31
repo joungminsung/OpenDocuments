@@ -51,8 +51,20 @@ export function fitToContextWindow(
         // Estimate chars from remaining tokens (CJK-aware)
         const cjkRatio = (chunk.content.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || []).length / chunk.content.length
         const charsPerToken = cjkRatio > 0.3 ? 1.5 : 4
-        const truncatedContent = chunk.content.substring(0, Math.floor(remaining * charsPerToken))
-        fitted.push({ ...chunk, content: truncatedContent + '...' })
+        let maxChars = Math.floor(remaining * charsPerToken)
+        let truncatedContent = chunk.content.substring(0, maxChars)
+        // Find nearest sentence boundary (. ! ? or newline) to avoid cutting mid-sentence
+        const lastBoundary = Math.max(
+          truncatedContent.lastIndexOf('. '),
+          truncatedContent.lastIndexOf('.\n'),
+          truncatedContent.lastIndexOf('! '),
+          truncatedContent.lastIndexOf('? '),
+          truncatedContent.lastIndexOf('\n\n'),
+        )
+        if (lastBoundary > maxChars * 0.5) {
+          truncatedContent = truncatedContent.substring(0, lastBoundary + 1)
+        }
+        fitted.push({ ...chunk, content: truncatedContent.trim() + '...' })
       }
       break
     }
