@@ -6,8 +6,15 @@ export function conversationRoutes(ctx: AppContext) {
   const app = new Hono()
 
   app.get('/api/v1/conversations', (c) => {
-    const conversations = ctx.conversationManager.list()
-    return c.json({ conversations })
+    const auth = c.get('auth') as any
+    const workspaceId = auth?.record?.workspaceId || ctx.config.workspace || 'default'
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '50', 10) || 50, 1), 200)
+    const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
+    const conversations = ctx.db.all<any>(
+      'SELECT * FROM conversations WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ? OFFSET ?',
+      [workspaceId, limit, offset]
+    )
+    return c.json({ conversations, limit, offset })
   })
 
   app.get('/api/v1/conversations/:id/messages', (c) => {
@@ -31,6 +38,12 @@ export function conversationRoutes(ctx: AppContext) {
   })
 
   app.delete('/api/v1/conversations/:id', (c) => {
+    const convo = ctx.db.get<any>('SELECT workspace_id FROM conversations WHERE id = ? AND deleted_at IS NULL', [c.req.param('id')])
+    if (!convo) return c.json({ error: 'Conversation not found' }, 404)
+    const auth = c.get('auth') as any
+    if (auth?.record && convo.workspace_id !== auth.record.workspaceId) {
+      return c.json({ error: 'Not authorized' }, 403)
+    }
     ctx.conversationManager.delete(c.req.param('id'))
     return c.json({ deleted: true })
   })

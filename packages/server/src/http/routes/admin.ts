@@ -16,31 +16,31 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   app.get('/api/v1/admin/stats', requireRole('admin'), requireScope('admin'), (c) => {
-    const docs = ctx.store.listDocuments()
-    const totalChunks = docs.reduce((sum, d) => sum + (d.chunk_count || 0), 0)
+    const summary = ctx.db.get<any>(
+      'SELECT COUNT(*) as docCount, COALESCE(SUM(chunk_count), 0) as chunkCount FROM documents WHERE deleted_at IS NULL'
+    )
 
-    // Source type distribution
+    const sourceDist = ctx.db.all<any>(
+      'SELECT source_type, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY source_type'
+    )
     const sourceDistribution: Record<string, number> = {}
-    for (const doc of docs) {
-      sourceDistribution[doc.source_type] = (sourceDistribution[doc.source_type] || 0) + 1
-    }
+    for (const row of sourceDist) sourceDistribution[row.source_type] = row.count
 
-    // Status distribution
+    const statusDist = ctx.db.all<any>(
+      'SELECT status, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY status'
+    )
     const statusDistribution: Record<string, number> = {}
-    for (const doc of docs) {
-      statusDistribution[doc.status] = (statusDistribution[doc.status] || 0) + 1
-    }
+    for (const row of statusDist) statusDistribution[row.status] = row.count
 
-    // File type distribution
+    const fileTypeDist = ctx.db.all<any>(
+      "SELECT COALESCE(file_type, 'unknown') as ft, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY ft"
+    )
     const fileTypeDistribution: Record<string, number> = {}
-    for (const doc of docs) {
-      const ft = doc.file_type || 'unknown'
-      fileTypeDistribution[ft] = (fileTypeDistribution[ft] || 0) + 1
-    }
+    for (const row of fileTypeDist) fileTypeDistribution[row.ft] = row.count
 
     return c.json({
-      documents: docs.length,
-      chunks: totalChunks,
+      documents: summary?.docCount || 0,
+      chunks: summary?.chunkCount || 0,
       workspaces: ctx.workspaceManager.list().length,
       plugins: ctx.registry.listAll().length,
       sourceDistribution,
