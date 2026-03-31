@@ -14,7 +14,7 @@ export interface RAGProfileConfig {
 const PROFILES: Record<string, RAGProfileConfig> = {
   fast: {
     retrieval: { k: 10, minScore: 0.5, finalTopK: 3 },
-    context: { maxTokens: 2048, historyMaxTokens: 512 },
+    context: { maxTokens: 8192, historyMaxTokens: 512 },
     features: {
       reranker: false,
       queryDecomposition: false,
@@ -26,7 +26,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
   },
   balanced: {
     retrieval: { k: 20, minScore: 0.3, finalTopK: 5 },
-    context: { maxTokens: 4096, historyMaxTokens: 1024 },
+    context: { maxTokens: 16384, historyMaxTokens: 1024 },
     features: {
       reranker: true,
       queryDecomposition: false,
@@ -38,7 +38,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
   },
   precise: {
     retrieval: { k: 50, minScore: 0.15, finalTopK: 10 },
-    context: { maxTokens: 8192, historyMaxTokens: 2048 },
+    context: { maxTokens: 32768, historyMaxTokens: 2048 },
     features: {
       reranker: true,
       queryDecomposition: true,
