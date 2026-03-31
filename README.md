@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">OpenDocuments</h1>
-  <p align="center"><strong>Your organization's documents are scattered everywhere. OpenDocuments brings them together and lets you talk to them.</strong></p>
+  <p align="center"><strong>Open source RAG tool for AI document search — connect GitHub, Notion, Google Drive and ask questions with cited answers</strong></p>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 
 ---
 
-## The Problem
+## The Problem: Scattered Knowledge, No AI Search
 
 Your team's knowledge is trapped in silos:
 
@@ -32,7 +32,7 @@ Your team's knowledge is trapped in silos:
 
 When someone asks _"How does our auth system work?"_ or _"What was the Q3 budget for the AI team?"_, they spend 15 minutes hunting through 5 different tools. And they still might not find the answer.
 
-## The Solution
+## The Solution: Self-Hosted AI Document Search
 
 OpenDocuments **connects to all your document sources**, **indexes everything into a unified search engine**, and **answers questions in natural language** -- with source citations so you know exactly where the answer came from.
 
@@ -43,6 +43,8 @@ opendocuments start
 ```
 
 Open `http://localhost:3000`, and ask away.
+
+> **OpenDocuments** is a free, open source alternative to proprietary enterprise AI search tools. It's a self-hosted RAG (Retrieval-Augmented Generation) platform that runs on your own infrastructure.
 
 ### Recent Improvements
 - **One-touch Ollama setup**: `init` auto-detects Ollama, offers to pull missing models
