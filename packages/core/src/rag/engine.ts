@@ -51,6 +51,41 @@ export type StreamEvent =
   | { type: 'intent'; data: string }
   | { type: 'done'; data: { queryId: string; route: QueryRoute; profile: string } }
 
+const INTENT_CHUNK_TYPES: Record<string, string[]> = {
+  code: ['code-ast'],
+  config: ['semantic', 'code-ast'],
+  data: ['table'],
+}
+
+export function boostByMetadata(
+  results: SearchResult[],
+  query: string,
+  intent: string,
+): SearchResult[] {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
+
+  return results.map(r => {
+    let boost = 1.0
+
+    // Heading match boost
+    const headingText = (r.headingHierarchy || []).join(' ').toLowerCase()
+    for (const qw of queryWords) {
+      if (headingText.includes(qw)) {
+        boost += 0.15
+        break // Cap heading boost at 0.15
+      }
+    }
+
+    // Intent-chunk type alignment boost
+    const preferredTypes = INTENT_CHUNK_TYPES[intent]
+    if (preferredTypes && preferredTypes.includes(r.chunkType)) {
+      boost += 0.1
+    }
+
+    return { ...r, score: r.score * boost }
+  })
+}
+
 export class RAGEngine {
   private store: DocumentStore
   private llm: ModelPlugin
@@ -132,7 +167,11 @@ export class RAGEngine {
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
+    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, trimmedQuery, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     yield { type: 'sources', data: sources }
 
@@ -201,7 +240,11 @@ export class RAGEngine {
     const intent = classifyIntent(query)
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, query, config)
+    let sources = await this.retrieveWithFeatures(queryId, query, config)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, query, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     // Calculate confidence
     const confidence = this.computeConfidence(query, sources)
