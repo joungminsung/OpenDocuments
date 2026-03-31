@@ -19,9 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
 
-      - run: npm install
+      - run: rm -f package-lock.json && npm install
       - run: npx turbo build
       - run: npx turbo typecheck
       - run: npx turbo lint
