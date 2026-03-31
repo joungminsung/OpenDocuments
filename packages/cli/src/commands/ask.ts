@@ -58,6 +58,11 @@ export function askCommand() {
             askLine()
           })
         }
+        // Handle Ctrl+C gracefully in REPL
+        rl.on('close', async () => {
+          await shutdownContext()
+          process.exit(0)
+        })
         askLine()
         return // Don't shutdown -- REPL keeps running
       }

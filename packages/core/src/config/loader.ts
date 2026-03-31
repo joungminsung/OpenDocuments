@@ -15,12 +15,25 @@ export function loadConfig(projectDir: string): OpenDocumentsConfig {
     try {
       const envContent = readFileSync(envPath, 'utf-8')
       for (const line of envContent.split('\n')) {
-        const trimmed = line.trim()
+        let trimmed = line.trim()
         if (!trimmed || trimmed.startsWith('#')) continue
+        // Handle 'export KEY=value' syntax
+        if (trimmed.startsWith('export ')) trimmed = trimmed.slice(7).trim()
         const eqIndex = trimmed.indexOf('=')
         if (eqIndex === -1) continue
         const key = trimmed.slice(0, eqIndex).trim()
-        const value = trimmed.slice(eqIndex + 1).trim().replace(/^["']|["']$/g, '')
+        let value = trimmed.slice(eqIndex + 1).trim()
+        // Strip inline comments (only if unquoted)
+        if (!value.startsWith('"') && !value.startsWith("'")) {
+          const commentIdx = value.indexOf(' #')
+          if (commentIdx !== -1) value = value.slice(0, commentIdx).trim()
+        }
+        // Strip surrounding quotes
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1)
+        }
+        // Handle escaped characters in double-quoted values
+        value = value.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')
         if (key && !process.env[key]) {
           process.env[key] = value
         }
@@ -36,6 +49,8 @@ export function loadConfig(projectDir: string): OpenDocumentsConfig {
   const configPath = existsSync(tsPath) ? tsPath : existsSync(jsPath) ? jsPath : null
 
   if (!configPath) {
+    console.warn('\x1b[33m[WARN] No config file found. Using defaults (Ollama on localhost).\x1b[0m')
+    console.warn('  Run: opendocuments init')
     return DEFAULT_CONFIG
   }
 
