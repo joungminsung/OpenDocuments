@@ -64,7 +64,7 @@ describe('loadConfig', () => {
     }
   })
 
-  it('falls back to defaults on invalid config file', () => {
+  it('throws on invalid config file', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-config-'))
 
     try {
@@ -74,9 +74,7 @@ describe('loadConfig', () => {
         }
       `)
 
-      const config = loadConfig(tempDir)
-      // Should fall back to defaults when validation fails
-      expect(config).toEqual(DEFAULT_CONFIG)
+      expect(() => loadConfig(tempDir)).toThrow('Failed to load config')
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }
