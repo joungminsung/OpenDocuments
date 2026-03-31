@@ -3,7 +3,7 @@ import type { ModelPlugin } from '../plugin/interfaces.js'
 
 /**
  * Rerank search results using the model's rerank capability,
- * or fall back to a simple keyword overlap scoring.
+ * or fall back to improved keyword scoring with heading boost and partial matching.
  */
 export async function rerankResults(
   query: string,
@@ -32,16 +32,32 @@ export async function rerankResults(
     }
   }
 
-  // Fallback: keyword overlap scoring
-  // Note: Set allocation per call is acceptable at current scale (typically <20 results).
-  const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 2))
+  // Improved fallback: partial matching + heading boost
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
 
   return results
     .map(r => {
-      const contentWords = new Set(r.content.toLowerCase().split(/\s+/))
-      const overlap = [...queryWords].filter(w => contentWords.has(w)).length
-      const keywordScore = queryWords.size > 0 ? overlap / queryWords.size : 0
-      return { ...r, score: r.score * 0.7 + keywordScore * 0.3 }
+      const contentLower = r.content.toLowerCase()
+      const headingText = (r.headingHierarchy || []).join(' ').toLowerCase()
+
+      // Partial/substring matching: check if query word is a substring of any content word
+      let contentMatches = 0
+      for (const qw of queryWords) {
+        if (contentLower.includes(qw)) contentMatches++
+      }
+      const contentScore = queryWords.length > 0 ? contentMatches / queryWords.length : 0
+
+      // Heading boost: query words in headings are strong relevance signals
+      let headingMatches = 0
+      for (const qw of queryWords) {
+        if (headingText.includes(qw)) headingMatches++
+      }
+      const headingScore = queryWords.length > 0 ? headingMatches / queryWords.length : 0
+
+      // Combined score: original * 0.5 + content overlap * 0.3 + heading boost * 0.2
+      const finalScore = r.score * 0.5 + contentScore * 0.3 + headingScore * 0.2
+
+      return { ...r, score: finalScore }
     })
     .sort((a, b) => b.score - a.score)
 }

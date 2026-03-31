@@ -30,3 +30,44 @@ describe('rerankResults', () => {
     expect(reranked).toHaveLength(3)
   })
 })
+
+const makeResult = (content: string, score: number, extra?: Partial<SearchResult>): SearchResult => ({
+  chunkId: `chunk_${Math.random()}`,
+  content,
+  score,
+  documentId: 'doc1',
+  chunkType: 'semantic',
+  headingHierarchy: [],
+  sourcePath: '/test.md',
+  sourceType: 'local',
+  ...extra,
+})
+
+describe('Improved reranker fallback', () => {
+  it('boosts results where query words appear in headings', async () => {
+    const results = [
+      makeResult('Some generic content about servers', 0.5, { headingHierarchy: ['Authentication Guide'] }),
+      makeResult('Some generic content about servers', 0.5, { headingHierarchy: ['Deployment Guide'] }),
+    ]
+    const reranked = await rerankResults('authentication setup', results)
+    expect(reranked[0].headingHierarchy).toContain('Authentication Guide')
+  })
+
+  it('matches partial/substring keywords (prefix matching)', async () => {
+    const results = [
+      makeResult('Configure authentication tokens for the service', 0.5),
+      makeResult('Unrelated content about food recipes and cooking', 0.5),
+    ]
+    const reranked = await rerankResults('auth config', results)
+    expect(reranked[0].content).toContain('authentication')
+  })
+
+  it('handles Korean query with partial matching', async () => {
+    const results = [
+      makeResult('인증 토큰을 설정하는 방법입니다', 0.5),
+      makeResult('요리 레시피 모음집입니다', 0.5),
+    ]
+    const reranked = await rerankResults('인증 설정', results)
+    expect(reranked[0].content).toContain('인증')
+  })
+})
