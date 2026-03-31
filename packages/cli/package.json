@@ -17,9 +17,9 @@
     "@inquirer/prompts": "^8.3.2",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
-    "opendocuments-core": "0.1.2",
-    "opendocuments-server": "0.1.2",
-    "opendocuments-model-ollama": "0.1.2"
+    "opendocuments-core": "*",
+    "opendocuments-server": "*",
+    "opendocuments-model-ollama": "*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
