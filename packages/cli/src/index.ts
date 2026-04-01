@@ -21,6 +21,7 @@ import { stopCommand } from './commands/stop.js'
 import { searchCommand } from './commands/search.js'
 import { completionCommand } from './commands/completion.js'
 import { upgradeCommand } from './commands/upgrade.js'
+import { backupCommand, restoreCommand } from './commands/backup.js'
 
 const program = new Command()
 program
@@ -45,5 +46,7 @@ program.addCommand(stopCommand())
 program.addCommand(searchCommand())
 program.addCommand(completionCommand())
 program.addCommand(upgradeCommand())
+program.addCommand(backupCommand())
+program.addCommand(restoreCommand())
 
 program.parse()
