@@ -11,6 +11,7 @@ import {
   createLanceDB,
   PluginRegistry,
   EventBus,
+  WebhookDispatcher,
   MiddlewareRunner,
   WorkspaceManager,
   DocumentStore,
@@ -353,6 +354,12 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const eventBus = new EventBus()
     const middleware = new MiddlewareRunner()
 
+    // Wire webhook dispatcher if any webhooks are configured
+    let webhookDispatcher: WebhookDispatcher | undefined
+    if (config.webhooks && config.webhooks.length > 0) {
+      webhookDispatcher = new WebhookDispatcher(eventBus, config.webhooks)
+    }
+
     // 6. Create plugin context for setup calls
     const pluginCtx: PluginContext = {
       config: {},
@@ -591,6 +598,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // Shutdown function
     const shutdown = async (): Promise<void> => {
       clearInterval(purgeTimer)
+      webhookDispatcher?.destroy()
       connectorManager.stopAll()
       await registry.teardownAll()
       eventBus.removeAllListeners()

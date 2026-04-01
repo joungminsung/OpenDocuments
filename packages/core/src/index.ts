@@ -25,6 +25,7 @@ export {
   type ModelRecommendation,
 } from './utils/hardware.js'
 export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
+export { WebhookDispatcher, type WebhookConfig } from './events/webhook-dispatcher.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
 export { fetchCommunityPlugins, filterCommunityPlugins, type CommunityPlugin } from './plugin/community-registry.js'

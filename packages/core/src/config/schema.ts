@@ -86,6 +86,12 @@ export const configSchema = z.object({
     vectorDbUrl: z.string().optional(),
     dataDir: z.string().default('~/.opendocuments'),
   }).default({}),
+  webhooks: z.array(z.object({
+    url: z.string(),
+    events: z.array(z.string()),
+    secret: z.string().optional(),
+    retries: z.number().default(2),
+  })).default([]),
 })
 
 export type OpenDocumentsConfig = z.infer<typeof configSchema>
