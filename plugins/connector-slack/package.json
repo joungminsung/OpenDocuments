@@ -1,0 +1,12 @@
+{
+  "name": "@opendocuments/connector-slack",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
+  "scripts": { "build": "tsc", "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "dependencies": { "opendocuments-core": "^0.1.0" },
+  "devDependencies": { "typescript": "^5.5.0", "vitest": "^2.1.0" },
+  "peerDependencies": { "opendocuments-core": "^0.1.0" }
+}
