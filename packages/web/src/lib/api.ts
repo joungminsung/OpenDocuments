@@ -83,6 +83,26 @@ export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
 }
 
+// Plugins
+export async function searchPlugins(query: string): Promise<{ packages: Array<{ name: string; description: string; version: string; [key: string]: unknown }> }> {
+  return request(`/plugins/search?q=${encodeURIComponent(query)}`)
+}
+
+export async function getPlugins(): Promise<{ plugins: Array<{ name: string; type: string; version: string; health: { healthy: boolean; message?: string } }> }> {
+  return request('/plugins')
+}
+
+export async function installPlugin(name: string): Promise<{ status: string; message: string }> {
+  return request('/plugins/install', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function removePlugin(name: string): Promise<{ status: string }> {
+  return request(`/plugins/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
 // Feedback
 export async function submitFeedback(queryId: string, feedback: 'positive' | 'negative'): Promise<void> {
   await request('/chat/feedback', { method: 'POST', body: JSON.stringify({ queryId, feedback }) })

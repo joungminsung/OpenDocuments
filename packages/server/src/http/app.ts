@@ -11,6 +11,7 @@ import { conversationRoutes } from './routes/conversations.js'
 import { adminRoutes } from './routes/admin.js'
 import { tagRoutes } from './routes/tags.js'
 import { collectionRoutes } from './routes/collections.js'
+import { pluginRoutes } from './routes/plugins.js'
 import { authRoutes } from './routes/auth-routes.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
@@ -81,6 +82,7 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   app.route('/', adminRoutes(ctx))
   app.route('/', tagRoutes(ctx))
   app.route('/', collectionRoutes(ctx))
+  app.route('/', pluginRoutes(ctx))
 
   app.onError((err, c) => {
     console.error('Unhandled error:', err.message)
