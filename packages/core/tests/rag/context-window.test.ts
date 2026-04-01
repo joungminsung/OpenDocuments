@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fitToContextWindow, type ContextWindowConfig } from '../../src/rag/context-window.js'
+import type { QueryIntent } from '../../src/rag/intent.js'
 
 describe('fitToContextWindow', () => {
   const makeMockChunk = (content: string, score: number) => ({
@@ -49,6 +50,53 @@ describe('fitToContextWindow', () => {
     const result = fitToContextWindow(chunks, config)
     // With only 50 tokens for chunks (very small), expect truncation or 1 chunk
     expect(result.length).toBeLessThanOrEqual(2)
+  })
+})
+
+describe('Dynamic context window allocation by intent', () => {
+  const makeMockChunk = (content: string, score: number) => ({
+    chunkId: `chunk_${score}`,
+    content,
+    score,
+    documentId: 'doc1',
+    chunkType: 'semantic' as const,
+    headingHierarchy: [],
+    sourcePath: '/test.md',
+    sourceType: 'local',
+  })
+
+  it('allocates more chunk space for code intent', () => {
+    const config: ContextWindowConfig = {
+      maxContextTokens: 1000,
+      allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
+    }
+    const chunks = Array.from({ length: 20 }, (_, i) =>
+      makeMockChunk('A'.repeat(200), 1 - i * 0.01)
+    )
+    const codeResult = fitToContextWindow(chunks, config, 0, 0, 'code')
+    const generalResult = fitToContextWindow(chunks, config, 0, 0, 'general')
+    // Code intent gets 75% chunks vs general 65% — more chunks should fit
+    expect(codeResult.length).toBeGreaterThanOrEqual(generalResult.length)
+  })
+
+  it('allocates more history space for concept intent (less chunk space)', () => {
+    const config: ContextWindowConfig = {
+      maxContextTokens: 1000,
+      allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
+    }
+    const chunks = Array.from({ length: 20 }, (_, i) =>
+      makeMockChunk('B'.repeat(200), 1 - i * 0.01)
+    )
+    const conceptResult = fitToContextWindow(chunks, config, 0, 0, 'concept')
+    const codeResult = fitToContextWindow(chunks, config, 0, 0, 'code')
+    // Concept intent gets 55% chunks vs code 75% — fewer chunks should fit
+    expect(conceptResult.length).toBeLessThanOrEqual(codeResult.length)
+  })
+
+  it('falls back to default allocation when no intent provided', () => {
+    const chunks = [makeMockChunk('Hello world', 0.9)]
+    const result = fitToContextWindow(chunks)
+    expect(result).toHaveLength(1)
   })
 })
 

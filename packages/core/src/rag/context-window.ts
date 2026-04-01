@@ -1,4 +1,5 @@
 import type { SearchResult } from '../ingest/document-store.js'
+import type { QueryIntent } from './intent.js'
 import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface ContextWindowConfig {
@@ -16,6 +17,14 @@ const DEFAULT_CONFIG: ContextWindowConfig = {
   allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
 }
 
+const INTENT_ALLOCATIONS: Partial<Record<QueryIntent, ContextWindowConfig['allocation']>> = {
+  code:    { systemPrompt: 0.1, chatHistory: 0.05, retrievedChunks: 0.75, generationBuffer: 0.1 },
+  concept: { systemPrompt: 0.1, chatHistory: 0.2,  retrievedChunks: 0.55, generationBuffer: 0.15 },
+  config:  { systemPrompt: 0.1, chatHistory: 0.1,  retrievedChunks: 0.7,  generationBuffer: 0.1 },
+  data:    { systemPrompt: 0.1, chatHistory: 0.05, retrievedChunks: 0.7,  generationBuffer: 0.15 },
+  compare: { systemPrompt: 0.1, chatHistory: 0.1,  retrievedChunks: 0.65, generationBuffer: 0.15 },
+}
+
 /**
  * Fit retrieved chunks into the available context window.
  * Trims lowest-scoring chunks first, then truncates long chunks.
@@ -24,11 +33,11 @@ export function fitToContextWindow(
   chunks: SearchResult[],
   config: ContextWindowConfig = DEFAULT_CONFIG,
   _chatHistoryTokens = 0,
-  _systemPromptTokens = 0
+  _systemPromptTokens = 0,
+  intent?: QueryIntent
 ): SearchResult[] {
-  const maxChunkTokens = Math.floor(
-    config.maxContextTokens * config.allocation.retrievedChunks
-  )
+  const allocation = (intent && INTENT_ALLOCATIONS[intent]) || config.allocation
+  const maxChunkTokens = Math.floor(config.maxContextTokens * allocation.retrievedChunks)
 
   // Already sorted by score (highest first)
   const fitted: SearchResult[] = []

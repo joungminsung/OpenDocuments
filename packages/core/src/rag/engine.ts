@@ -167,7 +167,7 @@ export class RAGEngine {
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
+    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config, intent)
 
     // Apply metadata-based boosting
     sources = boostByMetadata(sources, trimmedQuery, intent)
@@ -240,7 +240,7 @@ export class RAGEngine {
     const intent = classifyIntent(query)
 
     // Retrieve with decomposition and cross-lingual support
-    let sources = await this.retrieveWithFeatures(queryId, query, config)
+    let sources = await this.retrieveWithFeatures(queryId, query, config, intent)
 
     // Apply metadata-based boosting
     sources = boostByMetadata(sources, query, intent)
@@ -295,6 +295,7 @@ export class RAGEngine {
     queryId: string,
     query: string,
     config: RAGProfileConfig,
+    intent?: import('./intent.js').QueryIntent,
   ): Promise<SearchResult[]> {
     // Decompose query if enabled
     const decomposed = config.features.queryDecomposition
@@ -341,7 +342,7 @@ export class RAGEngine {
     results = this.retriever.expandWithSiblings(results, this.store, 1)
 
     // Fit chunks into context window budget
-    results = fitToContextWindow(results)
+    results = fitToContextWindow(results, undefined, 0, 0, intent)
 
     // Web search integration
     if (this.webSearchProvider && config.features.webSearch) {
