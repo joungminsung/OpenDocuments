@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
+import { getCachedUpdateInfo } from '../../utils/update-checker.js'
 
 type CheckStatus = 'ok' | 'error' | 'warning'
 
@@ -17,7 +18,14 @@ export function healthRoutes(ctx: AppContext) {
     const docs = ctx.store.listDocuments()
     const workspaces = ctx.workspaceManager.list()
     const plugins = ctx.registry.listAll()
-    return c.json({ documents: docs.length, workspaces: workspaces.length, plugins: plugins.length, pluginList: plugins })
+    const updateInfo = getCachedUpdateInfo()
+    return c.json({
+      documents: docs.length,
+      workspaces: workspaces.length,
+      plugins: plugins.length,
+      pluginList: plugins,
+      ...(updateInfo && { update: updateInfo }),
+    })
   })
 
   app.get('/api/v1/healthz', (c) => c.json({ status: 'ok' }, 200))

@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { checkForUpdates } from './utils/update-checker.js'
 import {
   loadConfig,
   log,
@@ -581,6 +582,13 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       await vectorDbRef.close()
       dbRef.close()
     }
+
+    // Non-blocking update check — fires and forgets so it never delays startup.
+    checkForUpdates('0.2.0').then(info => {
+      if (info.updateAvailable) {
+        log.info(`Update available: v${info.latestVersion} (current: v${info.currentVersion}). Run: npm install -g opendocuments@latest`)
+      }
+    }).catch(() => {})
 
     return {
       config,
