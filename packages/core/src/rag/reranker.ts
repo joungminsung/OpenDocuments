@@ -1,14 +1,38 @@
 import type { SearchResult } from '../ingest/document-store.js'
 import type { ModelPlugin } from '../plugin/interfaces.js'
+import type { QueryIntent } from './intent.js'
+
+/**
+ * Intent-specific weight profiles for fallback reranking.
+ * Weights: [originalScore, wordMatch, ngramPhrase, headingBoost, chunkTypeBoost]
+ */
+const INTENT_WEIGHTS: Record<string, number[]> = {
+  code:    [0.3, 0.2, 0.1, 0.15, 0.25],
+  concept: [0.35, 0.3, 0.15, 0.15, 0.05],
+  config:  [0.35, 0.25, 0.15, 0.15, 0.1],
+  data:    [0.3, 0.2, 0.1, 0.15, 0.25],
+  search:  [0.4, 0.25, 0.15, 0.2, 0.0],
+  compare: [0.35, 0.3, 0.15, 0.15, 0.05],
+  general: [0.4, 0.25, 0.15, 0.2, 0.0],
+}
+
+const INTENT_CHUNK_PREFERENCES: Record<string, string[]> = {
+  code: ['code-ast'],
+  config: ['code-ast', 'semantic'],
+  data: ['table'],
+  concept: ['semantic'],
+}
 
 /**
  * Rerank search results using the model's rerank capability,
- * or fall back to improved keyword scoring with heading boost and partial matching.
+ * or fall back to improved keyword scoring with heading boost, partial matching,
+ * and intent-adaptive weight profiles.
  */
 export async function rerankResults(
   query: string,
   results: SearchResult[],
-  model?: ModelPlugin
+  model?: ModelPlugin,
+  intent?: QueryIntent
 ): Promise<SearchResult[]> {
   if (results.length <= 1) return results
 
@@ -57,8 +81,13 @@ export async function rerankResults(
       }
       const headingScore = queryWords.length > 0 ? headingMatches / queryWords.length : 0
 
-      // Combined score: original * 0.4 + word match * 0.25 + n-gram bonus * 0.15 + heading * 0.2
-      const finalScore = r.score * 0.4 + wordScore * 0.25 + ngramScore * 0.15 + headingScore * 0.2
+      // Chunk type alignment bonus
+      const preferredTypes = intent ? INTENT_CHUNK_PREFERENCES[intent] : undefined
+      const chunkTypeBonus = preferredTypes && preferredTypes.includes(r.chunkType) ? 1.0 : 0.0
+
+      // Intent-adaptive weights: [original, word, ngram, heading, chunkType]
+      const w = INTENT_WEIGHTS[intent || 'general']
+      const finalScore = r.score * w[0] + wordScore * w[1] + ngramScore * w[2] + headingScore * w[3] + chunkTypeBonus * w[4]
 
       return { ...r, score: finalScore }
     })

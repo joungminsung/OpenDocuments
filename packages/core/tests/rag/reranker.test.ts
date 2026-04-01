@@ -109,3 +109,32 @@ describe('N-gram phrase matching', () => {
     expect(reranked[0].content).toContain('cache configuration')
   })
 })
+
+describe('Intent-adaptive reranking', () => {
+  it('boosts code-type chunks for code intent queries', async () => {
+    const results = [
+      makeResult('Authentication uses JWT tokens for security', 0.5, { chunkType: 'semantic' }),
+      makeResult('function authenticate(token: string) { return verify(token) }', 0.5, { chunkType: 'code-ast' }),
+    ]
+    const reranked = await rerankResults('how to implement authentication', results, undefined, 'code')
+    expect(reranked[0].chunkType).toBe('code-ast')
+  })
+
+  it('boosts semantic chunks for concept intent queries', async () => {
+    const results = [
+      makeResult('function setupRedis() { ... }', 0.6, { chunkType: 'code-ast' }),
+      makeResult('Redis is an in-memory data structure store used as a database, cache, and message broker', 0.5, { chunkType: 'semantic' }),
+    ]
+    const reranked = await rerankResults('What is Redis?', results, undefined, 'concept')
+    expect(reranked[0].chunkType).toBe('semantic')
+  })
+
+  it('uses default weights when no intent provided', async () => {
+    const results = [
+      makeResult('Redis configuration guide', 0.8),
+      makeResult('Python tutorial basics', 0.75),
+    ]
+    const reranked = await rerankResults('Redis', results)
+    expect(reranked).toHaveLength(2)
+  })
+})

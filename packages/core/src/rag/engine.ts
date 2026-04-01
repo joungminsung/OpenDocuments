@@ -331,7 +331,7 @@ export class RAGEngine {
 
     // Rerank if enabled
     if (config.features.reranker && results.length > 1) {
-      results = await rerankResults(query, results, this.rerankerModel)
+      results = await rerankResults(query, results, this.rerankerModel, classifyIntent(query))
     }
 
     // Trim to finalTopK after merging/reranking
