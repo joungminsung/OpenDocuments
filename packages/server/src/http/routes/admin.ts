@@ -137,6 +137,80 @@ export function adminRoutes(ctx: AppContext) {
     return c.json({ plugins: details })
   })
 
+  app.get('/api/v1/admin/benchmark', requireRole('admin'), requireScope('admin'), async (c) => {
+    const models = ctx.registry.getModels()
+
+    const benchmarks = await Promise.all(
+      models.map(async (model) => {
+        const result: {
+          name: string
+          version: string
+          capabilities: Record<string, boolean | undefined>
+          health: { healthy: boolean; message?: string } | null
+          generation: { latencyMs: number; tokensPerSec: number } | null | { error: string }
+          embedding: { latencyMs: number; textsPerSec: number } | null | { error: string }
+        } = {
+          name: model.name,
+          version: model.version,
+          capabilities: model.capabilities,
+          health: null,
+          generation: null,
+          embedding: null,
+        }
+
+        // Health check
+        try {
+          if (model.healthCheck) {
+            result.health = await model.healthCheck()
+          } else {
+            result.health = { healthy: true, message: 'No health check available' }
+          }
+        } catch (err) {
+          result.health = { healthy: false, message: (err as Error).message }
+        }
+
+        // Generation benchmark
+        if (model.capabilities.llm && model.generate) {
+          try {
+            const start = performance.now()
+            let fullText = ''
+            for await (const chunk of model.generate('Hello, respond with exactly one short sentence.', { maxTokens: 50 })) {
+              fullText += chunk
+            }
+            const latencyMs = performance.now() - start
+            const estimatedTokens = Math.max(1, Math.round(fullText.length / 4))
+            result.generation = {
+              latencyMs: Math.round(latencyMs),
+              tokensPerSec: Math.round((estimatedTokens / latencyMs) * 1000),
+            }
+          } catch (err) {
+            result.generation = { error: (err as Error).message }
+          }
+        }
+
+        // Embedding benchmark
+        if (model.capabilities.embedding && model.embed) {
+          try {
+            const testTexts = ['The quick brown fox jumps over the lazy dog.', 'OpenDocuments is a self-hosted RAG platform.']
+            const start = performance.now()
+            await model.embed(testTexts)
+            const latencyMs = performance.now() - start
+            result.embedding = {
+              latencyMs: Math.round(latencyMs),
+              textsPerSec: Math.round((testTexts.length / latencyMs) * 1000),
+            }
+          } catch (err) {
+            result.embedding = { error: (err as Error).message }
+          }
+        }
+
+        return result
+      })
+    )
+
+    return c.json({ benchmarks })
+  })
+
   // Workspaces endpoint (public, no admin required)
   app.get('/api/v1/workspaces', (c) => {
     const workspaces = ctx.workspaceManager.list()

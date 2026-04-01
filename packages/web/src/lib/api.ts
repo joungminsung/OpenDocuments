@@ -83,6 +83,17 @@ export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
 }
 
+export async function getModelBenchmarks(): Promise<{ benchmarks: Array<{
+  name: string
+  version: string
+  capabilities: Record<string, boolean | undefined>
+  health: { healthy: boolean; message?: string } | null
+  generation: { latencyMs: number; tokensPerSec: number } | { error: string } | null
+  embedding: { latencyMs: number; textsPerSec: number } | { error: string } | null
+}> }> {
+  return request('/admin/benchmark')
+}
+
 // Plugins
 export async function searchPlugins(query: string): Promise<{ packages: Array<{ name: string; description: string; version: string; [key: string]: unknown }> }> {
   return request(`/plugins/search?q=${encodeURIComponent(query)}`)
