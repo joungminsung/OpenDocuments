@@ -9,8 +9,10 @@ import { ConnectorsPage } from './components/connectors/ConnectorsPage'
 import { CommandPalette } from './components/layout/CommandPalette'
 import { WorkspacesPage } from './components/workspaces/WorkspacesPage'
 import { PluginsPage } from './components/plugins/PluginsPage'
+import { UnifiedDashboard } from './components/dashboard/UnifiedDashboard'
 
 const PAGES: Record<string, () => React.ReactElement> = {
+  dashboard: UnifiedDashboard,
   chat: ChatPage,
   documents: DocumentsPage,
   settings: SettingsPage,

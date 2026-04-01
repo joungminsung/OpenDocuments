@@ -118,3 +118,11 @@ export async function removePlugin(name: string): Promise<{ status: string }> {
 export async function submitFeedback(queryId: string, feedback: 'positive' | 'negative'): Promise<void> {
   await request('/chat/feedback', { method: 'POST', body: JSON.stringify({ queryId, feedback }) })
 }
+
+// Dashboard
+export async function getDashboardData() {
+  const [stats, adminStats, connectorStatus, pluginHealth] = await Promise.all([
+    getStats(), getAdminStats(), getConnectorStatus(), getPluginHealth(),
+  ])
+  return { stats, adminStats, connectorStatus, pluginHealth }
+}
