@@ -28,7 +28,7 @@ export { WorkspaceManager, type Workspace } from './workspace/manager.js'
 
 export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
 
-export { chunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
+export { chunkText, semanticChunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
 export { MiddlewareRunner } from './ingest/middleware.js'
 export { DocumentStore, type CreateDocumentInput, type StoredChunk, type SearchResult } from './ingest/document-store.js'
 

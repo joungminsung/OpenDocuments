@@ -1,4 +1,5 @@
 import { estimateTokens } from '../utils/tokenizer.js'
+import type { EmbeddingResult } from '../plugin/interfaces.js'
 
 export interface ChunkOptions {
   maxTokens: number
@@ -97,6 +98,185 @@ export function chunkText(
       headingHierarchy: finalHeadings,
     })
   }
+
+  return chunks
+}
+
+/**
+ * Calculates cosine similarity between two vectors.
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0
+  let magA = 0
+  let magB = 0
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]
+    magA += a[i] * a[i]
+    magB += b[i] * b[i]
+  }
+  const denom = Math.sqrt(magA) * Math.sqrt(magB)
+  return denom === 0 ? 0 : dot / denom
+}
+
+/**
+ * Splits text into sentence-level chunks based on semantic similarity of adjacent sentences.
+ * Sentences with similar embeddings are grouped together. Chunk boundaries are placed where
+ * similarity drops below the threshold.
+ *
+ * Falls back to paragraph-based `chunkText()` when the embedder is null or embedding fails.
+ *
+ * @param text - The input text to chunk
+ * @param options - Chunk options (maxTokens, overlap)
+ * @param embed - Embedding function, or null to fall back to paragraph chunking
+ * @param similarityThreshold - Cosine similarity threshold for splitting (default 0.5)
+ * @returns Array of text chunks with position and heading metadata
+ */
+/**
+ * Pre-scan text for heading lines and record their character offsets.
+ * Returns a map from sentence index to the heading stack at that point.
+ */
+function extractHeadingMap(text: string, sentences: string[]): Map<number, string[]> {
+  const headingMap = new Map<number, string[]>()
+  const lines = text.split('\n')
+  let headingStack: string[] = []
+  let charOffset = 0
+
+  for (const line of lines) {
+    const match = line.match(/^(#{1,6})\s+(.+)/)
+    if (match) {
+      headingStack = updateHeadingStack(headingStack, line)
+      // Find which sentence index contains this heading's character offset
+      let sentStart = 0
+      for (let i = 0; i < sentences.length; i++) {
+        const sentEnd = sentStart + sentences[i].length
+        if (charOffset >= sentStart && charOffset < sentEnd + 2) {
+          headingMap.set(i, [...headingStack])
+          break
+        }
+        sentStart = sentEnd + 1 // +1 for the space between sentences
+      }
+    }
+    charOffset += line.length + 1 // +1 for newline
+  }
+
+  return headingMap
+}
+
+export async function semanticChunkText(
+  text: string,
+  options: ChunkOptions = { maxTokens: 512, overlap: 50 },
+  embed: ((texts: string[]) => Promise<EmbeddingResult>) | null,
+  similarityThreshold: number = 0.5
+): Promise<TextChunk[]> {
+  if (!embed) {
+    return chunkText(text, options)
+  }
+
+  // Split into sentences
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+
+  if (sentences.length === 0) return []
+
+  // Pre-scan for headings before sentence splitting destroys newline structure
+  const headingMap = extractHeadingMap(text, sentences)
+
+  // Embed all sentences
+  let embeddings: number[][]
+  try {
+    const result = await embed(sentences)
+    embeddings = result.dense
+  } catch {
+    return chunkText(text, options)
+  }
+
+  // Calculate similarity between adjacent sentences and find boundary indices
+  const boundaries: number[] = [0] // first group always starts at 0
+  for (let i = 0; i < sentences.length - 1; i++) {
+    const sim = cosineSimilarity(embeddings[i], embeddings[i + 1])
+    if (sim < similarityThreshold) {
+      boundaries.push(i + 1)
+    }
+  }
+
+  // Build semantic groups from boundaries
+  const groups: string[][] = []
+  const groupSentenceIndices: number[][] = []
+  for (let b = 0; b < boundaries.length; b++) {
+    const start = boundaries[b]
+    const end = b + 1 < boundaries.length ? boundaries[b + 1] : sentences.length
+    groups.push(sentences.slice(start, end))
+    groupSentenceIndices.push(Array.from({ length: end - start }, (_, i) => start + i))
+  }
+
+  return buildSemanticChunks(groups, groupSentenceIndices, headingMap, options.maxTokens)
+}
+
+/**
+ * Builds chunks from semantic sentence groups, respecting maxTokens.
+ * Uses pre-computed headingMap for accurate heading tracking across sentence boundaries.
+ */
+function buildSemanticChunks(
+  groups: string[][],
+  groupSentenceIndices: number[][],
+  headingMap: Map<number, string[]>,
+  maxTokens: number
+): TextChunk[] {
+  const chunks: TextChunk[] = []
+  let currentSentences: string[] = []
+  let currentTokens = 0
+  let headingStack: string[] = []
+  let currentSentenceIndices: number[] = []
+
+  const flush = () => {
+    if (currentSentences.length === 0) return
+    const content = currentSentences.join(' ')
+
+    // Use pre-computed heading map for accurate heading tracking
+    for (const idx of currentSentenceIndices) {
+      const headings = headingMap.get(idx)
+      if (headings) {
+        headingStack = headings
+      }
+    }
+
+    chunks.push({
+      content,
+      position: chunks.length,
+      tokenCount: estimateTokens(content),
+      headingHierarchy: [...headingStack],
+    })
+    currentSentences = []
+    currentSentenceIndices = []
+    currentTokens = 0
+  }
+
+  for (let g = 0; g < groups.length; g++) {
+    // At group boundary (semantic break), flush accumulated sentences
+    if (g > 0 && currentSentences.length > 0) {
+      flush()
+    }
+
+    for (let s = 0; s < groups[g].length; s++) {
+      const sentence = groups[g][s]
+      const sentenceIdx = groupSentenceIndices[g][s]
+      const sentenceTokens = estimateTokens(sentence)
+
+      // If adding this sentence exceeds maxTokens, flush current chunk
+      if (currentTokens + sentenceTokens > maxTokens && currentSentences.length > 0) {
+        flush()
+      }
+
+      currentSentences.push(sentence)
+      currentSentenceIndices.push(sentenceIdx)
+      currentTokens += sentenceTokens
+    }
+  }
+
+  // Flush remaining sentences
+  flush()
 
   return chunks
 }
