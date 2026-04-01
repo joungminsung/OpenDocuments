@@ -15,6 +15,7 @@ export { checkCompatibility, type CompatibilityResult } from './plugin/capabilit
 
 export { configSchema, type OpenDocumentsConfig } from './config/schema.js'
 export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
+export { buildConfigFromEnv } from './config/env-loader.js'
 export { DEFAULT_CONFIG } from './config/defaults.js'
 
 export type { DB, Row, DBFactory } from './storage/db.js'
@@ -27,6 +28,7 @@ export { createLanceDB } from './storage/lancedb.js'
 export { WorkspaceManager, type Workspace } from './workspace/manager.js'
 
 export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
+export { validatePluginPermissions, enforceNetworkPermission, enforceFilesystemPermission, type ResolvedPermissions } from './plugin/sandbox.js'
 
 export { chunkText, semanticChunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
 export { MiddlewareRunner } from './ingest/middleware.js'
