@@ -12,6 +12,7 @@ export { FileWatcher, type FileChange } from './utils/file-watcher.js'
 export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
+export { fetchCommunityPlugins, filterCommunityPlugins, type CommunityPlugin } from './plugin/community-registry.js'
 
 export { configSchema, type OpenDocumentsConfig } from './config/schema.js'
 export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
