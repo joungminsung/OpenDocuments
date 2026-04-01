@@ -18,6 +18,12 @@ export {
   type OllamaModel,
 } from './utils/ollama.js'
 export { FileWatcher, type FileChange } from './utils/file-watcher.js'
+export {
+  detectHardware,
+  recommendModels,
+  type HardwareInfo,
+  type ModelRecommendation,
+} from './utils/hardware.js'
 export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
