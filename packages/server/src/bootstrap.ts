@@ -34,6 +34,8 @@ import {
   type RerankResult,
   type GenerateOpts,
   type HealthStatus,
+  isOllamaRunning,
+  ensureOllamaModel,
 } from 'opendocuments-core'
 
 /* ------------------------------------------------------------------ */
@@ -402,7 +404,20 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       }
     }
 
-    // 8. Load model plugin (or fall back to stubs)
+    // 8. Auto-pull Ollama models if provider is ollama
+    if (config.model.provider === 'ollama') {
+      const ollamaUrl = config.model.baseUrl || 'http://localhost:11434'
+      if (await isOllamaRunning(ollamaUrl)) {
+        await ensureOllamaModel(ollamaUrl, config.model.llm, (status) => {
+          log.wait(`Pulling ${config.model.llm}: ${status}`)
+        })
+        await ensureOllamaModel(ollamaUrl, config.model.embedding, (status) => {
+          log.wait(`Pulling ${config.model.embedding}: ${status}`)
+        })
+      }
+    }
+
+    // 9. Load model plugin (or fall back to stubs)
     const { embedder, llm } = await loadModelPlugin(
       config.model.provider,
       config.model,
@@ -438,15 +453,15 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       log.blank()
     }
 
-    // 9. Create WorkspaceManager, ensure default workspace
+    // 10. Create WorkspaceManager, ensure default workspace
     const workspaceManager = new WorkspaceManager(db)
     const defaultWorkspace = workspaceManager.ensureDefault()
 
-    // 10. Create DocumentStore (with workspace ID from default workspace)
+    // 11. Create DocumentStore (with workspace ID from default workspace)
     const store = new DocumentStore(db, vectorDb, defaultWorkspace.id)
     await store.initialize(embeddingDimensions)
 
-    // 11. Create IngestPipeline and RAGEngine
+    // 12. Create IngestPipeline and RAGEngine
     const autoRedactConfig = config.security.dataPolicy.autoRedact
     const redactor = new PIIRedactor(autoRedactConfig)
 
@@ -500,17 +515,17 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       webSearchProvider,
     })
 
-    // 12. Create ConversationManager
+    // 13. Create ConversationManager
     const conversationManager = new ConversationManager(db, defaultWorkspace.id)
 
-    // 13. Create APIKeyManager and AuditLogger
+    // 14. Create APIKeyManager and AuditLogger
     const apiKeyManager = new APIKeyManager(db)
     const auditLogger = new AuditLogger(db, config.security.audit)
 
-    // 14. Create ConnectorManager
+    // 15. Create ConnectorManager
     const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
 
-    // 15. Start auto-purge scheduler (hard-delete soft-deleted records older than 30 days)
+    // 16. Start auto-purge scheduler (hard-delete soft-deleted records older than 30 days)
     // Auto-purge timer. Cleared in shutdown(). If bootstrap is called multiple times
     // (e.g., in tests), each instance must be properly shut down to prevent timer leaks.
     const PURGE_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours

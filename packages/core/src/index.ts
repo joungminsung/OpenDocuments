@@ -8,6 +8,15 @@ export { estimateTokens } from './utils/tokenizer.js'
 export { sha256 } from './utils/hash.js'
 export { discoverFiles } from './utils/file-discovery.js'
 export { fetchWithTimeout } from './utils/fetch.js'
+export {
+  parseModelName,
+  isOllamaRunning,
+  getOllamaModels,
+  hasOllamaModel,
+  pullOllamaModel,
+  ensureOllamaModel,
+  type OllamaModel,
+} from './utils/ollama.js'
 export { FileWatcher, type FileChange } from './utils/file-watcher.js'
 export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
 export { PluginRegistry } from './plugin/registry.js'
