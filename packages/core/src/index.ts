@@ -74,6 +74,7 @@ export { checkGrounding, checkSemanticGrounding, type GroundingResult } from './
 export { crossWorkspaceSearch } from './rag/cross-workspace.js'
 export { RAGCache, createQueryCache, createEmbeddingCache, createWebSearchCache } from './rag/cache.js'
 export { fitToContextWindow, type ContextWindowConfig } from './rag/context-window.js'
+export { compressContext } from './rag/prompt-compressor.js'
 
 export { ConversationManager, type Conversation, type Message } from './conversation/manager.js'
 
