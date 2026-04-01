@@ -1,3 +1,5 @@
+import { estimateTokens } from '../utils/tokenizer.js'
+
 export interface ChunkOptions {
   maxTokens: number
   overlap: number
@@ -9,16 +11,6 @@ export interface TextChunk {
   tokenCount: number
   headingHierarchy: string[]
 }
-
-// Heuristic token estimation. For production accuracy, consider tiktoken or gpt-tokenizer.
-// Current accuracy: ~85% for English, ~70% for Korean.
-function estimateTokens(text: string): number {
-  const cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || []).length
-  const nonCjk = text.length - cjk
-  // English: ~4 chars/token, Korean/CJK: ~1.5 chars/token (most LLM tokenizers)
-  return Math.ceil(nonCjk / 4 + cjk / 1.5)
-}
-
 
 function updateHeadingStack(stack: string[], para: string): string[] {
   const lines = para.split('\n')

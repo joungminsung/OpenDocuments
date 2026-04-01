@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { RAGEngine } from '../../src/rag/engine.js'
+import { RAGEngine, boostByMetadata } from '../../src/rag/engine.js'
 import { DocumentStore } from '../../src/ingest/document-store.js'
 import { EventBus } from '../../src/events/bus.js'
 import { createSQLiteDB } from '../../src/storage/sqlite.js'
@@ -104,5 +104,33 @@ describe('RAGEngine', () => {
     // Second call should return a cached result with a different queryId
     expect(result2.queryId).not.toBe(result1.queryId)
     expect(result2.answer).toBe(result1.answer)
+  })
+})
+
+describe('boostByMetadata', () => {
+  const makeResult = (heading: string[], chunkType: string, score: number): any => ({
+    chunkId: 'c1', content: 'test', score, documentId: 'd1',
+    chunkType, headingHierarchy: heading, sourcePath: '/test.md', sourceType: 'local',
+  })
+
+  it('boosts score when query keyword is in heading', () => {
+    const result = makeResult(['Redis', 'Configuration'], 'semantic', 0.5)
+    const boosted = boostByMetadata([result], 'redis configuration', 'config')
+    expect(boosted[0].score).toBeGreaterThan(0.5)
+  })
+
+  it('boosts code chunks for code intent', () => {
+    const codeResult = makeResult(['Utils'], 'code-ast', 0.5)
+    const textResult = makeResult(['Utils'], 'semantic', 0.5)
+    const boosted = boostByMetadata([codeResult, textResult], 'how to use utils', 'code')
+    const codeScore = boosted.find(r => r.chunkType === 'code-ast')!.score
+    const textScore = boosted.find(r => r.chunkType === 'semantic')!.score
+    expect(codeScore).toBeGreaterThan(textScore)
+  })
+
+  it('does not boost when no matches', () => {
+    const result = makeResult(['Deployment'], 'semantic', 0.5)
+    const boosted = boostByMetadata([result], 'authentication', 'general')
+    expect(boosted[0].score).toBe(0.5)
   })
 })

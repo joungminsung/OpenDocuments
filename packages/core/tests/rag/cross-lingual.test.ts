@@ -28,3 +28,45 @@ describe('Cross-Lingual', () => {
     expect(merged.length).toBe(3)
   })
 })
+
+describe('Score-weighted RRF', () => {
+  it('weights RRF by original score', () => {
+    // 'a' ranks 2nd in both sets but has very high scores (0.95, 0.90)
+    // 'b' ranks 1st in both sets but has low scores (0.10, 0.10)
+    // score-weighted RRF should favour 'a' despite its lower rank
+    const highScoreSet = [
+      { id: 'b', score: 0.10, content: 'low' },
+      { id: 'a', score: 0.95, content: 'high' },
+    ]
+    const otherSet = [
+      { id: 'b', score: 0.10, content: 'low' },
+      { id: 'a', score: 0.90, content: 'high' },
+    ]
+
+    const merged = reciprocalRankFusion(
+      [highScoreSet, otherSet], 60,
+      (item) => item.id,
+      true // scoreWeighted
+    )
+
+    const aScore = merged.find(m => m.id === 'a')!.score
+    const bScore = merged.find(m => m.id === 'b')!.score
+    expect(aScore).toBeGreaterThan(bScore)
+  })
+
+  it('falls back to standard RRF when scoreWeighted is false', () => {
+    const set1 = [
+      { id: 'x', score: 0.99, content: 'x' },
+      { id: 'y', score: 0.01, content: 'y' },
+    ]
+    const set2 = [
+      { id: 'y', score: 0.99, content: 'y' },
+      { id: 'x', score: 0.01, content: 'x' },
+    ]
+
+    const merged = reciprocalRankFusion([set1, set2], 60, (item) => item.id, false)
+    const xScore = merged.find(m => m.id === 'x')!.score
+    const yScore = merged.find(m => m.id === 'y')!.score
+    expect(Math.abs(xScore - yScore)).toBeLessThan(0.001)
+  })
+})

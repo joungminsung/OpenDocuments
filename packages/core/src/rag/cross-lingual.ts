@@ -74,7 +74,8 @@ export function expandQuery(query: string): string[] {
 export function reciprocalRankFusion<T extends { score: number }>(
   resultSets: T[][],
   k = 60,
-  getKey?: (item: T) => string
+  getKey?: (item: T) => string,
+  scoreWeighted = false
 ): T[] {
   const scores = new Map<string, { item: T; score: number }>()
 
@@ -85,7 +86,8 @@ export function reciprocalRankFusion<T extends { score: number }>(
       const { score: _score, ...rest } = item as T & { score: number }
       const key = getKey ? getKey(item) : JSON.stringify(rest)
       const existing = scores.get(key)
-      const rrfScore = 1 / (k + rank + 1)
+      const rrfBase = 1 / (k + rank + 1)
+      const rrfScore = scoreWeighted ? rrfBase * item.score : rrfBase
 
       if (existing) {
         existing.score += rrfScore

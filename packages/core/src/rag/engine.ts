@@ -51,6 +51,41 @@ export type StreamEvent =
   | { type: 'intent'; data: string }
   | { type: 'done'; data: { queryId: string; route: QueryRoute; profile: string } }
 
+const INTENT_CHUNK_TYPES: Record<string, string[]> = {
+  code: ['code-ast'],
+  config: ['semantic', 'code-ast'],
+  data: ['table'],
+}
+
+export function boostByMetadata(
+  results: SearchResult[],
+  query: string,
+  intent: string,
+): SearchResult[] {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
+
+  return results.map(r => {
+    let boost = 1.0
+
+    // Heading match boost
+    const headingText = (r.headingHierarchy || []).join(' ').toLowerCase()
+    for (const qw of queryWords) {
+      if (headingText.includes(qw)) {
+        boost += 0.15
+        break // Cap heading boost at 0.15
+      }
+    }
+
+    // Intent-chunk type alignment boost
+    const preferredTypes = INTENT_CHUNK_TYPES[intent]
+    if (preferredTypes && preferredTypes.includes(r.chunkType)) {
+      boost += 0.1
+    }
+
+    return { ...r, score: r.score * boost }
+  })
+}
+
 export class RAGEngine {
   private store: DocumentStore
   private llm: ModelPlugin
@@ -132,7 +167,11 @@ export class RAGEngine {
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
+    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config, intent)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, trimmedQuery, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     yield { type: 'sources', data: sources }
 
@@ -201,7 +240,11 @@ export class RAGEngine {
     const intent = classifyIntent(query)
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, query, config)
+    let sources = await this.retrieveWithFeatures(queryId, query, config, intent)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, query, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     // Calculate confidence
     const confidence = this.computeConfidence(query, sources)
@@ -252,6 +295,7 @@ export class RAGEngine {
     queryId: string,
     query: string,
     config: RAGProfileConfig,
+    intent?: import('./intent.js').QueryIntent,
   ): Promise<SearchResult[]> {
     // Decompose query if enabled
     const decomposed = config.features.queryDecomposition
@@ -288,14 +332,17 @@ export class RAGEngine {
 
     // Rerank if enabled
     if (config.features.reranker && results.length > 1) {
-      results = await rerankResults(query, results, this.rerankerModel)
+      results = await rerankResults(query, results, this.rerankerModel, intent)
     }
 
     // Trim to finalTopK after merging/reranking
     results = results.slice(0, config.retrieval.finalTopK)
 
+    // Expand with sibling chunks for additional context
+    results = this.retriever.expandWithSiblings(results, this.store, 1)
+
     // Fit chunks into context window budget
-    results = fitToContextWindow(results)
+    results = fitToContextWindow(results, undefined, 0, 0, intent)
 
     // Web search integration
     if (this.webSearchProvider && config.features.webSearch) {

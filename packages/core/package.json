@@ -25,6 +25,7 @@
     "chalk": "^5.3.0",
     "eventemitter3": "^5.0.0",
     "jiti": "^2.6.1",
+    "js-tiktoken": "^1.0.21",
     "semver": "^7.7.4",
     "zod": "^3.23.0"
   },

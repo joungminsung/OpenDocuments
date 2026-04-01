@@ -205,6 +205,45 @@ export class DocumentStore {
     })
   }
 
+  getAdjacentChunks(chunkId: string, window = 1): SearchResult[] {
+    const match = chunkId.match(/^(.+)_chunk_(\d+)$/)
+    if (!match) return []
+    const [, documentId, posStr] = match
+    const position = parseInt(posStr, 10)
+
+    const doc = this.getDocument(documentId)
+    if (!doc) return []
+
+    const adjacentIds: string[] = []
+    for (let offset = -window; offset <= window; offset++) {
+      if (offset === 0) continue
+      adjacentIds.push(`${documentId}_chunk_${position + offset}`)
+    }
+
+    const results: SearchResult[] = []
+    for (const adjId of adjacentIds) {
+      interface FTSRow { chunk_id: string; content: string; [key: string]: unknown }
+      const row = this.db.get<FTSRow>(
+        'SELECT chunk_id, content FROM chunks_fts WHERE chunk_id = ?',
+        [adjId]
+      )
+      if (row) {
+        results.push({
+          chunkId: row.chunk_id,
+          content: row.content,
+          score: 0,
+          documentId,
+          chunkType: 'semantic',
+          headingHierarchy: [],
+          sourcePath: doc.source_path,
+          sourceType: doc.source_type,
+        })
+      }
+    }
+
+    return results
+  }
+
   /**
    * Soft-delete a document. Sets deleted_at timestamp.
    * NOTE: Vector embeddings are permanently deleted from LanceDB (no soft-delete support).

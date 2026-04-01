@@ -4,6 +4,7 @@
 export const VERSION = '0.1.0'
 
 export { log } from './utils/logger.js'
+export { estimateTokens } from './utils/tokenizer.js'
 export { sha256 } from './utils/hash.js'
 export { discoverFiles } from './utils/file-discovery.js'
 export { fetchWithTimeout } from './utils/fetch.js'
