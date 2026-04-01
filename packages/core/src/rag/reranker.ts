@@ -32,7 +32,7 @@ export async function rerankResults(
     }
   }
 
-  // Improved fallback: partial matching + heading boost
+  // Improved fallback: word-boundary matching + n-gram phrase scoring + heading boost
   const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
 
   return results
@@ -40,24 +40,66 @@ export async function rerankResults(
       const contentLower = r.content.toLowerCase()
       const headingText = (r.headingHierarchy || []).join(' ').toLowerCase()
 
-      // Partial/substring matching: check if query word is a substring of any content word
+      // Word-boundary matching: prevent false positives like "auth" matching "author"
       let contentMatches = 0
       for (const qw of queryWords) {
-        if (contentLower.includes(qw)) contentMatches++
+        if (matchesWordBoundary(qw, contentLower)) contentMatches++
       }
-      const contentScore = queryWords.length > 0 ? contentMatches / queryWords.length : 0
+      const wordScore = queryWords.length > 0 ? contentMatches / queryWords.length : 0
+
+      // N-gram phrase bonus: consecutive query word pairs/triples appearing together
+      const ngramScore = computeNgramScore(queryWords, contentLower)
 
       // Heading boost: query words in headings are strong relevance signals
       let headingMatches = 0
       for (const qw of queryWords) {
-        if (headingText.includes(qw)) headingMatches++
+        if (matchesWordBoundary(qw, headingText)) headingMatches++
       }
       const headingScore = queryWords.length > 0 ? headingMatches / queryWords.length : 0
 
-      // Combined score: original * 0.5 + content overlap * 0.3 + heading boost * 0.2
-      const finalScore = r.score * 0.5 + contentScore * 0.3 + headingScore * 0.2
+      // Combined score: original * 0.4 + word match * 0.25 + n-gram bonus * 0.15 + heading * 0.2
+      const finalScore = r.score * 0.4 + wordScore * 0.25 + ngramScore * 0.15 + headingScore * 0.2
 
       return { ...r, score: finalScore }
     })
     .sort((a, b) => b.score - a.score)
+}
+
+/** Escape special regex characters in a string. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Check if a query word appears as a whole word in the text (word-boundary matching). */
+function matchesWordBoundary(word: string, text: string): boolean {
+  const boundary = '[\\s.,;:!?()\\[\\]{}"\'\`/\\-]'
+  const pattern = new RegExp(`(?:^|${boundary})${escapeRegExp(word)}(?:$|${boundary})`, 'i')
+  return pattern.test(` ${text} `)
+}
+
+/**
+ * Compute n-gram phrase score for consecutive query word pairs and triples.
+ * Returns a value between 0 and 1 indicating how many consecutive n-grams appear in the content.
+ */
+function computeNgramScore(queryWords: string[], content: string): number {
+  if (queryWords.length < 2) return 0
+
+  let matchCount = 0
+  let totalNgrams = 0
+
+  // Bigrams (consecutive pairs)
+  for (let i = 0; i < queryWords.length - 1; i++) {
+    totalNgrams++
+    const bigram = `${queryWords[i]} ${queryWords[i + 1]}`
+    if (content.includes(bigram)) matchCount++
+  }
+
+  // Trigrams (consecutive triples)
+  for (let i = 0; i < queryWords.length - 2; i++) {
+    totalNgrams++
+    const trigram = `${queryWords[i]} ${queryWords[i + 1]} ${queryWords[i + 2]}`
+    if (content.includes(trigram)) matchCount++
+  }
+
+  return totalNgrams > 0 ? matchCount / totalNgrams : 0
 }

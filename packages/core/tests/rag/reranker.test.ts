@@ -53,21 +53,59 @@ describe('Improved reranker fallback', () => {
     expect(reranked[0].headingHierarchy).toContain('Authentication Guide')
   })
 
-  it('matches partial/substring keywords (prefix matching)', async () => {
+  it('matches exact words with word-boundary matching', async () => {
     const results = [
-      makeResult('Configure authentication tokens for the service', 0.5),
+      makeResult('Set the auth config in the environment file', 0.5),
       makeResult('Unrelated content about food recipes and cooking', 0.5),
     ]
     const reranked = await rerankResults('auth config', results)
-    expect(reranked[0].content).toContain('authentication')
+    expect(reranked[0].content).toContain('auth config')
   })
 
-  it('handles Korean query with partial matching', async () => {
+  it('handles Korean query with word matching', async () => {
     const results = [
       makeResult('인증 토큰을 설정하는 방법입니다', 0.5),
       makeResult('요리 레시피 모음집입니다', 0.5),
     ]
     const reranked = await rerankResults('인증 설정', results)
     expect(reranked[0].content).toContain('인증')
+  })
+})
+
+describe('N-gram phrase matching', () => {
+  it('does not match "auth" with "author"', async () => {
+    const results = [
+      makeResult('The author of this book is famous', 0.5),
+      makeResult('Authentication requires a valid token', 0.5),
+    ]
+    const reranked = await rerankResults('auth token', results)
+    expect(reranked[0].content).toContain('Authentication')
+  })
+
+  it('does not match "log" with "login" when querying for logs', async () => {
+    const results = [
+      makeResult('Login page requires username and password', 0.5),
+      makeResult('Check the application log files for errors', 0.5),
+    ]
+    const reranked = await rerankResults('log files', results)
+    expect(reranked[0].content).toContain('log files')
+  })
+
+  it('matches exact word boundaries', async () => {
+    const results = [
+      makeResult('Use the config file to set options', 0.5),
+      makeResult('Reconfiguring the network adapter', 0.5),
+    ]
+    const reranked = await rerankResults('config file', results)
+    expect(reranked[0].content).toContain('config file')
+  })
+
+  it('matches n-gram phrases for multi-word queries', async () => {
+    const results = [
+      makeResult('Redis is used for cache storage and session management', 0.5),
+      makeResult('The cache configuration requires redis connection string', 0.5),
+    ]
+    const reranked = await rerankResults('redis cache configuration', results)
+    expect(reranked[0].content).toContain('cache configuration')
   })
 })
