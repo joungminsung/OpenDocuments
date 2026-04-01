@@ -52,7 +52,7 @@ export { RAGEngine, type QueryInput, type QueryResult, type RAGEngineOptions } f
 export { decomposeQuery, type DecomposedQuery } from './rag/decomposer.js'
 export { expandQuery, reciprocalRankFusion } from './rag/cross-lingual.js'
 export { rerankResults } from './rag/reranker.js'
-export { checkGrounding, type GroundingResult } from './rag/grounding.js'
+export { checkGrounding, checkSemanticGrounding, type GroundingResult } from './rag/grounding.js'
 export { crossWorkspaceSearch } from './rag/cross-workspace.js'
 export { RAGCache, createQueryCache, createEmbeddingCache, createWebSearchCache } from './rag/cache.js'
 export { fitToContextWindow, type ContextWindowConfig } from './rag/context-window.js'

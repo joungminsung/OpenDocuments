@@ -11,7 +11,7 @@ import { classifyIntent } from './intent.js'
 import { decomposeQuery } from './decomposer.js'
 import { expandQuery, reciprocalRankFusion } from './cross-lingual.js'
 import { rerankResults } from './reranker.js'
-import { checkGrounding } from './grounding.js'
+import { checkGrounding, checkSemanticGrounding } from './grounding.js'
 import { createQueryCache } from './cache.js'
 import { fitToContextWindow } from './context-window.js'
 import { sha256 } from '../utils/hash.js'
@@ -198,7 +198,10 @@ export class RAGEngine {
     // Apply grounding check after streaming completes (requires full answer)
     if (config.features.hallucinationGuard && fullAnswer) {
       const strictMode = config.features.hallucinationGuard === 'strict'
-      const grounding = checkGrounding(fullAnswer, sources, strictMode)
+      const embedFn = this.embedder.embed
+        ? (texts: string[]) => this.embedder.embed!(texts)
+        : null
+      const grounding = await checkSemanticGrounding(fullAnswer, sources, embedFn, strictMode)
       if (grounding.warnings.length > 0) {
         yield { type: 'grounding', data: grounding }
       }
@@ -272,7 +275,10 @@ export class RAGEngine {
     // Hallucination guard
     if (config.features.hallucinationGuard) {
       const strictMode = config.features.hallucinationGuard === 'strict'
-      const grounding = checkGrounding(answer, sources, strictMode)
+      const embedFn = this.embedder.embed
+        ? (texts: string[]) => this.embedder.embed!(texts)
+        : null
+      const grounding = await checkSemanticGrounding(answer, sources, embedFn, strictMode)
       if (strictMode && grounding.warnings.length > 0) {
         answer = grounding.annotatedAnswer
       }
