@@ -1,4 +1,5 @@
 import type { SearchResult } from '../ingest/document-store.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface ContextWindowConfig {
   maxContextTokens: number
@@ -13,11 +14,6 @@ export interface ContextWindowConfig {
 const DEFAULT_CONFIG: ContextWindowConfig = {
   maxContextTokens: 16384,
   allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
-}
-
-function estimateTokens(text: string): number {
-  const cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || []).length
-  return Math.ceil((text.length - cjk) / 4 + cjk / 1.5)
 }
 
 /**

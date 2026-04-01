@@ -27,10 +27,14 @@ describe('fitToContextWindow', () => {
   })
 
   it('truncates chunks that exceed the budget', () => {
-    const bigChunk = makeMockChunk('A'.repeat(50000), 0.9)
+    // Use realistic text (not repeated chars) to ensure token count exceeds budget.
+    // Default budget: 16384 * 0.65 = 10649 tokens. Each word is ~1 token.
+    const sentence = 'The quick brown fox jumps over the lazy dog. '
+    const bigContent = sentence.repeat(Math.ceil(60000 / sentence.length))
+    const bigChunk = makeMockChunk(bigContent, 0.9)
     const result = fitToContextWindow([bigChunk])
     expect(result.length).toBe(1)
-    expect(result[0].content.length).toBeLessThan(50000)
+    expect(result[0].content.length).toBeLessThan(bigContent.length)
   })
 
   it('respects custom config', () => {
