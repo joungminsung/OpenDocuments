@@ -16,7 +16,7 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const auth = c.get('auth') as any
-    const workspaceId = auth?.record?.workspaceId || body.workspaceId || ctx.config.workspace || 'default'
+    const workspaceId = auth?.record?.workspaceId || body.workspaceId || ctx.workspaceManager.ensureDefault().id
 
     // Build conversation history if continuing a conversation
     let conversationHistory: string | undefined
@@ -105,9 +105,9 @@ export function chatRoutes(ctx: AppContext) {
         }
       } catch (err) {
         streamError = true
-        const message = err instanceof Error ? err.message : 'Unknown error'
-        console.error('[chat/stream] Error during streaming:', message)
-        await stream.writeSSE({ event: 'error', data: JSON.stringify({ error: message }) })
+        const internalMessage = err instanceof Error ? err.message : 'Unknown error'
+        console.error('[chat/stream] Error during streaming:', internalMessage)
+        await stream.writeSSE({ event: 'error', data: JSON.stringify({ error: 'An error occurred while processing your request' }) })
       }
 
       // Only persist if streaming completed successfully

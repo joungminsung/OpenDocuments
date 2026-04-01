@@ -1,5 +1,9 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module'
 import { Command } from 'commander'
+
+const require = createRequire(import.meta.url)
+const { version } = require('../package.json') as { version: string }
 import { startCommand } from './commands/start.js'
 import { askCommand } from './commands/ask.js'
 import { indexCommand } from './commands/index-cmd.js'
@@ -22,7 +26,7 @@ const program = new Command()
 program
   .name('opendocuments')
   .description('OpenDocuments - Self-hosted RAG platform for organizational documents')
-  .version('0.1.0')
+  .version(version)
 
 program.addCommand(startCommand())
 program.addCommand(askCommand())

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
-import { join, extname } from 'node:path'
+import { join, extname, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
 import { healthRoutes } from './routes/health.js'
@@ -115,7 +115,12 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
 
     app.get('/*', async (c) => {
       const reqPath = c.req.path === '/' ? '/index.html' : c.req.path
-      const filePath = join(webDir, reqPath)
+      const filePath = resolve(webDir, '.' + reqPath)
+
+      // Prevent path traversal: ensure resolved path stays within webDir
+      if (!filePath.startsWith(resolve(webDir) + '/') && filePath !== resolve(webDir)) {
+        return c.json({ error: 'Forbidden' }, 403)
+      }
 
       if (existsSync(filePath) && statSync(filePath).isFile()) {
         const content = await readFile(filePath)

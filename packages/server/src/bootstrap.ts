@@ -392,8 +392,12 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
           const parser = new ParserClass()
           await registry.register(parser, pluginCtx)
         }
-      } catch {
-        // Plugin not installed -- skip silently
+      } catch (err) {
+        // Plugin not installed -- skip, but log if it's an unexpected error
+        const message = err instanceof Error ? err.message : String(err)
+        if (!message.includes('Cannot find package') && !message.includes('MODULE_NOT_FOUND')) {
+          log.fail(`Failed to load parser ${name}: ${message}`)
+        }
       }
     }
 

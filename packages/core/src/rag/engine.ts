@@ -389,11 +389,14 @@ export class RAGEngine {
 
     let results = await this.retriever.retrieve(query, retrieveOpts)
 
-    // Fallback: if minScore filtered everything, retry without threshold.
+    // Fallback: if minScore filtered everything, retry with a relaxed (but non-zero) threshold
+    // to avoid returning completely irrelevant results.
+    const FALLBACK_MIN_SCORE = 0.15
     if (results.length === 0 && config.retrieval.minScore > 0) {
       results = await this.retriever.retrieve(query, {
         k: config.retrieval.k,
         finalTopK: config.retrieval.finalTopK,
+        minScore: FALLBACK_MIN_SCORE,
       })
     }
 
@@ -402,7 +405,7 @@ export class RAGEngine {
       const relaxedResults = await this.retriever.retrieve(query, {
         k: retrieveOpts.k * 2,
         finalTopK: retrieveOpts.finalTopK,
-        minScore: 0,
+        minScore: FALLBACK_MIN_SCORE,
       })
       if (relaxedResults.length > results.length) {
         results = relaxedResults
