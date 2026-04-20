@@ -83,6 +83,7 @@ export { expandMultiQuery } from './rag/multi-query.js'
 export { attachParentContext } from './rag/parent-doc.js'
 export { generatePropositions, generateHypotheticalQuestions } from './rag/propositions.js'
 export { crossEncoderRerank } from './rag/cross-encoder.js'
+export { hitAtK, reciprocalRank, nDCG, evaluate, type GoldCase, type EvalSummary } from './rag/eval.js'
 
 export { ConversationManager, type Conversation, type Message } from './conversation/manager.js'
 
