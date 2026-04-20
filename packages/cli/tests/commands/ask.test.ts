@@ -25,7 +25,11 @@ describe('ask command logic', () => {
       title: 'test.md', content: '# Redis\n\nRedis is an in-memory data store.',
       sourceType: 'local', sourcePath: '/test.md', fileType: '.md',
     })
-    const result = await ctx.ragEngine.query({ query: 'What is Redis?', profile: 'balanced' })
+    // Use fast profile: this test verifies routing only, and balanced/precise
+    // fan out to multi-query + HyDE + contextual retrieval LLM calls. Even 'fast'
+    // issues one generate() call which can run tens of seconds on a real local
+    // LLM (qwen2.5:14b), so the timeout is generous.
+    const result = await ctx.ragEngine.query({ query: 'What is Redis?', profile: 'fast' })
     expect(result.route).toBe('rag')
-  })
+  }, 120000)
 })
