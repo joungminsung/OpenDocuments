@@ -9,6 +9,10 @@ export interface RAGProfileConfig {
     hallucinationGuard: boolean | 'strict'
     adaptiveRetrieval: boolean
     contextualRetrieval: boolean
+    hyde: boolean
+    multiQuery: boolean
+    multiQueryN: number
+    parentDocRetrieval: boolean
   }
 }
 
@@ -24,6 +28,10 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       hallucinationGuard: false,
       adaptiveRetrieval: false,
       contextualRetrieval: false,
+      hyde: false,
+      multiQuery: false,
+      multiQueryN: 0,
+      parentDocRetrieval: false,
     },
   },
   balanced: {
@@ -37,6 +45,10 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       hallucinationGuard: true,
       adaptiveRetrieval: true,
       contextualRetrieval: true,
+      hyde: false,
+      multiQuery: true,
+      multiQueryN: 3,
+      parentDocRetrieval: true,
     },
   },
   precise: {
@@ -50,6 +62,10 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       hallucinationGuard: 'strict',
       adaptiveRetrieval: true,
       contextualRetrieval: true,
+      hyde: true,
+      multiQuery: true,
+      multiQueryN: 5,
+      parentDocRetrieval: true,
     },
   },
 }

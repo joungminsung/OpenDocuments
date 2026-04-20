@@ -14,6 +14,9 @@ import { rerankResults } from './reranker.js'
 import { checkGrounding, checkSemanticGrounding } from './grounding.js'
 import { createQueryCache } from './cache.js'
 import { fitToContextWindow } from './context-window.js'
+import { generateHypotheticalAnswer } from './hyde.js'
+import { expandMultiQuery } from './multi-query.js'
+import { attachParentContext } from './parent-doc.js'
 import { sha256 } from '../utils/hash.js'
 
 export interface QueryInput {
@@ -308,13 +311,37 @@ export class RAGEngine {
       ? decomposeQuery(query)
       : { original: query, subQueries: [query], isDecomposed: false }
 
+    // HyDE: generate a hypothetical passage once per query; reused as an extra
+    // embedding variant for every sub-query below. Costs 1 LLM call total when on.
+    const hydePassage = config.features.hyde
+      ? await generateHypotheticalAnswer(query, this.llm)
+      : ''
+
+    // Multi-query: paraphrases are computed lazily inside the per-sub-query loop
+    // (1 LLM call per sub-query). On balanced this is 1 extra call per query;
+    // on precise with decomposition it can be N. The accuracy lift justifies the cost.
+
     const subQueryResultSets: SearchResult[][] = []
 
     for (const subQuery of decomposed.subQueries) {
-      // Cross-lingual expansion if enabled
-      const queryVariants = config.features.crossLingual
+      // Start with cross-lingual variants of this sub-query
+      let queryVariants = config.features.crossLingual
         ? expandQuery(subQuery)
         : [subQuery]
+
+      // Multi-query paraphrase expansion on top of cross-lingual
+      if (config.features.multiQuery && config.features.multiQueryN > 0) {
+        const mqVariants = await expandMultiQuery(subQuery, this.llm, config.features.multiQueryN)
+        // Merge dedup with existing variants (case-insensitive)
+        const seen = new Set(queryVariants.map(v => v.toLowerCase()))
+        for (const v of mqVariants) {
+          const k = v.toLowerCase()
+          if (!seen.has(k)) { seen.add(k); queryVariants.push(v) }
+        }
+      }
+
+      // Optional HyDE variant: embed the hypothetical passage as another retrieval query.
+      if (hydePassage) queryVariants = [...queryVariants, hydePassage]
 
       const variantResultSets: SearchResult[][] = []
 
@@ -339,6 +366,11 @@ export class RAGEngine {
     // Rerank if enabled
     if (config.features.reranker && results.length > 1) {
       results = await rerankResults(query, results, this.rerankerModel, intent)
+    }
+
+    // Parent-doc retrieval: replace precise chunks with their enclosing section text
+    if (config.features.parentDocRetrieval) {
+      results = attachParentContext(results)
     }
 
     // Trim to finalTopK after merging/reranking

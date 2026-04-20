@@ -107,6 +107,115 @@ describe('RAGEngine', () => {
   })
 })
 
+function makeFakeEmbedder(onEmbed?: (texts: string[]) => void): any {
+  return {
+    name: 'e', type: 'model', version: '0', coreVersion: '^0',
+    capabilities: { embedding: true },
+    embed: async (texts: string[]) => {
+      onEmbed?.(texts)
+      return { dense: texts.map(() => [0.1, 0.2, 0.3]), sparse: [] }
+    },
+    setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+  }
+}
+
+function makeFakeLLM(onGenerate?: (prompt: string) => string): any {
+  return {
+    name: 'l', type: 'model', version: '0', coreVersion: '^0',
+    capabilities: { llm: true },
+    generate: async function*(prompt: string): AsyncIterable<string> {
+      yield onGenerate?.(prompt) ?? 'stub answer'
+    },
+    setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+  }
+}
+
+describe('RAGEngine advanced retrieval features', () => {
+  let db: DB
+  let vectorDb: VectorDB
+  let tempDir: string
+
+  beforeEach(async () => {
+    db = createSQLiteDB(':memory:')
+    runMigrations(db)
+    tempDir = mkdtempSync(join(tmpdir(), 'engine-adv-test-'))
+    vectorDb = await createLanceDB(tempDir)
+  })
+  afterEach(async () => {
+    db.close()
+    await vectorDb.close()
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  async function seedStore(): Promise<DocumentStore> {
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+    const docId = store.createDocument({ title: 't', sourceType: 'local', sourcePath: '/t.md' }).id
+    await store.storeChunks(docId, [
+      { content: 'Redis caching chunk', embedding: [0.1, 0.2, 0.3], chunkType: 'semantic',
+        position: 0, tokenCount: 3, headingHierarchy: ['Redis'], parentSection: 'Redis section full parent text' },
+      { content: 'PostgreSQL ACID chunk', embedding: [0.5, 0.1, 0.1], chunkType: 'semantic',
+        position: 1, tokenCount: 3, headingHierarchy: ['PostgreSQL'], parentSection: 'PostgreSQL section full parent text' },
+    ])
+    return store
+  }
+
+  it('calls HyDE when hyde feature is on', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'Redis is in-memory.' })
+    const embedder = makeFakeEmbedder()
+    const engine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'precise',
+    })
+    await engine.query({ query: 'what is redis' })
+    // Precise profile has hyde=true, so at least one LLM prompt should be a HyDE passage request.
+    // Use a pattern that matches HyDE's distinctive wording but not the answer-generator prompt.
+    const hydePrompt = llmCalls.find(p => /single-paragraph passage|factual extract from a reference/i.test(p) && p.includes('what is redis'))
+    expect(hydePrompt, 'expected a HyDE prompt').toBeTruthy()
+  })
+
+  it('calls multi-query expansion when multiQuery feature is on', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => {
+      llmCalls.push(p)
+      if (p.includes('Rewrite')) return '1. redis cache\n2. redis in-memory\n3. caching in redis'
+      return 'stub answer'
+    })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    await engine.query({ query: 'redis caching' })
+    const mqPrompt = llmCalls.find(p => /Rewrite/i.test(p))
+    expect(mqPrompt, 'expected a multi-query rewrite prompt').toBeTruthy()
+  })
+
+  it('does NOT call HyDE when profile is fast', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'stub' })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+    await engine.query({ query: 'what is redis' })
+    const hydePrompt = llmCalls.find(p => /single-paragraph passage|factual extract from a reference/i.test(p))
+    expect(hydePrompt).toBeFalsy()
+  })
+
+  it('replaces content with parentSection when parentDocRetrieval is on', async () => {
+    const store = await seedStore()
+    const llm = makeFakeLLM(() => 'stub')
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    const result = await engine.query({ query: 'redis' })
+    // Balanced has parentDocRetrieval=true; at least one source should carry the parent section text.
+    const hasParentContent = result.sources.some(s => s.content.includes('full parent text'))
+    expect(hasParentContent).toBe(true)
+  })
+})
+
 describe('boostByMetadata', () => {
   const makeResult = (heading: string[], chunkType: string, score: number): any => ({
     chunkId: 'c1', content: 'test', score, documentId: 'd1',
