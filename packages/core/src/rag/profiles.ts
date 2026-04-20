@@ -14,6 +14,7 @@ export interface RAGProfileConfig {
     multiQueryN: number
     parentDocRetrieval: boolean
     chunkAugmentation: boolean
+    crossEncoder: boolean
   }
 }
 
@@ -34,6 +35,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       multiQueryN: 0,
       parentDocRetrieval: false,
       chunkAugmentation: false,
+      crossEncoder: false,
     },
   },
   balanced: {
@@ -52,6 +54,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       multiQueryN: 3,
       parentDocRetrieval: true,
       chunkAugmentation: false,
+      crossEncoder: false,
     },
   },
   precise: {
@@ -70,6 +73,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       multiQueryN: 5,
       parentDocRetrieval: true,
       chunkAugmentation: true,
+      crossEncoder: true,
     },
   },
 }

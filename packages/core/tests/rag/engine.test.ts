@@ -214,6 +214,37 @@ describe('RAGEngine advanced retrieval features', () => {
     const hasParentContent = result.sources.some(s => s.content.includes('full parent text'))
     expect(hasParentContent).toBe(true)
   })
+
+  it('invokes cross-encoder rerank when profile is precise', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => {
+      llmCalls.push(p)
+      if (/Rate how well the passage/.test(p)) return '9'
+      if (/Rewrite/.test(p)) return '1. redis cache\n2. in-memory redis'
+      if (/single-paragraph passage|factual extract from a reference/.test(p)) return 'Redis hypothetical.'
+      return 'stub answer'
+    })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(),
+      eventBus: new EventBus(), defaultProfile: 'precise',
+    })
+    await engine.query({ query: 'redis' })
+    const ceCalls = llmCalls.filter(p => /Rate how well the passage/.test(p))
+    expect(ceCalls.length).toBeGreaterThan(0)
+  })
+
+  it('does NOT invoke cross-encoder when profile is balanced', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'stub' })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(),
+      eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    await engine.query({ query: 'redis' })
+    expect(llmCalls.filter(p => /Rate how well the passage/.test(p))).toHaveLength(0)
+  })
 })
 
 describe('boostByMetadata', () => {

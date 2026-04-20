@@ -17,6 +17,7 @@ import { fitToContextWindow } from './context-window.js'
 import { generateHypotheticalAnswer } from './hyde.js'
 import { expandMultiQuery } from './multi-query.js'
 import { attachParentContext } from './parent-doc.js'
+import { crossEncoderRerank } from './cross-encoder.js'
 import { sha256 } from '../utils/hash.js'
 
 export interface QueryInput {
@@ -366,6 +367,12 @@ export class RAGEngine {
     // Rerank if enabled
     if (config.features.reranker && results.length > 1) {
       results = await rerankResults(query, results, this.rerankerModel, intent)
+    }
+
+    // Cross-encoder rerank (expensive: 1 LLM call per candidate). Runs after the
+    // heuristic/rerank stage so it only scores already-filtered candidates.
+    if (config.features.crossEncoder && results.length > 1) {
+      results = await crossEncoderRerank(query, results, this.llm, Math.min(10, results.length))
     }
 
     // Parent-doc retrieval: replace precise chunks with their enclosing section text
