@@ -52,6 +52,41 @@ describe('chunkText', () => {
   })
 })
 
+describe('structure preservation', () => {
+  it('never splits inside a fenced code block', () => {
+    const big = 'A'.repeat(200) + '\n\n'
+    const code = '```ts\n' + Array.from({ length: 50 }, (_, i) => `const x${i} = ${i};`).join('\n') + '\n```'
+    const tail = '\n\nTrailing paragraph after code.'
+    const chunks = chunkText(big + code + tail, { maxTokens: 200, overlap: 0 })
+    const codeChunk = chunks.find(c => c.content.includes('```'))
+    expect(codeChunk).toBeDefined()
+    // The code fence must open AND close in the same chunk
+    const opens = (codeChunk!.content.match(/```/g) || []).length
+    expect(opens % 2).toBe(0)
+  })
+
+  it('never splits inside a pipe table', () => {
+    const table = [
+      '| Col1 | Col2 | Col3 |',
+      '|------|------|------|',
+      ...Array.from({ length: 20 }, (_, i) => `| a${i} | b${i} | c${i} |`),
+    ].join('\n')
+    const chunks = chunkText(`Intro paragraph.\n\n${table}\n\nOutro paragraph.`, { maxTokens: 80, overlap: 0 })
+    const tableChunk = chunks.find(c => c.content.includes('| Col1 |'))
+    expect(tableChunk).toBeDefined()
+    // All 22 rows (header + separator + 20 data rows) land in one chunk together
+    const rowCount = tableChunk!.content.split('\n').filter(l => /^\s*\|/.test(l)).length
+    expect(rowCount).toBeGreaterThanOrEqual(22)
+  })
+
+  it('keeps a heading attached to the next paragraph', () => {
+    const text = '# Section Heading\n\nParagraph under the heading with real content about Redis.'
+    const chunks = chunkText(text, { maxTokens: 512, overlap: 0 })
+    expect(chunks[0].content).toContain('# Section Heading')
+    expect(chunks[0].content).toContain('Redis')
+  })
+})
+
 describe('semanticChunkText', () => {
   const defaultOpts = { maxTokens: 512, overlap: 50 }
 

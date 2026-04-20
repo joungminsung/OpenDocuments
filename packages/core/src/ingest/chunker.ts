@@ -34,12 +34,104 @@ function updateHeadingStack(stack: string[], para: string): string[] {
   return updated
 }
 
+/**
+ * Split text into atomic blocks. A block is either:
+ *  - a fenced code block (``` ... ```)
+ *  - a contiguous pipe-table (2+ adjacent lines starting with `|`)
+ *  - a heading + its first following paragraph (kept together)
+ *  - a paragraph separated by blank lines
+ * Blocks are never broken further by the paragraph splitter.
+ */
+export function splitIntoAtomicBlocks(text: string): string[] {
+  const lines = text.split('\n')
+  const blocks: string[] = []
+  let i = 0
+
+  const isFence = (line: string) => /^```/.test(line.trim())
+  const isTableLine = (line: string) => /^\s*\|/.test(line)
+  const isHeading = (line: string) => /^#{1,6}\s+/.test(line)
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Fenced code block: consume through the closing fence
+    if (isFence(line)) {
+      const buf = [line]
+      i++
+      while (i < lines.length && !isFence(lines[i])) {
+        buf.push(lines[i])
+        i++
+      }
+      if (i < lines.length) {
+        buf.push(lines[i])
+        i++
+      } // consume closing fence
+      blocks.push(buf.join('\n'))
+      continue
+    }
+
+    // Pipe table: requires at least two consecutive `|` lines to distinguish from stray bars
+    if (isTableLine(line) && i + 1 < lines.length && isTableLine(lines[i + 1])) {
+      const buf: string[] = []
+      while (i < lines.length && isTableLine(lines[i])) {
+        buf.push(lines[i])
+        i++
+      }
+      blocks.push(buf.join('\n'))
+      continue
+    }
+
+    // Heading: keep with the next paragraph
+    if (isHeading(line)) {
+      const buf = [line]
+      i++
+      // Skip blank lines between heading and paragraph
+      while (i < lines.length && lines[i].trim() === '') i++
+      // Consume the following paragraph until blank line or another block boundary
+      while (
+        i < lines.length &&
+        lines[i].trim() !== '' &&
+        !isHeading(lines[i]) &&
+        !isFence(lines[i]) &&
+        !isTableLine(lines[i])
+      ) {
+        buf.push(lines[i])
+        i++
+      }
+      blocks.push(buf.join('\n'))
+      continue
+    }
+
+    // Blank line — paragraph boundary
+    if (line.trim() === '') {
+      i++
+      continue
+    }
+
+    // Regular paragraph
+    const buf: string[] = []
+    while (
+      i < lines.length &&
+      lines[i].trim() !== '' &&
+      !isHeading(lines[i]) &&
+      !isFence(lines[i]) &&
+      !isTableLine(lines[i])
+    ) {
+      buf.push(lines[i])
+      i++
+    }
+    if (buf.length > 0) blocks.push(buf.join('\n'))
+  }
+
+  return blocks
+}
+
 export function chunkText(
   text: string,
   options: ChunkOptions = { maxTokens: 512, overlap: 50 }
 ): TextChunk[] {
   const { maxTokens, overlap } = options
-  const paragraphs = text.split(/\n{2,}/).filter(p => p.trim().length > 0)
+  const paragraphs = splitIntoAtomicBlocks(text)
   if (paragraphs.length === 0) return []
 
   const chunks: TextChunk[] = []
@@ -50,6 +142,32 @@ export function chunkText(
 
   for (const para of paragraphs) {
     const paraTokens = estimateTokens(para)
+
+    // Oversized atomic block: flush buffer, emit this block on its own.
+    if (paraTokens > maxTokens) {
+      if (currentParagraphs.length > 0) {
+        const flushContent = currentParagraphs.join('\n\n')
+        chunks.push({
+          content: flushContent,
+          position: chunks.length,
+          tokenCount: estimateTokens(flushContent),
+          headingHierarchy: [...currentHeadings],
+        })
+        for (const flushed of currentParagraphs) {
+          currentHeadings = updateHeadingStack(currentHeadings, flushed)
+        }
+        currentParagraphs = []
+        currentTokens = 0
+      }
+      chunks.push({
+        content: para,
+        position: chunks.length,
+        tokenCount: paraTokens,
+        headingHierarchy: [...currentHeadings],
+      })
+      currentHeadings = updateHeadingStack(currentHeadings, para)
+      continue
+    }
 
     if (currentTokens + paraTokens > maxTokens && currentParagraphs.length > 0) {
       const content = currentParagraphs.join('\n\n')
