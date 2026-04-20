@@ -3,7 +3,7 @@ import type { DocumentStore } from './document-store.js'
 import type { PluginRegistry } from '../plugin/registry.js'
 import type { EventBus } from '../events/bus.js'
 import type { MiddlewareRunner } from './middleware.js'
-import { chunkText, semanticChunkText } from './chunker.js'
+import { dispatchChunk } from './chunk-strategies.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
 import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
@@ -155,34 +155,26 @@ export class IngestPipeline {
         return { documentId, chunks: 0, status: 'error' }
       }
 
-      // Chunk: semantic chunks use semantic chunking when embedder is available, code chunks pass through
+      // Chunk: dispatch based on file type + parser-reported chunkType.
+      // Markdown/prose use semantic sentence-level splitting; code/table/api pass through;
+      // data files (JSON/YAML) use paragraph chunking.
       const finalChunks: StoredChunk[] = []
       for (const parsed of parsedChunks) {
-        if (parsed.chunkType === 'semantic') {
-          const textChunks = embedFn
-            ? await semanticChunkText(parsed.content, { maxTokens: 512, overlap: 50 }, embedFn)
-            : chunkText(parsed.content)
-          for (const tc of textChunks) {
-            finalChunks.push({
-              content: tc.content,
-              embedding: [],
-              chunkType: 'semantic',
-              position: finalChunks.length,
-              tokenCount: tc.tokenCount,
-              headingHierarchy: tc.headingHierarchy.length > 0
-                ? tc.headingHierarchy
-                : (parsed.headingHierarchy ?? []),
-            })
-          }
-        } else {
-          // code-ast, table, api-endpoint, etc. -- pass through directly
+        const textChunks = await dispatchChunk(parsed.content, {
+          fileType,
+          chunkType: parsed.chunkType,
+          embed: embedFn,
+        })
+        for (const tc of textChunks) {
           finalChunks.push({
-            content: parsed.content,
+            content: tc.content,
             embedding: [],
             chunkType: parsed.chunkType,
             position: finalChunks.length,
-            tokenCount: Math.ceil(parsed.content.length / 4),
-            headingHierarchy: parsed.headingHierarchy ?? [],
+            tokenCount: tc.tokenCount,
+            headingHierarchy: tc.headingHierarchy.length > 0
+              ? tc.headingHierarchy
+              : (parsed.headingHierarchy ?? []),
             language: parsed.language,
             codeSymbols: parsed.codeSymbols,
           })

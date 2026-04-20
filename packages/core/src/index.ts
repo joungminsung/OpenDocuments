@@ -48,6 +48,7 @@ export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
 export { validatePluginPermissions, enforceNetworkPermission, enforceFilesystemPermission, type ResolvedPermissions } from './plugin/sandbox.js'
 
 export { chunkText, semanticChunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
+export { selectChunkStrategy, dispatchChunk, type ChunkStrategy, type ChunkDispatchContext } from './ingest/chunk-strategies.js'
 export { MiddlewareRunner } from './ingest/middleware.js'
 export { DocumentStore, type CreateDocumentInput, type StoredChunk, type SearchResult } from './ingest/document-store.js'
 
