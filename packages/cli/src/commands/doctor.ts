@@ -2,6 +2,92 @@ import { Command } from 'commander'
 import { log } from 'opendocuments-core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 
+/**
+ * Provider-specific diagnostic endpoints. Each entry is a GET that returns 200
+ * when the API key is valid and reachable.
+ */
+const PROVIDER_DIAGNOSTICS: Record<string, {
+  url: string | ((cfg: { baseUrl?: string; apiKey?: string }) => string)
+  headers: (key: string) => Record<string, string>
+  envVar: string
+  docs: string
+}> = {
+  openai: {
+    url: 'https://api.openai.com/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    envVar: 'OPENAI_API_KEY',
+    docs: 'https://platform.openai.com/api-keys',
+  },
+  anthropic: {
+    url: 'https://api.anthropic.com/v1/models',
+    headers: (k) => ({ 'x-api-key': k, 'anthropic-version': '2023-06-01' }),
+    envVar: 'ANTHROPIC_API_KEY',
+    docs: 'https://console.anthropic.com/settings/keys',
+  },
+  google: {
+    url: (cfg) => `https://generativelanguage.googleapis.com/v1beta/models?key=${cfg.apiKey ?? ''}`,
+    headers: () => ({}),
+    envVar: 'GOOGLE_API_KEY',
+    docs: 'https://aistudio.google.com/apikey',
+  },
+  grok: {
+    url: 'https://api.x.ai/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    envVar: 'XAI_API_KEY',
+    docs: 'https://console.x.ai',
+  },
+  deepseek: {
+    url: 'https://api.deepseek.com/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    envVar: 'DEEPSEEK_API_KEY',
+    docs: 'https://platform.deepseek.com/api_keys',
+  },
+  mistral: {
+    url: 'https://api.mistral.ai/v1/models',
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    envVar: 'MISTRAL_API_KEY',
+    docs: 'https://console.mistral.ai/api-keys',
+  },
+  'openai-compatible': {
+    url: (cfg) => `${cfg.baseUrl?.replace(/\/+$/, '')}/models`,
+    headers: (k) => {
+      const h: Record<string, string> = {}
+      if (k) h.Authorization = `Bearer ${k}`
+      return h
+    },
+    envVar: 'OPENAI_COMPATIBLE_API_KEY',
+    docs: '(configured endpoint)',
+  },
+}
+
+async function pingProvider(
+  provider: string,
+  cfg: { baseUrl?: string; apiKey?: string },
+): Promise<{ ok: boolean; status?: number; message: string }> {
+  const diag = PROVIDER_DIAGNOSTICS[provider]
+  if (!diag) return { ok: false, message: `no diagnostic for provider '${provider}'` }
+  const apiKey = cfg.apiKey ?? process.env[diag.envVar] ?? ''
+  if (!apiKey && provider !== 'openai-compatible') {
+    return { ok: false, message: `${diag.envVar} not set  (get a key: ${diag.docs})` }
+  }
+  const url = typeof diag.url === 'function' ? diag.url({ ...cfg, apiKey }) : diag.url
+  if (!url || url.startsWith('undefined')) {
+    return { ok: false, message: 'baseUrl is not set (openai-compatible requires it)' }
+  }
+  try {
+    const res = await fetch(url, { headers: diag.headers(apiKey), signal: AbortSignal.timeout(10000) })
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, status: res.status, message: `invalid API key (HTTP ${res.status})` }
+    }
+    if (!res.ok) {
+      return { ok: false, status: res.status, message: `HTTP ${res.status}` }
+    }
+    return { ok: true, status: res.status, message: 'API reachable, key accepted' }
+  } catch (err) {
+    return { ok: false, message: (err as Error).message }
+  }
+}
+
 export function doctorCommand() {
   return new Command('doctor')
     .description('Run health diagnostics')
@@ -68,8 +154,41 @@ export function doctorCommand() {
           }
         }
 
-        // Ollama-specific diagnostics
-        if (ctx.config.model.provider === 'ollama') {
+        // Provider-specific diagnostics (non-Ollama cloud/self-hosted)
+        const provider = ctx.config.model.provider
+        if (provider !== 'ollama' && PROVIDER_DIAGNOSTICS[provider]) {
+          log.blank()
+          log.heading(`${provider} Diagnostics`)
+          const result = await pingProvider(provider, {
+            apiKey: ctx.config.model.apiKey,
+            baseUrl: ctx.config.model.baseUrl,
+          })
+          if (result.ok) {
+            log.ok(`${provider.padEnd(15)} ${result.message}`)
+          } else {
+            log.fail(`${provider.padEnd(15)} ${result.message}`)
+            hasIssues = true
+          }
+
+          // Also check secondary embedding provider if different
+          const embProvider = ctx.config.model.embeddingProvider
+          if (embProvider && embProvider !== provider && PROVIDER_DIAGNOSTICS[embProvider]) {
+            const embResult = await pingProvider(embProvider, {
+              apiKey: ctx.config.model.embeddingApiKey,
+              baseUrl: ctx.config.model.baseUrl,
+            })
+            if (embResult.ok) {
+              log.ok(`${embProvider.padEnd(15)} ${embResult.message}  (embedding)`)
+            } else {
+              log.fail(`${embProvider.padEnd(15)} ${embResult.message}  (embedding)`)
+              hasIssues = true
+            }
+          }
+        }
+
+        // Ollama-specific diagnostics (primary provider OR secondary embedder)
+        const usesOllama = provider === 'ollama' || ctx.config.model.embeddingProvider === 'ollama'
+        if (usesOllama) {
           log.blank()
           log.heading('Ollama Diagnostics')
 
@@ -102,9 +221,15 @@ export function doctorCommand() {
           }
 
           if (ollamaReachable) {
-            const requiredModels = Array.from(
-              new Set([ctx.config.model.llm, ctx.config.model.embedding])
-            )
+            // Only check models that Ollama is actually responsible for.
+            const ollamaModels: string[] = []
+            if (ctx.config.model.provider === 'ollama') {
+              ollamaModels.push(ctx.config.model.llm)
+            }
+            if (ctx.config.model.provider === 'ollama' || ctx.config.model.embeddingProvider === 'ollama') {
+              ollamaModels.push(ctx.config.model.embedding)
+            }
+            const requiredModels = Array.from(new Set(ollamaModels))
 
             for (const required of requiredModels) {
               // Ollama tags may include ":latest" suffix; match on base name or exact name
