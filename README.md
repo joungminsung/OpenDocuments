@@ -264,6 +264,9 @@ parserFallbacks: {
 | **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5 | -- (use separate provider) | Long context (1M), coding, analysis |
 | **Google** | Gemini 3.1 Pro, Gemini 3.1 Flash Lite, Gemini 3.0 Deep Think | text-embedding-005 | Multimodal, multilingual |
 | **xAI** | Grok 4, Grok 4 Heavy, Grok 4.1 Fast | Grok embedding | Real-time knowledge, code |
+| **DeepSeek** | DeepSeek-V3.2, DeepSeek-R1, DeepSeek-V4 (upcoming) | -- (use separate provider) | Cost-efficient reasoning, 164K context |
+| **Mistral** | Mistral Small 4 (MoE), Large 2.1, Codestral, Pixtral | mistral-embed (1024) | European data residency, coding, vision |
+| **OpenAI-compatible** | Any OpenAI-compatible endpoint | Depends on endpoint | vLLM, LM Studio, Together, Fireworks, Groq, DeepInfra, SiliconFlow, OpenRouter |
 
 ### Local Models (via Ollama)
 
@@ -275,6 +278,7 @@ parserFallbacks: {
 | **Llama 4 Scout** | 17B (MoE) | 109B | Yes | Good | 10M context window |
 | **Llama 4 Maverick** | 17B (MoE) | 400B | Yes | Good | Top open-source quality |
 | **DeepSeek V3.2** | 37B (MoE) | 671B | No | Good | Coding, reasoning |
+| **Gemma 4** | 27B / 12B / 4B / 1B | dense | Yes | Good | Latest Google open model, 128K context, 140+ languages |
 | **Gemma 3 27B** | 27B | 27B | Yes | Good | Lightweight, 140+ languages |
 | **Gemma 3 4B** | 4B | 4B | Yes | Good | Low-spec machines (8GB RAM) |
 | **K-EXAONE** | 23B (MoE) | 236B | No | Best | Korean-specialized |
@@ -544,7 +548,7 @@ npm run dev      # Watch mode
 | `@opendocuments/cli` | 17 CLI commands (Commander.js) | 3 |
 | `@opendocuments/web` | React SPA with 7 pages (Vite + Tailwind) | -- |
 | `@opendocuments/client` | TypeScript SDK | 3 |
-| 5 model plugins | Ollama, OpenAI, Anthropic, Google, Grok | 41 |
+| 8 model plugins | Ollama, OpenAI, Anthropic, Google, Grok, DeepSeek, Mistral, OpenAI-compatible | 41 |
 | 9 parser plugins | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured | 37 |
 | 8 connector plugins | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 38 |
 
