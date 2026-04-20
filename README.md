@@ -371,14 +371,33 @@ Your AI assistant can then:
 |--|--------|------------|-----------|
 | **Speed** | ~1s | ~3s | ~5s+ |
 | **Search depth** | 10 docs | 20 docs | 50 docs |
+| **Semantic chunking** | On | On | On |
 | **Reranking** | Off | On | On |
+| **Cross-encoder** | Off | Off | On |
 | **Cross-lingual** | Off | Korean + English | Korean + English |
+| **Contextual prefix** | Off | On | On |
+| **Multi-query expansion** | Off | 3x paraphrases | 5x paraphrases |
+| **HyDE** | Off | Off | On |
+| **Parent-document retrieval** | Off | On | On |
+| **Chunk augmentation** (propositions/HQs) | Off | Off | On |
 | **Query decomposition** | Off | Off | Splits complex queries |
 | **Web search** | Off | Fallback when local results are weak | Always merged |
 | **Hallucination guard** | Off | Checks source grounding | Strict mode (annotates unverified) |
 | **Best for** | Quick lookups, 8B local models | Daily use, 14B+ models | Critical questions, cloud LLMs |
 
 Switch anytime: CLI flag (`--profile precise`), Web UI toggle, or config file.
+
+### Retrieval quality
+
+OpenDocuments ships a redesigned RAG pipeline with structure-preserving chunking, contextual retrieval, HyDE + multi-query + parent-document retrieval, proposition augmentation, and a cross-encoder reranker — all profile-gated via the table above. See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full list of additions.
+
+Benchmark against your own dataset with the evaluation harness:
+
+```bash
+cd packages/core && npx tsx tests/_fixtures/run-eval.ts
+```
+
+Metrics reported: hit@3, hit@5, MRR, nDCG@5 — per-intent and aggregate.
 
 ---
 
