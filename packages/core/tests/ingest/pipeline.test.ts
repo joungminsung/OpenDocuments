@@ -104,4 +104,50 @@ describe('IngestPipeline', () => {
     })
     expect(second.status).toBe('skipped')
   })
+
+  it('uses semanticChunkText when an embedding model is registered', async () => {
+    // Spy on the embedder's embed calls to confirm sentence-level inputs were embedded.
+    // The MarkdownParser produces a single 'semantic' ParsedChunk from the body;
+    // semanticChunkText splits it into sentences before embedding.
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true, generation: false, reranking: false },
+      embed: embedSpy,
+      setup: async () => {},
+      healthCheck: async () => ({ healthy: true }),
+    }
+
+    // Rebuild a fresh pipeline with the spy embedder instead of the default mock.
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'doc.md',
+      sourceType: 'local',
+      sourcePath: '/tmp/semantic-doc.md',
+      fileType: '.md',
+      content: 'First sentence about Redis caching. Second sentence about Redis pub/sub. Totally unrelated paragraph about PostgreSQL transactions here.',
+    })
+
+    // Flatten every batch's inputs. Semantic chunking embeds sentences during chunk-boundary discovery,
+    // so at least one call should have been passed inputs that end with sentence punctuation.
+    const allInputs = embedSpy.mock.calls.map(call => call[0] as string[]).flat()
+    expect(allInputs.length).toBeGreaterThan(0)
+    const hadSentenceInput = allInputs.some(s => /[.!?]$/.test(s.trim()))
+    expect(hadSentenceInput).toBe(true)
+  })
 })

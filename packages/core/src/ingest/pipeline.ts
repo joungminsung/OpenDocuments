@@ -3,7 +3,7 @@ import type { DocumentStore } from './document-store.js'
 import type { PluginRegistry } from '../plugin/registry.js'
 import type { EventBus } from '../events/bus.js'
 import type { MiddlewareRunner } from './middleware.js'
-import { chunkText } from './chunker.js'
+import { chunkText, semanticChunkText } from './chunker.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
 import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
@@ -144,11 +144,24 @@ export class IngestPipeline {
       // Apply before:chunk middleware
       await middleware.run('before:chunk', parsedChunks)
 
-      // Chunk: semantic chunks go through chunkText, code chunks pass through
+      // Resolve embedder early -- semantic chunking needs it
+      const models = registry.getModels()
+      const embeddingModel = models.find(m => m.capabilities.embedding && m.embed)
+      const embedFn = embeddingModel?.embed?.bind(embeddingModel) ?? null
+
+      // Embedder is required to index; bail early if missing
+      if (!embeddingModel || !embedFn) {
+        store.updateStatus(documentId, 'error', 'No embedding model available')
+        return { documentId, chunks: 0, status: 'error' }
+      }
+
+      // Chunk: semantic chunks use semantic chunking when embedder is available, code chunks pass through
       const finalChunks: StoredChunk[] = []
       for (const parsed of parsedChunks) {
         if (parsed.chunkType === 'semantic') {
-          const textChunks = chunkText(parsed.content)
+          const textChunks = embedFn
+            ? await semanticChunkText(parsed.content, { maxTokens: 512, overlap: 50 }, embedFn)
+            : chunkText(parsed.content)
           for (const tc of textChunks) {
             finalChunks.push({
               content: tc.content,
@@ -156,7 +169,9 @@ export class IngestPipeline {
               chunkType: 'semantic',
               position: finalChunks.length,
               tokenCount: tc.tokenCount,
-              headingHierarchy: tc.headingHierarchy.length > 0 ? tc.headingHierarchy : (parsed.headingHierarchy ?? []),
+              headingHierarchy: tc.headingHierarchy.length > 0
+                ? tc.headingHierarchy
+                : (parsed.headingHierarchy ?? []),
             })
           }
         } else {
@@ -180,20 +195,13 @@ export class IngestPipeline {
       eventBus.emit('document:chunked', { documentId, chunks: finalChunks.length })
 
       // Embed all chunks in batches of BATCH_SIZE
-      const models = registry.getModels()
-      const embeddingModel = models.find(m => m.capabilities.embedding && m.embed)
-      if (!embeddingModel || !embeddingModel.embed) {
-        store.updateStatus(documentId, 'error', 'No embedding model available')
-        return { documentId, chunks: 0, status: 'error' }
-      }
-
       const texts = finalChunks.map(c => c.content)
       const allEmbeddings: number[][] = []
 
       let expectedDim: number | null = null
       for (let i = 0; i < texts.length; i += BATCH_SIZE) {
         const batch = texts.slice(i, i + BATCH_SIZE)
-        const result = await embeddingModel.embed(batch)
+        const result = await embedFn(batch)
         if (result.dense.length !== batch.length) {
           throw new Error(
             `Embedding count mismatch: sent ${batch.length} texts, got ${result.dense.length} embeddings`
