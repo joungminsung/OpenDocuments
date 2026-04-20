@@ -24,6 +24,12 @@ export interface StoredChunk {
   codeSymbols?: string[]
   /** LLM-authored situating prefix for retrieval. Prepended to content before embedding; not included in content returned to the generator. */
   contextualPrefix?: string
+  /**
+   * Enclosing heading-section text (the body bounded by the nearest heading).
+   * Used by parent-document retrieval via `attachParentContext` to swap a
+   * small-chunk match for its surrounding section on generation.
+   */
+  parentSection?: string
 }
 
 export interface SearchResult {
@@ -36,6 +42,8 @@ export interface SearchResult {
   sourcePath: string
   sourceType: string
   contextualPrefix?: string
+  /** Enclosing heading-section text. When present, `attachParentContext` swaps content for this. */
+  parentSection?: string
 }
 
 interface DocumentRow {
@@ -114,6 +122,7 @@ export class DocumentStore {
         language: chunk.language || '',
         code_symbols: chunk.codeSymbols ? JSON.stringify(chunk.codeSymbols) : '',
         contextual_prefix: chunk.contextualPrefix || '',
+        parent_section: chunk.parentSection || '',
       },
     }))
 
@@ -173,6 +182,7 @@ export class DocumentStore {
         sourcePath: doc?.source_path || '',
         sourceType: doc?.source_type || '',
         contextualPrefix: (r.metadata.contextual_prefix as string) || undefined,
+        parentSection: (r.metadata.parent_section as string) || undefined,
       }
     })
   }

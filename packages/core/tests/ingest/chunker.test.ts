@@ -231,3 +231,36 @@ describe('semanticChunkText', () => {
     }
   })
 })
+
+describe('parent section attachment', () => {
+  it('records parentSection for chunks under a heading', () => {
+    const text = `# Intro
+
+Intro paragraph describing the document.
+
+## Redis
+
+Redis is an in-memory store with support for caching and pub/sub.
+
+More detail about Redis internals in a second paragraph.
+
+## PostgreSQL
+
+PostgreSQL is a relational database.`
+
+    const chunks = chunkText(text, { maxTokens: 512, overlap: 0 })
+    // A chunk that contains 'in-memory store' should have parentSection containing both Redis paragraphs
+    const redisChunk = chunks.find(c => c.content.includes('in-memory store'))
+    expect(redisChunk).toBeDefined()
+    expect(redisChunk!.parentSection).toBeDefined()
+    expect(redisChunk!.parentSection).toContain('in-memory store')
+    expect(redisChunk!.parentSection).toContain('More detail about Redis internals')
+    // And MUST NOT bleed into the PostgreSQL section
+    expect(redisChunk!.parentSection!.includes('PostgreSQL is a relational')).toBe(false)
+  })
+
+  it('leaves parentSection undefined for top-level prose with no headings', () => {
+    const chunks = chunkText('A paragraph without any heading at all.', { maxTokens: 512, overlap: 0 })
+    expect(chunks[0].parentSection).toBeUndefined()
+  })
+})

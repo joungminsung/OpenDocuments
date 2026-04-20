@@ -181,6 +181,7 @@ export class IngestPipeline {
               : (parsed.headingHierarchy ?? []),
             language: parsed.language,
             codeSymbols: parsed.codeSymbols,
+            parentSection: tc.parentSection,
           })
         }
       }

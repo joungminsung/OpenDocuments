@@ -11,6 +11,87 @@ export interface TextChunk {
   position: number
   tokenCount: number
   headingHierarchy: string[]
+  /**
+   * The enclosing heading-section text -- the body bounded by the nearest heading
+   * at or above the chunk's level. Used by parent-document retrieval to swap a
+   * small, precisely-matched chunk for its surrounding section on generation.
+   * Undefined for chunks without any enclosing heading (e.g. top-level prose).
+   */
+  parentSection?: string
+}
+
+/**
+ * Split source text into heading-delimited sections.
+ * A section is the content between one heading (inclusive of its heading line)
+ * and the next heading of equal-or-shallower level.
+ * Returns [{ headingPath, text }] in document order. Pre-heading content (before
+ * any heading appears) is intentionally dropped -- chunks that live in that
+ * region have an empty `headingHierarchy` and we want their `parentSection`
+ * to stay undefined.
+ */
+function extractSections(text: string): Array<{ headingPath: string[]; text: string }> {
+  const lines = text.split('\n')
+  const sections: Array<{ headingPath: string[]; text: string }> = []
+  const headingStack: Array<{ level: number; title: string }> = []
+  let currentStart = 0
+  let inHeadingSection = false
+
+  const flush = (endLine: number) => {
+    if (!inHeadingSection) return
+    const body = lines.slice(currentStart, endLine).join('\n').trim()
+    if (body.length === 0) return
+    sections.push({
+      headingPath: headingStack.map(h => h.title),
+      text: body,
+    })
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s+(.+)$/)
+    if (m) {
+      flush(i)
+      const level = m[1].length
+      const title = m[2].trim()
+      while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= level) {
+        headingStack.pop()
+      }
+      headingStack.push({ level, title })
+      currentStart = i
+      inHeadingSection = true
+    }
+  }
+  flush(lines.length)
+  return sections
+}
+
+/**
+ * Look up the enclosing section text for a chunk with the given heading hierarchy.
+ * Strategy:
+ *  1. Exact-match on the heading path wins.
+ *  2. Otherwise, take the deepest section whose heading path is a prefix of the
+ *     chunk's path (or whose path has the chunk's path as a prefix). Prefer the
+ *     longer of any ties. This handles both "chunk is inside a deeper section"
+ *     and "chunk's heading path extends past our recorded sections" cases.
+ */
+function findParentSection(
+  sections: Array<{ headingPath: string[]; text: string }>,
+  headingHierarchy: string[]
+): string | undefined {
+  if (headingHierarchy.length === 0) return undefined
+  const SEP = '\x1f'
+  const hp = headingHierarchy.join(SEP)
+  let best: string | undefined
+  let bestDepth = -1
+  for (const s of sections) {
+    const sp = s.headingPath.join(SEP)
+    if (sp === hp) return s.text // exact match wins
+    const isPrefix = hp.startsWith(sp + SEP) || sp.startsWith(hp + SEP)
+    if (isPrefix && s.headingPath.length > bestDepth) {
+      best = s.text
+      bestDepth = s.headingPath.length
+    }
+  }
+  return best
 }
 
 function updateHeadingStack(stack: string[], para: string): string[] {
@@ -134,49 +215,69 @@ export function chunkText(
   const paragraphs = splitIntoAtomicBlocks(text)
   if (paragraphs.length === 0) return []
 
+  // Pre-compute heading-delimited sections so every emitted chunk can resolve
+  // its enclosing parent-section text without rescanning the source.
+  const sections = extractSections(text)
+
   const chunks: TextChunk[] = []
   let currentParagraphs: string[] = []
   let currentTokens = 0
   // Heading stack carries forward between chunks instead of accumulating full text history
   let currentHeadings: string[] = []
 
+  // A paragraph starts a new heading section iff its first non-blank line is a
+  // markdown ATX heading. We split chunks at these boundaries so each chunk's
+  // content belongs to a single section -- which is what parent-document
+  // retrieval needs in order to swap in the correct enclosing section text.
+  const startsWithHeading = (para: string): boolean =>
+    /^#{1,6}\s+/.test(para.trimStart())
+
+  const emitChunk = (content: string, headings: string[]) => {
+    chunks.push({
+      content,
+      position: chunks.length,
+      tokenCount: estimateTokens(content),
+      headingHierarchy: [...headings],
+      parentSection: findParentSection(sections, headings),
+    })
+  }
+
+  const flushBuffer = () => {
+    if (currentParagraphs.length === 0) return
+    emitChunk(currentParagraphs.join('\n\n'), currentHeadings)
+    currentParagraphs = []
+    currentTokens = 0
+  }
+
   for (const para of paragraphs) {
     const paraTokens = estimateTokens(para)
+    const paraStartsHeading = startsWithHeading(para)
+
+    // A new heading boundary: flush whatever we've accumulated (labeled with
+    // the prior heading state) and then advance the heading stack before we
+    // start adding to the new chunk. This way the new chunk's content and its
+    // headingHierarchy both reflect the new section.
+    if (paraStartsHeading) {
+      if (currentParagraphs.length > 0) {
+        flushBuffer()
+      }
+      currentHeadings = updateHeadingStack(currentHeadings, para)
+    }
 
     // Oversized atomic block: flush buffer, emit this block on its own.
     if (paraTokens > maxTokens) {
-      if (currentParagraphs.length > 0) {
-        const flushContent = currentParagraphs.join('\n\n')
-        chunks.push({
-          content: flushContent,
-          position: chunks.length,
-          tokenCount: estimateTokens(flushContent),
-          headingHierarchy: [...currentHeadings],
-        })
-        for (const flushed of currentParagraphs) {
-          currentHeadings = updateHeadingStack(currentHeadings, flushed)
-        }
-        currentParagraphs = []
-        currentTokens = 0
+      flushBuffer()
+      emitChunk(para, currentHeadings)
+      // For non-heading oversized blocks, also advance the heading stack (no-op
+      // for regular paragraphs, but keeps the behavior consistent).
+      if (!paraStartsHeading) {
+        currentHeadings = updateHeadingStack(currentHeadings, para)
       }
-      chunks.push({
-        content: para,
-        position: chunks.length,
-        tokenCount: paraTokens,
-        headingHierarchy: [...currentHeadings],
-      })
-      currentHeadings = updateHeadingStack(currentHeadings, para)
       continue
     }
 
     if (currentTokens + paraTokens > maxTokens && currentParagraphs.length > 0) {
-      const content = currentParagraphs.join('\n\n')
-      chunks.push({
-        content,
-        position: chunks.length,
-        tokenCount: estimateTokens(content),
-        headingHierarchy: [...currentHeadings],
-      })
+      emitChunk(currentParagraphs.join('\n\n'), currentHeadings)
 
       const overlapParagraphs: string[] = []
       let overlapTokens = 0
@@ -187,9 +288,9 @@ export function chunkText(
         overlapTokens += pTokens
       }
 
-      // Update heading stack by scanning all flushed paragraphs.
-      // Note: Overlap paragraphs may be re-processed for heading tracking.
-      // This is safe because heading updates are idempotent (same heading = no change).
+      // Update heading stack by scanning all flushed paragraphs that were not
+      // already accounted for at heading-boundary entry. Heading updates are
+      // idempotent so re-processing overlap paragraphs is safe.
       for (const flushed of currentParagraphs) {
         currentHeadings = updateHeadingStack(currentHeadings, flushed)
       }
@@ -202,20 +303,7 @@ export function chunkText(
     currentTokens += paraTokens
   }
 
-  if (currentParagraphs.length > 0) {
-    const content = currentParagraphs.join('\n\n')
-    // Build final heading state from remaining paragraphs
-    const finalHeadings = currentParagraphs.reduce(
-      (stack, para) => updateHeadingStack(stack, para),
-      [...currentHeadings]
-    )
-    chunks.push({
-      content,
-      position: chunks.length,
-      tokenCount: estimateTokens(content),
-      headingHierarchy: finalHeadings,
-    })
-  }
+  flushBuffer()
 
   return chunks
 }
@@ -300,6 +388,8 @@ export async function semanticChunkText(
 
   // Pre-scan for headings before sentence splitting destroys newline structure
   const headingMap = extractHeadingMap(text, sentences)
+  // Pre-compute heading-delimited sections for parent-section lookup
+  const sections = extractSections(text)
 
   // Embed all sentences
   let embeddings: number[][]
@@ -329,7 +419,7 @@ export async function semanticChunkText(
     groupSentenceIndices.push(Array.from({ length: end - start }, (_, i) => start + i))
   }
 
-  return buildSemanticChunks(groups, groupSentenceIndices, headingMap, options.maxTokens)
+  return buildSemanticChunks(groups, groupSentenceIndices, headingMap, options.maxTokens, sections)
 }
 
 /**
@@ -340,7 +430,8 @@ function buildSemanticChunks(
   groups: string[][],
   groupSentenceIndices: number[][],
   headingMap: Map<number, string[]>,
-  maxTokens: number
+  maxTokens: number,
+  sections: Array<{ headingPath: string[]; text: string }>
 ): TextChunk[] {
   const chunks: TextChunk[] = []
   let currentSentences: string[] = []
@@ -365,6 +456,7 @@ function buildSemanticChunks(
       position: chunks.length,
       tokenCount: estimateTokens(content),
       headingHierarchy: [...headingStack],
+      parentSection: findParentSection(sections, headingStack),
     })
     currentSentences = []
     currentSentenceIndices = []
