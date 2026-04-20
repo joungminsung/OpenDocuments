@@ -143,11 +143,24 @@ describe('IngestPipeline', () => {
       content: 'First sentence about Redis caching. Second sentence about Redis pub/sub. Totally unrelated paragraph about PostgreSQL transactions here.',
     })
 
-    // Flatten every batch's inputs. Semantic chunking embeds sentences during chunk-boundary discovery,
-    // so at least one call should have been passed inputs that end with sentence punctuation.
-    const allInputs = embedSpy.mock.calls.map(call => call[0] as string[]).flat()
-    expect(allInputs.length).toBeGreaterThan(0)
-    const hadSentenceInput = allInputs.some(s => /[.!?]$/.test(s.trim()))
-    expect(hadSentenceInput).toBe(true)
+    // Semantic chunking triggers at least two embed invocations: one sentence-level
+    // boundary-discovery call (multi-sentence batch) and one chunk-embedding call.
+    // The old paragraph-based chunker called embed() exactly once with a single
+    // whole-paragraph input, so each assertion below fails under the old code.
+    expect(embedSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+    // Boundary discovery embeds the sentence array in a single batch of length >= 2.
+    const multiSentenceCall = embedSpy.mock.calls.find(
+      call => Array.isArray(call[0]) && (call[0] as string[]).length >= 2,
+    )
+    expect(multiSentenceCall, 'expected a multi-sentence embed call (boundary discovery)').toBeTruthy()
+
+    // At least one embedded input should be a single sentence ending in punctuation,
+    // not a whole paragraph containing multiple sentences.
+    const hadSingleSentenceInput = embedSpy.mock.calls.some(call => {
+      const arr = call[0] as string[]
+      return arr.some(s => /^[^.!?]+[.!?]$/.test(s.trim()))
+    })
+    expect(hadSingleSentenceInput, 'expected at least one sentence-shaped embed input').toBe(true)
   })
 })
