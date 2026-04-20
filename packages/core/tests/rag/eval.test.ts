@@ -142,11 +142,15 @@ describe('evaluate (integration)', () => {
     const summary = await evaluate(engine, cases)
 
     expect(summary.totalCases).toBe(fixtures.length)
-    expect(summary.hitAt5).toBeGreaterThanOrEqual(0)
     expect(summary.hitAt5).toBeLessThanOrEqual(1)
-    expect(summary.mrr).toBeGreaterThanOrEqual(0)
     expect(summary.mrr).toBeLessThanOrEqual(1)
     expect(Object.keys(summary.byIntent).length).toBeGreaterThan(0)
+    // Quality floor: the gold dataset has unique FTS-friendly terms per case,
+    // so at least one case must hit via hybrid retrieval even with the mock embedder.
+    // If this ever drops to 0, either the engine stopped retrieving or the harness
+    // stopped aggregating correctly — both are regressions.
+    expect(summary.hitAt5).toBeGreaterThan(0)
+    expect(summary.mrr).toBeGreaterThan(0)
     // Every intent bucket is a valid [0, 1] number
     for (const intent of Object.keys(summary.byIntent)) {
       expect(summary.byIntent[intent].hitAt5).toBeGreaterThanOrEqual(0)

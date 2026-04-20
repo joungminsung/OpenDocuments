@@ -4,13 +4,14 @@ import type { PluginRegistry } from '../plugin/registry.js'
 import type { EventBus } from '../events/bus.js'
 import type { MiddlewareRunner } from './middleware.js'
 import { dispatchChunk } from './chunk-strategies.js'
+import { generateChunkContexts } from '../rag/contextual.js'
+import { getProfileConfig } from '../rag/profiles.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
 import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
 import type { OpenDocumentsConfig } from '../config/schema.js'
 import type { PIIRedactor } from '../security/redactor.js'
 import type { DocumentVersionManager } from '../document/version-manager.js'
-import { generateChunkContexts } from '../rag/contextual.js'
 
 export interface IngestInput {
   title: string
@@ -193,15 +194,26 @@ export class IngestPipeline {
 
       // Contextual Retrieval: let an LLM author a 1-2-sentence situating prefix per chunk.
       // We embed `${prefix}\n\n${content}` but keep raw content for later generation.
-      // Config-level wiring under `rag.custom.features` is not yet exposed in the schema;
-      // read it optionally and defensively so explicit options override is sufficient.
+      // Resolution order: explicit options arg > config.rag.custom.features > active profile's features.
+      // The active profile lookup is what makes `balanced`/`precise` actually turn this on by default
+      // without every caller having to thread the option explicitly.
       const customFeatures = (this.opts.config?.rag?.custom as
         | { features?: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } }
         | undefined
       )?.features
+      let profileFeatures: ReturnType<typeof getProfileConfig>['features'] | undefined
+      const profileName = this.opts.config?.rag?.profile
+      if (profileName) {
+        try {
+          profileFeatures = getProfileConfig(profileName).features
+        } catch {
+          profileFeatures = undefined
+        }
+      }
       const enableContextual =
         options.contextualRetrieval ??
         customFeatures?.contextualRetrieval ??
+        profileFeatures?.contextualRetrieval ??
         false
       if (enableContextual && finalChunks.length > 0) {
         const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)
@@ -225,6 +237,7 @@ export class IngestPipeline {
       const enableAugmentation =
         options.chunkAugmentation ??
         customFeatures?.chunkAugmentation ??
+        profileFeatures?.chunkAugmentation ??
         false
       if (enableAugmentation && finalChunks.length > 0) {
         const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)

@@ -48,6 +48,11 @@ export interface SearchResult {
   headingHierarchy: string[]
   sourcePath: string
   sourceType: string
+  /**
+   * LLM-authored situating prefix stored at ingest time. Used only for embedding retrieval
+   * — NOT prepended to `content` returned to the generator, which remains the raw chunk.
+   * Exposed here for debugging / evaluation tooling.
+   */
   contextualPrefix?: string
   /** Enclosing heading-section text. When present, `attachParentContext` swaps content for this. */
   parentSection?: string
