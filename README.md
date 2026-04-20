@@ -348,9 +348,17 @@ cat README.md | opendocuments ask "Summarize this" --stdin
 opendocuments ask "List endpoints" --json | jq '.sources[].sourcePath'
 
 # Administration
-opendocuments doctor                  # Health check
+opendocuments doctor                  # Health check (per-provider API ping)
 opendocuments auth create-key --name "ci-bot" --role member
 opendocuments export --output ./backup
+
+# Model management
+opendocuments model list --suggestions          # Show installed + curated models
+opendocuments model install-ollama              # One-shot Ollama install (macOS/Linux)
+opendocuments model pull gemma3:27b bge-m3      # Batch pull with disk-space check
+opendocuments model set-key deepseek            # Prompt + save API key to .env
+opendocuments model test                        # Round-trip test against configured LLM
+opendocuments model switch                      # Change provider without editing config
 ```
 
 ### 3. MCP Server
