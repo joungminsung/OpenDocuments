@@ -219,6 +219,44 @@ describe('IngestPipeline', () => {
     expect(hasPrefixedInput, `expected an embed input to start with CTX_PREFIX. Got: ${allEmbedInputs.map(s => JSON.stringify(s.slice(0, 60))).join(' | ')}`).toBe(true)
   })
 
+  it('augments FTS content with propositions + questions when chunkAugmentation is on', async () => {
+    const propsOutput = '- Redis is in-memory.\n- Redis supports caching.'
+    const qsOutput = '1. What is Redis?\n2. What is Redis used for?\n3. Is Redis in-memory?'
+    const stubLLM: any = {
+      name: 'aug-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        // Very simple router: proposition prompts mention "propositions", questions mention "Questions:"
+        yield /Propositions:/i.test(prompt) ? propsOutput : qsOutput
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const embedder = createMockEmbedder()
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(embedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+    await p.ingest({
+      title: 'aug.md', sourceType: 'local', sourcePath: '/tmp/aug.md',
+      fileType: '.md', content: '# Redis\n\nRedis is an in-memory store used for caching.',
+    }, { chunkAugmentation: true })
+
+    // Search FTS directly using a term that only appears in the augmented content
+    const hits = store.searchFTS('What is Redis', 5)
+    expect(hits.length).toBeGreaterThan(0)
+    // And propositions keywords
+    const propHits = store.searchFTS('caching', 5)
+    expect(propHits.length).toBeGreaterThan(0)
+  })
+
   it('skips contextual generation when the feature is off (default)', async () => {
     const embedSpy = vi.fn(async (texts: string[]) => ({
       dense: texts.map(() => [0.1, 0.2, 0.3]),

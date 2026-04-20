@@ -81,6 +81,7 @@ export { generateChunkContexts, type ChunkContextInput } from './rag/contextual.
 export { generateHypotheticalAnswer } from './rag/hyde.js'
 export { expandMultiQuery } from './rag/multi-query.js'
 export { attachParentContext } from './rag/parent-doc.js'
+export { generatePropositions, generateHypotheticalQuestions } from './rag/propositions.js'
 
 export { ConversationManager, type Conversation, type Message } from './conversation/manager.js'
 

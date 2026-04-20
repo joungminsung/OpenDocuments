@@ -90,7 +90,7 @@ export class IngestPipeline {
 
   async ingest(
     input: IngestInput,
-    options: { contextualRetrieval?: boolean } = {}
+    options: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } = {}
   ): Promise<IngestResult> {
     const { store, registry, eventBus, middleware } = this.opts
     const contentHash = sha256(input.content)
@@ -196,7 +196,7 @@ export class IngestPipeline {
       // Config-level wiring under `rag.custom.features` is not yet exposed in the schema;
       // read it optionally and defensively so explicit options override is sufficient.
       const customFeatures = (this.opts.config?.rag?.custom as
-        | { features?: { contextualRetrieval?: boolean } }
+        | { features?: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } }
         | undefined
       )?.features
       const enableContextual =
@@ -214,6 +214,30 @@ export class IngestPipeline {
           })
           for (let i = 0; i < finalChunks.length; i++) {
             if (contexts[i]) finalChunks[i].contextualPrefix = contexts[i]
+          }
+        }
+      }
+
+      // Chunk Augmentation: per-chunk LLM-driven transforms whose output is
+      // concatenated into the FTS5 index ONLY (not embeddings, not generator
+      // content). Propositions boost recall on paraphrased fact queries;
+      // hypothetical questions boost recall on question-style queries.
+      const enableAugmentation =
+        options.chunkAugmentation ??
+        customFeatures?.chunkAugmentation ??
+        false
+      if (enableAugmentation && finalChunks.length > 0) {
+        const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)
+        if (llmModel) {
+          const { generatePropositions, generateHypotheticalQuestions } = await import('../rag/propositions.js')
+          // Run per-chunk in sequence to keep LLM load predictable; pairs run in parallel.
+          for (const chunk of finalChunks) {
+            const [props, qs] = await Promise.all([
+              generatePropositions(chunk.content, llmModel),
+              generateHypotheticalQuestions(chunk.content, llmModel, 3),
+            ])
+            const lines = [...props, ...qs]
+            if (lines.length > 0) chunk.ftsAugment = lines.join('\n')
           }
         }
       }

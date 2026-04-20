@@ -30,6 +30,13 @@ export interface StoredChunk {
    * small-chunk match for its surrounding section on generation.
    */
   parentSection?: string
+  /**
+   * Extra text to concatenate into the FTS5 index only — NOT into the vector
+   * embedding and NOT returned as generator-facing content. Used by chunk
+   * augmentation (propositions + hypothetical questions) to boost lexical
+   * recall on question-style queries and paraphrased facts.
+   */
+  ftsAugment?: string
 }
 
 export interface SearchResult {
@@ -129,11 +136,17 @@ export class DocumentStore {
     // Step 1: Upsert vectors
     await this.vectorDb.upsert(COLLECTION, vectorDocs)
 
-    // Step 2: Insert into FTS5 index -- if this fails, clean up vectors
+    // Step 2: Insert into FTS5 index -- if this fails, clean up vectors.
+    // When ftsAugment is present, index `content + ftsAugment` to boost lexical
+    // recall while keeping the vector embedding and generator-facing content
+    // unchanged.
     try {
       for (const chunk of chunks) {
         const chunkId = `${documentId}_chunk_${chunk.position}`
-        this.db.run('INSERT OR REPLACE INTO chunks_fts (chunk_id, content) VALUES (?, ?)', [chunkId, chunk.content])
+        const ftsContent = chunk.ftsAugment
+          ? `${chunk.content}\n\n${chunk.ftsAugment}`
+          : chunk.content
+        this.db.run('INSERT OR REPLACE INTO chunks_fts (chunk_id, content) VALUES (?, ?)', [chunkId, ftsContent])
       }
     } catch (err) {
       const chunkIds = chunks.map((_, i) => `${documentId}_chunk_${i}`)
