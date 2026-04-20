@@ -22,6 +22,8 @@ export interface StoredChunk {
   headingHierarchy: string[]
   language?: string
   codeSymbols?: string[]
+  /** LLM-authored situating prefix for retrieval. Prepended to content before embedding; not included in content returned to the generator. */
+  contextualPrefix?: string
 }
 
 export interface SearchResult {
@@ -33,6 +35,7 @@ export interface SearchResult {
   headingHierarchy: string[]
   sourcePath: string
   sourceType: string
+  contextualPrefix?: string
 }
 
 interface DocumentRow {
@@ -110,6 +113,7 @@ export class DocumentStore {
         heading_hierarchy: JSON.stringify(chunk.headingHierarchy),
         language: chunk.language || '',
         code_symbols: chunk.codeSymbols ? JSON.stringify(chunk.codeSymbols) : '',
+        contextual_prefix: chunk.contextualPrefix || '',
       },
     }))
 
@@ -168,6 +172,7 @@ export class DocumentStore {
         headingHierarchy: JSON.parse((r.metadata.heading_hierarchy as string) || '[]'),
         sourcePath: doc?.source_path || '',
         sourceType: doc?.source_type || '',
+        contextualPrefix: (r.metadata.contextual_prefix as string) || undefined,
       }
     })
   }

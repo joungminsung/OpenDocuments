@@ -163,4 +163,103 @@ describe('IngestPipeline', () => {
     })
     expect(hadSingleSentenceInput, 'expected at least one sentence-shaped embed input').toBe(true)
   })
+
+  it('generates and embeds contextual prefixes when contextualRetrieval feature is on', async () => {
+    // Spy on the embedder to see what text it was given.
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true },
+      embed: embedSpy,
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    // Stub LLM: for every chunk we're asked about, emit a deterministic prefix.
+    const llmCalls: string[] = []
+    const stubLLM: any = {
+      name: 'stub-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        llmCalls.push(prompt)
+        yield 'CTX_PREFIX_' + llmCalls.length
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'doc.md',
+      sourceType: 'local',
+      sourcePath: '/tmp/ctx-doc.md',
+      fileType: '.md',
+      content: '# Redis\n\nRedis is an in-memory store used for caching. It supports pub/sub and streams.',
+    }, { contextualRetrieval: true })
+
+    // 1. The LLM was asked at least once to produce a context
+    expect(llmCalls.length).toBeGreaterThan(0)
+
+    // 2. At least one embed batch contained a string that begins with the generated prefix followed by the chunk content
+    const allEmbedInputs = embedSpy.mock.calls.flatMap(c => c[0] as string[])
+    const hasPrefixedInput = allEmbedInputs.some(s => /^CTX_PREFIX_\d+\n\n/.test(s))
+    expect(hasPrefixedInput, `expected an embed input to start with CTX_PREFIX. Got: ${allEmbedInputs.map(s => JSON.stringify(s.slice(0, 60))).join(' | ')}`).toBe(true)
+  })
+
+  it('skips contextual generation when the feature is off (default)', async () => {
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true },
+      embed: embedSpy,
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const llmCalls: string[] = []
+    const stubLLM: any = {
+      name: 'stub-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        llmCalls.push(prompt); yield 'SHOULD_NOT_HAPPEN'
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'nope.md', sourceType: 'local', sourcePath: '/tmp/nope.md',
+      fileType: '.md', content: '# Hello\n\nBody.',
+    }) // no options arg -- feature off
+
+    expect(llmCalls).toEqual([])
+    // No embed input should contain the SHOULD_NOT_HAPPEN sentinel either
+    const allEmbedInputs = embedSpy.mock.calls.flatMap(c => c[0] as string[])
+    expect(allEmbedInputs.some(s => s.includes('SHOULD_NOT_HAPPEN'))).toBe(false)
+  })
 })

@@ -8,6 +8,7 @@ export interface RAGProfileConfig {
     webSearch: boolean | 'fallback'
     hallucinationGuard: boolean | 'strict'
     adaptiveRetrieval: boolean
+    contextualRetrieval: boolean
   }
 }
 
@@ -22,6 +23,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: false,
       hallucinationGuard: false,
       adaptiveRetrieval: false,
+      contextualRetrieval: false,
     },
   },
   balanced: {
@@ -34,6 +36,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: 'fallback',
       hallucinationGuard: true,
       adaptiveRetrieval: true,
+      contextualRetrieval: true,
     },
   },
   precise: {
@@ -46,6 +49,7 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: true,
       hallucinationGuard: 'strict',
       adaptiveRetrieval: true,
+      contextualRetrieval: true,
     },
   },
 }

@@ -10,6 +10,7 @@ import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interface
 import type { OpenDocumentsConfig } from '../config/schema.js'
 import type { PIIRedactor } from '../security/redactor.js'
 import type { DocumentVersionManager } from '../document/version-manager.js'
+import { generateChunkContexts } from '../rag/contextual.js'
 
 export interface IngestInput {
   title: string
@@ -87,7 +88,10 @@ export class IngestPipeline {
     throw new Error(`No parser found for ${fileExt}`)
   }
 
-  async ingest(input: IngestInput): Promise<IngestResult> {
+  async ingest(
+    input: IngestInput,
+    options: { contextualRetrieval?: boolean } = {}
+  ): Promise<IngestResult> {
     const { store, registry, eventBus, middleware } = this.opts
     const contentHash = sha256(input.content)
 
@@ -186,8 +190,39 @@ export class IngestPipeline {
 
       eventBus.emit('document:chunked', { documentId, chunks: finalChunks.length })
 
-      // Embed all chunks in batches of BATCH_SIZE
-      const texts = finalChunks.map(c => c.content)
+      // Contextual Retrieval: let an LLM author a 1-2-sentence situating prefix per chunk.
+      // We embed `${prefix}\n\n${content}` but keep raw content for later generation.
+      // Config-level wiring under `rag.custom.features` is not yet exposed in the schema;
+      // read it optionally and defensively so explicit options override is sufficient.
+      const customFeatures = (this.opts.config?.rag?.custom as
+        | { features?: { contextualRetrieval?: boolean } }
+        | undefined
+      )?.features
+      const enableContextual =
+        options.contextualRetrieval ??
+        customFeatures?.contextualRetrieval ??
+        false
+      if (enableContextual && finalChunks.length > 0) {
+        const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)
+        if (llmModel) {
+          const fullDoc = parsedChunks.map(p => p.content).join('\n\n')
+          const contexts = await generateChunkContexts({
+            document: fullDoc,
+            chunks: finalChunks.map(c => c.content),
+            llm: llmModel,
+          })
+          for (let i = 0; i < finalChunks.length; i++) {
+            if (contexts[i]) finalChunks[i].contextualPrefix = contexts[i]
+          }
+        }
+      }
+
+      // Embed all chunks in batches of BATCH_SIZE.
+      // Prepend the contextual prefix when present so retrieval embeddings capture
+      // the situating context, while preserving the raw chunk content for the generator.
+      const texts = finalChunks.map(c =>
+        c.contextualPrefix ? `${c.contextualPrefix}\n\n${c.content}` : c.content
+      )
       const allEmbeddings: number[][] = []
 
       let expectedDim: number | null = null
