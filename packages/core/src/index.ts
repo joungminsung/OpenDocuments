@@ -79,6 +79,7 @@ export { fitToContextWindow, type ContextWindowConfig } from './rag/context-wind
 export { compressContext } from './rag/prompt-compressor.js'
 export { generateChunkContexts, type ChunkContextInput } from './rag/contextual.js'
 export { generateHypotheticalAnswer } from './rag/hyde.js'
+export { expandMultiQuery } from './rag/multi-query.js'
 
 export { ConversationManager, type Conversation, type Message } from './conversation/manager.js'
 
