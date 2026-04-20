@@ -124,18 +124,19 @@ export function modelCommand() {
       }
     })
 
-  // ---------- pull ----------
-  cmd.command('pull <name>')
-    .description('Pull an Ollama model (checks disk space, shows progress)')
+  // ---------- pull (one or many) ----------
+  cmd.command('pull <names...>')
+    .description('Pull one or more Ollama models (checks disk space, shows progress)')
     .option('--base-url <url>', 'Ollama base URL', 'http://localhost:11434')
     .option('--yes', 'Skip disk space confirmation')
-    .action(async (name: string, opts: { baseUrl: string; yes?: boolean }) => {
+    .action(async (names: string[], opts: { baseUrl: string; yes?: boolean }) => {
       const reachable = await isOllamaRunning(opts.baseUrl)
       if (!reachable) {
         log.fail(`Ollama not reachable at ${opts.baseUrl}`)
         const install = getOllamaInstallCommand()
         if (install.supported) {
-          log.arrow(`Install:  ${install.command}`)
+          log.arrow(`Install:  opendocuments model install-ollama`)
+          log.arrow(`  or:     ${install.command}`)
         } else {
           log.arrow(`Download:  ${install.url}`)
         }
@@ -144,44 +145,169 @@ export function modelCommand() {
         return
       }
 
-      // Disk space pre-check
-      const estimate = estimateModelSize(name)
+      // Combined disk-space pre-check (sum across all requested models).
+      const estimates = names.map((n) => ({ name: n, size: estimateModelSize(n) }))
+      const totalEstimate = estimates.reduce((acc, e) => acc + (e.size ?? 0), 0)
       const available = getAvailableDiskBytes()
-      if (estimate && available !== null) {
-        const margin = 1.5e9 // keep 1.5GB headroom
-        log.info(`Estimated size:  ~${formatBytes(estimate)}`)
-        log.info(`Available disk:  ${formatBytes(available)}`)
-        if (available < estimate + margin) {
-          log.fail(
-            `Not enough free disk space (need ~${formatBytes(estimate + margin)}, have ${formatBytes(available)}).`,
-          )
-          if (!opts.yes) {
-            const { confirm } = await import('@inquirer/prompts')
-            const proceed = await confirm({ message: 'Pull anyway?', default: false })
-            if (!proceed) return
+      const margin = 1.5e9
+      if (totalEstimate > 0) {
+        log.info(`Estimated footprint:`)
+        for (const e of estimates) {
+          const line = e.size
+            ? `  ${e.name.padEnd(24)} ~${formatBytes(e.size)}`
+            : `  ${e.name.padEnd(24)} (size unknown)`
+          console.log(line)
+        }
+        if (names.length > 1) {
+          log.info(`  ${'total'.padEnd(24)} ~${formatBytes(totalEstimate)}`)
+        }
+        if (available !== null) {
+          log.info(`Available disk:  ${formatBytes(available)}`)
+          if (available < totalEstimate + margin) {
+            log.fail(
+              `Not enough free disk space (need ~${formatBytes(totalEstimate + margin)}, have ${formatBytes(available)}).`,
+            )
+            if (!opts.yes) {
+              const { confirm } = await import('@inquirer/prompts')
+              const proceed = await confirm({ message: 'Pull anyway?', default: false })
+              if (!proceed) return
+            }
           }
         }
-      } else if (estimate) {
-        log.info(`Estimated size: ~${formatBytes(estimate)} (disk-free lookup unavailable)`)
       }
 
-      log.wait(`Pulling ${chalk.cyan(name)} ...`)
-      let lastPrinted = ''
-      const ok = await pullOllamaModel(name, opts.baseUrl, (line) => {
-        if (line !== lastPrinted) {
-          lastPrinted = line
-          process.stdout.write(`\r\x1b[K  ${line}`)
+      const failures: string[] = []
+      for (const [i, name] of names.entries()) {
+        if (names.length > 1) {
+          log.blank()
+          log.heading(`[${i + 1}/${names.length}] ${name}`)
         }
-      })
-      process.stdout.write('\n')
+        log.wait(`Pulling ${chalk.cyan(name)} ...`)
+        let lastPrinted = ''
+        const ok = await pullOllamaModel(name, opts.baseUrl, (line) => {
+          if (line !== lastPrinted) {
+            lastPrinted = line
+            process.stdout.write(`\r\x1b[K  ${line}`)
+          }
+        })
+        process.stdout.write('\n')
 
-      if (ok) {
-        log.ok(`Pulled ${name}`)
-      } else {
-        log.fail(`Failed to pull ${name}`)
-        log.arrow(`Try manually:  ollama pull ${name}`)
+        if (ok) log.ok(`Pulled ${name}`)
+        else {
+          log.fail(`Failed to pull ${name}`)
+          failures.push(name)
+        }
+      }
+
+      if (failures.length > 0) {
+        log.blank()
+        log.fail(`${failures.length}/${names.length} pulls failed: ${failures.join(', ')}`)
+        log.arrow(`Retry manually:  ${failures.map((f) => `ollama pull ${f}`).join(' && ')}`)
         process.exitCode = 1
       }
+    })
+
+  // ---------- install-ollama ----------
+  cmd.command('install-ollama')
+    .description('Install Ollama via the official script (macOS/Linux)')
+    .option('--yes', 'Skip confirmation')
+    .action(async (opts: { yes?: boolean }) => {
+      const install = getOllamaInstallCommand()
+      if (!install.supported) {
+        log.fail('Automatic install is not supported on this platform (Windows).')
+        log.arrow(`Download manually: ${install.url}`)
+        process.exitCode = 1
+        return
+      }
+
+      if (await isOllamaRunning()) {
+        log.ok('Ollama is already running at http://localhost:11434')
+        return
+      }
+
+      log.info('About to run the official Ollama install script:')
+      log.dim(`  ${install.command}`)
+      log.blank()
+      if (!opts.yes) {
+        const { confirm } = await import('@inquirer/prompts')
+        const go = await confirm({ message: 'Proceed?', default: true })
+        if (!go) return
+      }
+
+      const { execSync } = await import('node:child_process')
+      try {
+        execSync(install.command!, { stdio: 'inherit' })
+      } catch (err) {
+        log.fail(`Install failed: ${(err as Error).message}`)
+        process.exitCode = 1
+        return
+      }
+
+      log.wait('Waiting for Ollama daemon to come up...')
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1500))
+        if (await isOllamaRunning()) {
+          log.ok('Ollama is running')
+          log.arrow('Next: opendocuments model pull gemma3:12b')
+          return
+        }
+      }
+      log.fail('Ollama did not come up within 15s. Try: ollama serve')
+      process.exitCode = 1
+    })
+
+  // ---------- set-key ----------
+  cmd.command('set-key <provider>')
+    .description('Save an API key to .env for the given provider')
+    .option('--key <value>', 'Pass the key inline (otherwise prompted)')
+    .option('--env-file <path>', 'Path to .env file', '.env')
+    .action(async (provider: string, opts: { key?: string; envFile: string }) => {
+      const envVar = envVarForProvider(provider)
+      if (!envVar) {
+        log.fail(`Unknown provider: ${provider}`)
+        log.arrow('Supported: openai, anthropic, google, grok, deepseek, mistral, openai-compatible')
+        process.exitCode = 1
+        return
+      }
+
+      let key = opts.key
+      if (!key) {
+        const { password } = await import('@inquirer/prompts')
+        key = await password({ message: `Enter ${envVar} (input hidden):`, mask: '*' })
+      }
+      if (!key) {
+        log.fail('Empty key — aborting.')
+        process.exitCode = 1
+        return
+      }
+
+      const envPath = join(process.cwd(), opts.envFile)
+      const existing = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
+      const pattern = new RegExp(`^${envVar}=.*$`, 'm')
+
+      let next: string
+      if (pattern.test(existing)) {
+        next = existing.replace(pattern, `${envVar}=${key}`)
+      } else {
+        const needsNewline = existing && !existing.endsWith('\n')
+        next = existing + (needsNewline ? '\n' : '') + `${envVar}=${key}\n`
+      }
+      writeFileSync(envPath, next)
+      log.ok(`Wrote ${envVar} to ${chalk.cyan(opts.envFile)}`)
+
+      // gitignore sanity check
+      const gitignorePath = join(process.cwd(), '.gitignore')
+      if (existsSync(gitignorePath)) {
+        const gi = readFileSync(gitignorePath, 'utf8')
+        if (!/^\.env($|\n)/m.test(gi) && !gi.split('\n').some((l) => l.trim() === '.env')) {
+          log.fail('.env is NOT in .gitignore — your key could leak if committed.')
+          log.arrow('Add to .gitignore:  .env')
+        }
+      } else {
+        log.info('No .gitignore found — consider creating one with `.env` listed.')
+      }
+
+      log.arrow('Validate with:  opendocuments doctor')
     })
 
   // ---------- rm ----------
@@ -366,4 +492,18 @@ function envVarName(provider: string): string {
     ollama: 'OLLAMA_URL',
   }
   return map[provider] || 'API_KEY'
+}
+
+/** Like envVarName but returns null for unknown providers (used by set-key). */
+function envVarForProvider(provider: string): string | null {
+  const map: Record<string, string> = {
+    openai: 'OPENAI_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    grok: 'XAI_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
+    'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY',
+  }
+  return map[provider] ?? null
 }
