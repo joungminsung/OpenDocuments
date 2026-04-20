@@ -85,6 +85,43 @@ describe('structure preservation', () => {
     expect(chunks[0].content).toContain('# Section Heading')
     expect(chunks[0].content).toContain('Redis')
   })
+
+  it('keeps a code block with internal blank lines together (would break the old paragraph splitter)', () => {
+    // Old splitter: text.split(/\n{2,}/) treats the blank lines INSIDE the fence as paragraph
+    // boundaries, producing multiple fragments and an unbalanced fence count in each chunk.
+    const text = [
+      'Intro paragraph explaining the snippet.',
+      '',
+      '```ts',
+      'function a() {',
+      '  return 1',
+      '}',
+      '',
+      'function b() {',
+      '  return 2',
+      '}',
+      '',
+      'function c() {',
+      '  return 3',
+      '}',
+      '```',
+      '',
+      'Outro paragraph.',
+    ].join('\n')
+    // Use a small maxTokens so the greedy old splitter is forced to break between
+    // the fragments it produces mid-fence. With maxTokens=512, the whole 44-token
+    // block fits in one chunk regardless of splitter, so the test wouldn't gate the fix.
+    const chunks = chunkText(text, { maxTokens: 20, overlap: 0 })
+    const fenced = chunks.filter(c => c.content.includes('```'))
+    // Exactly one chunk holds the fence, and it must open and close cleanly
+    expect(fenced.length).toBe(1)
+    const fenceMatches = (fenced[0].content.match(/```/g) || []).length
+    expect(fenceMatches).toBe(2)
+    // The interior functions must all be present
+    expect(fenced[0].content).toContain('function a()')
+    expect(fenced[0].content).toContain('function b()')
+    expect(fenced[0].content).toContain('function c()')
+  })
 })
 
 describe('semanticChunkText', () => {
