@@ -22,7 +22,6 @@ import { searchCommand } from './commands/search.js'
 import { completionCommand } from './commands/completion.js'
 import { upgradeCommand } from './commands/upgrade.js'
 import { backupCommand, restoreCommand } from './commands/backup.js'
-import { modelCommand } from './commands/model.js'
 
 const program = new Command()
 program
@@ -49,6 +48,5 @@ program.addCommand(completionCommand())
 program.addCommand(upgradeCommand())
 program.addCommand(backupCommand())
 program.addCommand(restoreCommand())
-program.addCommand(modelCommand())
 
 program.parse()
