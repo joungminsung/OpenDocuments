@@ -1,21 +1,31 @@
 import { Hono } from 'hono'
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import type { AppContext } from '../../bootstrap.js'
+import { requireRole, requireScope } from '../middleware/auth.js'
 
 const ALLOWED_PREFIX_SCOPED = '@opendocuments/'
 const ALLOWED_PREFIX_UNSCOPED = 'opendocuments-'
+const PLUGIN_NAME_PATTERN = /^(?:@opendocuments\/[a-z0-9][a-z0-9._-]*|opendocuments-[a-z0-9][a-z0-9._-]*)$/i
+
+function npmCommand(): string {
+  return process.platform === 'win32' ? 'npm.cmd' : 'npm'
+}
 
 function isValidPluginName(name: string): boolean {
-  return name.startsWith(ALLOWED_PREFIX_UNSCOPED) || name.startsWith(ALLOWED_PREFIX_SCOPED)
+  return PLUGIN_NAME_PATTERN.test(name)
 }
 
 export function pluginRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/plugins/search', async (c) => {
+  app.get('/api/v1/plugins/search', requireRole('admin'), requireScope('admin'), async (c) => {
     const q = c.req.query('q') || ''
     try {
-      const raw = execSync(`npm search opendocuments ${q} --json`, { timeout: 30000 }).toString()
+      const raw = execFileSync(
+        npmCommand(),
+        ['search', 'opendocuments', ...(q ? [q] : []), '--json'],
+        { encoding: 'utf-8', timeout: 30000 }
+      )
       const packages: unknown[] = JSON.parse(raw)
       return c.json({ packages })
     } catch (err) {
@@ -23,7 +33,7 @@ export function pluginRoutes(ctx: AppContext) {
     }
   })
 
-  app.get('/api/v1/plugins', async (c) => {
+  app.get('/api/v1/plugins', requireRole('admin'), requireScope('admin'), async (c) => {
     const plugins = ctx.registry.listAll()
     const details = await Promise.all(
       plugins.map(async (p) => {
@@ -40,7 +50,7 @@ export function pluginRoutes(ctx: AppContext) {
     return c.json({ plugins: details })
   })
 
-  app.post('/api/v1/plugins/install', async (c) => {
+  app.post('/api/v1/plugins/install', requireRole('admin'), requireScope('admin'), async (c) => {
     const body = await c.req.json<{ name: string }>()
     const name = body?.name?.trim()
 
@@ -52,17 +62,23 @@ export function pluginRoutes(ctx: AppContext) {
     }
 
     try {
-      execSync(`npm install ${name}`, { timeout: 60000 })
+      execFileSync(npmCommand(), ['install', name], { encoding: 'utf-8', timeout: 60000 })
       return c.json({ status: 'installed', message: 'Restart server to activate' })
     } catch (err) {
       return c.json({ error: `Install failed: ${(err as Error).message}` }, 500)
     }
   })
 
-  app.delete('/api/v1/plugins/:name', async (c) => {
-    const name = c.req.param('name')
+  app.delete('/api/v1/plugins/:name', requireRole('admin'), requireScope('admin'), async (c) => {
+    const name = (c.req.param('name') || '').trim()
+    if (!isValidPluginName(name)) {
+      return c.json(
+        { error: `Invalid plugin name. Package must start with "${ALLOWED_PREFIX_UNSCOPED}" or "${ALLOWED_PREFIX_SCOPED}"` },
+        400
+      )
+    }
     try {
-      execSync(`npm uninstall ${name}`, { timeout: 30000 })
+      execFileSync(npmCommand(), ['uninstall', name], { encoding: 'utf-8', timeout: 30000 })
       return c.json({ status: 'removed' })
     } catch (err) {
       return c.json({ error: `Uninstall failed: ${(err as Error).message}` }, 500)

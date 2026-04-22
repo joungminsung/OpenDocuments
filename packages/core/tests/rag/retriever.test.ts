@@ -66,16 +66,16 @@ describe('Retriever', () => {
     expect(redisResult).toBeDefined()
   })
 
-  it('FTS5 searchFTS returns results for keyword match', () => {
-    const results = store.searchFTS('Redis', 5)
+  it('FTS5 searchFTS returns results for keyword match', async () => {
+    const results = await store.searchFTS('Redis', 5)
     expect(results.length).toBeGreaterThan(0)
     expect(results[0].content).toContain('Redis')
     expect(results[0].score).toBeGreaterThan(0)
     expect(results[0].score).toBeLessThanOrEqual(1)
   })
 
-  it('FTS5 searchFTS returns empty for non-matching query', () => {
-    const results = store.searchFTS('nonexistentterm12345', 5)
+  it('FTS5 searchFTS returns empty for non-matching query', async () => {
+    const results = await store.searchFTS('nonexistentterm12345', 5)
     expect(results).toHaveLength(0)
   })
 })
@@ -119,7 +119,7 @@ describe('Adjacent chunk retrieval', () => {
     // Store already has 3 chunks at positions 0, 1, 2 from beforeEach
     const docId = store.listDocuments()[0].id
     const chunkId = `${docId}_chunk_1`
-    const adjacent = store.getAdjacentChunks(chunkId, 1)
+    const adjacent = await store.getAdjacentChunks(chunkId, 1)
     expect(adjacent.length).toBeGreaterThanOrEqual(1)
     const positions = adjacent.map(c => {
       const pos = c.chunkId.match(/_chunk_(\d+)$/)?.[1]
@@ -128,15 +128,15 @@ describe('Adjacent chunk retrieval', () => {
     expect(positions.some(p => p === 0 || p === 2)).toBe(true)
   })
 
-  it('getAdjacentChunks returns empty for non-existent chunk', () => {
-    const adjacent = store.getAdjacentChunks('nonexistent_chunk_0', 1)
+  it('getAdjacentChunks returns empty for non-existent chunk', async () => {
+    const adjacent = await store.getAdjacentChunks('nonexistent_chunk_0', 1)
     expect(adjacent).toHaveLength(0)
   })
 
   it('getAdjacentChunks does not return the chunk itself', async () => {
     const docId = store.listDocuments()[0].id
     const chunkId = `${docId}_chunk_1`
-    const adjacent = store.getAdjacentChunks(chunkId, 1)
+    const adjacent = await store.getAdjacentChunks(chunkId, 1)
     const ids = adjacent.map(c => c.chunkId)
     expect(ids).not.toContain(chunkId)
   })
@@ -181,14 +181,14 @@ describe('Retriever with sibling expansion', () => {
     const baseResults = await retriever.retrieve('Redis', { k: 3, finalTopK: 1, minScore: 0 })
     expect(baseResults.length).toBe(1)
 
-    const expanded = retriever.expandWithSiblings(baseResults, store, 1)
+    const expanded = await retriever.expandWithSiblings(baseResults, store, 1)
     expect(expanded.length).toBeGreaterThan(baseResults.length)
     expect(expanded[0].chunkId).toBe(baseResults[0].chunkId)
   })
 
   it('expandWithSiblings deduplicates chunks', async () => {
     const baseResults = await retriever.retrieve('Redis', { k: 3, finalTopK: 3, minScore: 0 })
-    const expanded = retriever.expandWithSiblings(baseResults, store, 1)
+    const expanded = await retriever.expandWithSiblings(baseResults, store, 1)
     const ids = expanded.map(r => r.chunkId)
     const uniqueIds = new Set(ids)
     expect(ids.length).toBe(uniqueIds.size)

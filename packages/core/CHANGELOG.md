@@ -1,8 +1,15 @@
 # opendocuments-core
 
+## 0.3.0
+
+### Minor Changes
+
+- 4100683: Ship the RAG accuracy and operations upgrade: structure-preserving chunking, contextual retrieval, HyDE + multi-query + parent-document recall, proposition augmentation, cross-encoder reranking, adaptive context fitting, evaluation tooling, backup and restore CLI commands, and tighter workspace-scoped server auth and plugin controls.
+
 ## [Unreleased]
 
 ### Added
+
 - Structure-preserving chunking: fenced code blocks, pipe tables, and heading+first-paragraph units stay atomic during chunking.
 - Document-type-aware chunk dispatcher (markdown / code / table / data / prose / api) with per-strategy token budgets.
 - Contextual Retrieval: LLM-authored 1-2 sentence situating prefix is prepended to each chunk before embedding (behind `features.contextualRetrieval` profile flag).
@@ -14,9 +21,11 @@
 - RAG evaluation harness: `hitAtK`, `reciprocalRank`, `nDCG`, `evaluate(engine, cases)` plus a 10-case bilingual gold dataset.
 
 ### Changed
+
 - `IngestPipeline.ingest()` now accepts an optional options arg: `{ contextualRetrieval?: boolean; chunkAugmentation?: boolean }`.
 - `StoredChunk` and `SearchResult` gained optional `contextualPrefix` and `parentSection` fields.
 - `chunkText()` now flushes chunks at heading boundaries so each chunk belongs to a single section.
 
 ### Fixed
+
 - Pipeline now actually uses `semanticChunkText()` when an embedding model is registered; previously the function existed but was never invoked from the pipeline.

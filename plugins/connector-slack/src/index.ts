@@ -27,8 +27,8 @@ interface SlackChannel {
 export class SlackConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-slack'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private token = ''
   private channels: string[] = []

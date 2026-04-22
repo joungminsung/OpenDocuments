@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { checkForUpdates } from './utils/update-checker.js'
+import { SERVER_VERSION } from './version.js'
 import {
   loadConfig,
   log,
@@ -27,10 +28,13 @@ import {
   PIIRedactor,
   AuditLogger,
   DocumentVersionManager,
+  TagManager,
+  CollectionManager,
   type DB,
   type VectorDB,
   type ModelPlugin,
   type PluginContext,
+  type ConnectorPlugin,
   type EmbeddingResult,
   type RerankResult,
   type GenerateOpts,
@@ -67,8 +71,8 @@ function createStubEmbedder(dimensions: number): ModelPlugin {
   return {
     name: '@opendocuments/stub-embedder',
     type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
+    version: '0.3.0',
+    coreVersion: '^0.3.0',
     capabilities: { embedding: true },
     async setup(_ctx: PluginContext): Promise<void> {},
     async teardown(): Promise<void> {},
@@ -86,8 +90,8 @@ function createStubLLM(): ModelPlugin {
   return {
     name: '@opendocuments/stub-llm',
     type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
+    version: '0.3.0',
+    coreVersion: '^0.3.0',
     capabilities: { llm: true },
     async setup(_ctx: PluginContext): Promise<void> {},
     async teardown(): Promise<void> {},
@@ -299,7 +303,18 @@ export interface AppContext {
   connectorManager: ConnectorManager
   apiKeyManager: APIKeyManager
   auditLogger: AuditLogger
+  forWorkspace: (workspaceId?: string) => WorkspaceServices
   shutdown: () => Promise<void>
+}
+
+export interface WorkspaceServices {
+  workspaceId: string
+  store: DocumentStore
+  pipeline: IngestPipeline
+  conversationManager: ConversationManager
+  connectorManager: ConnectorManager
+  tagManager: TagManager
+  collectionManager: CollectionManager
 }
 
 /* ------------------------------------------------------------------ */
@@ -348,6 +363,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const vectorDir = join(dataDir, 'vectors')
     mkdirSync(vectorDir, { recursive: true })
     vectorDb = await createLanceDB(vectorDir)
+    const sqliteDb = db
+    const lanceDb = vectorDb
 
     // 5. Create PluginRegistry, EventBus, MiddlewareRunner
     const registry = new PluginRegistry()
@@ -464,30 +481,115 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const workspaceManager = new WorkspaceManager(db)
     const defaultWorkspace = workspaceManager.ensureDefault()
 
-    // 11. Create DocumentStore (with workspace ID from default workspace)
-    const store = new DocumentStore(db, vectorDb, defaultWorkspace.id)
+    // 11. Create workspace-scoped services
+    const documentStores = new Map<string, DocumentStore>()
+    const pipelines = new Map<string, IngestPipeline>()
+    const conversationManagers = new Map<string, ConversationManager>()
+    const connectorManagers = new Map<string, ConnectorManager>()
+    const tagManagers = new Map<string, TagManager>()
+    const collectionManagers = new Map<string, CollectionManager>()
+    const configuredConnectors: Array<{
+      plugin: ConnectorPlugin
+      config: { name?: string; syncIntervalSeconds?: number }
+    }> = []
+
+    const ensureWorkspaceExists = (workspaceId: string) => {
+      if (!workspaceManager.getById(workspaceId)) {
+        throw new Error(`Workspace not found: ${workspaceId}`)
+      }
+    }
+
+    const autoRedactConfig = config.security.dataPolicy.autoRedact
+    const redactor = new PIIRedactor(autoRedactConfig)
+    const versionManager = new DocumentVersionManager(db)
+
+    const getStoreForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let scopedStore = documentStores.get(workspaceId)
+      if (!scopedStore) {
+        scopedStore = new DocumentStore(sqliteDb, lanceDb, workspaceId)
+        documentStores.set(workspaceId, scopedStore)
+      }
+      return scopedStore
+    }
+
+    const getPipelineForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let scopedPipeline = pipelines.get(workspaceId)
+      if (!scopedPipeline) {
+        scopedPipeline = new IngestPipeline({
+          store: getStoreForWorkspace(workspaceId),
+          registry,
+          eventBus,
+          middleware,
+          embeddingDimensions,
+          config,
+          redactor,
+          versionManager,
+        })
+        pipelines.set(workspaceId, scopedPipeline)
+      }
+      return scopedPipeline
+    }
+
+    const getConversationManagerForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let manager = conversationManagers.get(workspaceId)
+      if (!manager) {
+        manager = new ConversationManager(sqliteDb, workspaceId)
+        conversationManagers.set(workspaceId, manager)
+      }
+      return manager
+    }
+
+    const getTagManagerForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let manager = tagManagers.get(workspaceId)
+      if (!manager) {
+        manager = new TagManager(sqliteDb, workspaceId)
+        tagManagers.set(workspaceId, manager)
+      }
+      return manager
+    }
+
+    const getCollectionManagerForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let manager = collectionManagers.get(workspaceId)
+      if (!manager) {
+        manager = new CollectionManager(sqliteDb, workspaceId)
+        collectionManagers.set(workspaceId, manager)
+      }
+      return manager
+    }
+
+    const getConnectorManagerForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let manager = connectorManagers.get(workspaceId)
+      if (!manager) {
+        manager = new ConnectorManager(
+          getPipelineForWorkspace(workspaceId),
+          getStoreForWorkspace(workspaceId),
+          eventBus,
+          sqliteDb,
+          workspaceId
+        )
+        for (const registration of configuredConnectors) {
+          manager.registerConnector(registration.plugin, registration.config)
+        }
+        connectorManagers.set(workspaceId, manager)
+      }
+      return manager
+    }
+
+    const store = getStoreForWorkspace(defaultWorkspace.id)
     await store.initialize(embeddingDimensions)
 
     // 12. Create IngestPipeline and RAGEngine
-    const autoRedactConfig = config.security.dataPolicy.autoRedact
-    const redactor = new PIIRedactor(autoRedactConfig)
-
-    const versionManager = new DocumentVersionManager(db)
-
-    const pipeline = new IngestPipeline({
-      store,
-      registry,
-      eventBus,
-      middleware,
-      embeddingDimensions,
-      config,
-      redactor,
-      versionManager,
-    })
+    const pipeline = getPipelineForWorkspace(defaultWorkspace.id)
 
     // Capture for shutdown closure
-    const dbRef = db
-    const vectorDbRef = vectorDb
+    const dbRef = sqliteDb
+    const vectorDbRef = lanceDb
 
     // Load web search provider if Tavily API key is configured
     let webSearchProvider: unknown = undefined
@@ -523,14 +625,14 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     })
 
     // 13. Create ConversationManager
-    const conversationManager = new ConversationManager(db, defaultWorkspace.id)
+    const conversationManager = getConversationManagerForWorkspace(defaultWorkspace.id)
 
     // 14. Create APIKeyManager and AuditLogger
     const apiKeyManager = new APIKeyManager(db)
     const auditLogger = new AuditLogger(db, config.security.audit)
 
     // 15. Create ConnectorManager
-    const connectorManager = new ConnectorManager(pipeline, store, eventBus, db, defaultWorkspace.id)
+    const connectorManager = getConnectorManagerForWorkspace(defaultWorkspace.id)
 
     // 16. Start auto-purge scheduler (hard-delete soft-deleted records older than 30 days)
     // Auto-purge timer. Cleared in shutdown(). If bootstrap is called multiple times
@@ -541,11 +643,11 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
         // Hard delete documents that have been soft-deleted for 30+ days
         const expired = dbRef.all<any>(
-          'SELECT id FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+          'SELECT id, workspace_id FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?',
           [thirtyDaysAgo]
         )
         for (const doc of expired) {
-          store.hardDeleteDocument(doc.id).catch(() => {})
+          getStoreForWorkspace(doc.workspace_id).hardDeleteDocument(doc.id).catch(() => {})
         }
         // Also clean expired conversations
         dbRef.run('DELETE FROM conversations WHERE deleted_at IS NOT NULL AND deleted_at < ?', [thirtyDaysAgo])
@@ -586,10 +688,14 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
         }
 
         await registry.register(connector, connectorCtx)
-        connectorManager.registerConnector(connector, {
+        const registration = {
           name: connectorConfig.type,
           syncIntervalSeconds: (connectorConfig as any).syncInterval || 300,
-        })
+        }
+        configuredConnectors.push({ plugin: connector, config: registration })
+        for (const manager of connectorManagers.values()) {
+          manager.registerConnector(connector, registration)
+        }
       } catch (err) {
         log.fail(`Failed to load connector ${connectorConfig.type}: ${(err as Error).message}`)
       }
@@ -599,15 +705,30 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const shutdown = async (): Promise<void> => {
       clearInterval(purgeTimer)
       webhookDispatcher?.destroy()
-      connectorManager.stopAll()
+      for (const manager of connectorManagers.values()) {
+        manager.stopAll()
+      }
       await registry.teardownAll()
       eventBus.removeAllListeners()
       await vectorDbRef.close()
       dbRef.close()
     }
 
+    const forWorkspace = (workspaceId?: string): WorkspaceServices => {
+      const resolvedWorkspaceId = workspaceId || defaultWorkspace.id
+      return {
+        workspaceId: resolvedWorkspaceId,
+        store: getStoreForWorkspace(resolvedWorkspaceId),
+        pipeline: getPipelineForWorkspace(resolvedWorkspaceId),
+        conversationManager: getConversationManagerForWorkspace(resolvedWorkspaceId),
+        connectorManager: getConnectorManagerForWorkspace(resolvedWorkspaceId),
+        tagManager: getTagManagerForWorkspace(resolvedWorkspaceId),
+        collectionManager: getCollectionManagerForWorkspace(resolvedWorkspaceId),
+      }
+    }
+
     // Non-blocking update check — fires and forgets so it never delays startup.
-    checkForUpdates('0.2.0').then(info => {
+    checkForUpdates(SERVER_VERSION).then(info => {
       if (info.updateAvailable) {
         log.info(`Update available: v${info.latestVersion} (current: v${info.currentVersion}). Run: npm install -g opendocuments@latest`)
       }
@@ -615,8 +736,8 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     return {
       config,
-      db,
-      vectorDb,
+      db: sqliteDb,
+      vectorDb: lanceDb,
       registry,
       eventBus,
       middleware,
@@ -628,6 +749,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       connectorManager,
       apiKeyManager,
       auditLogger,
+      forWorkspace,
       shutdown,
     }
   } catch (err) {

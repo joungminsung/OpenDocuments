@@ -1,39 +1,50 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { requireRole, requireScope } from '../middleware/auth.js'
+import { resolveRequestWorkspaceId } from '../workspace.js'
 
 export function adminRoutes(ctx: AppContext) {
   const app = new Hono()
 
   app.get('/api/v1/admin/audit-logs', requireRole('admin'), requireScope('admin'), (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 500)
     const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
     const eventType = c.req.query('eventType') || undefined
-    const workspaceId = c.req.query('workspaceId') || undefined
 
-    const entries = ctx.auditLogger.query({ limit, offset, eventType, workspaceId })
+    const entries = ctx.auditLogger.query({
+      limit,
+      offset,
+      eventType,
+      workspaceId,
+    })
     return c.json({ entries })
   })
 
   app.get('/api/v1/admin/stats', requireRole('admin'), requireScope('admin'), (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const summary = ctx.db.get<any>(
-      'SELECT COUNT(*) as docCount, COALESCE(SUM(chunk_count), 0) as chunkCount FROM documents WHERE deleted_at IS NULL'
+      'SELECT COUNT(*) as docCount, COALESCE(SUM(chunk_count), 0) as chunkCount FROM documents WHERE deleted_at IS NULL AND workspace_id = ?',
+      [workspaceId]
     )
 
     const sourceDist = ctx.db.all<any>(
-      'SELECT source_type, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY source_type'
+      'SELECT source_type, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY source_type',
+      [workspaceId]
     )
     const sourceDistribution: Record<string, number> = {}
     for (const row of sourceDist) sourceDistribution[row.source_type] = row.count
 
     const statusDist = ctx.db.all<any>(
-      'SELECT status, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY status'
+      'SELECT status, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY status',
+      [workspaceId]
     )
     const statusDistribution: Record<string, number> = {}
     for (const row of statusDist) statusDistribution[row.status] = row.count
 
     const fileTypeDist = ctx.db.all<any>(
-      "SELECT COALESCE(file_type, 'unknown') as ft, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY ft"
+      "SELECT COALESCE(file_type, 'unknown') as ft, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY ft",
+      [workspaceId]
     )
     const fileTypeDistribution: Record<string, number> = {}
     for (const row of fileTypeDist) fileTypeDistribution[row.ft] = row.count
@@ -50,19 +61,23 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   app.get('/api/v1/admin/search-quality', requireRole('admin'), requireScope('admin'), (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
     // Aggregate in SQL
     const summary = ctx.db.get<any>(
-      'SELECT COUNT(*) as totalQueries, AVG(confidence_score) as avgConfidence, AVG(response_time_ms) as avgResponseTime FROM query_logs'
+      'SELECT COUNT(*) as totalQueries, AVG(confidence_score) as avgConfidence, AVG(response_time_ms) as avgResponseTime FROM query_logs WHERE workspace_id = ?',
+      [workspaceId]
     )
 
     const intents = ctx.db.all<any>(
-      'SELECT intent, COUNT(*) as count FROM query_logs GROUP BY intent'
+      'SELECT intent, COUNT(*) as count FROM query_logs WHERE workspace_id = ? GROUP BY intent',
+      [workspaceId]
     )
     const intentDistribution: Record<string, number> = {}
     for (const row of intents) intentDistribution[row.intent || 'general'] = row.count
 
     const routes = ctx.db.all<any>(
-      'SELECT route, COUNT(*) as count FROM query_logs GROUP BY route'
+      'SELECT route, COUNT(*) as count FROM query_logs WHERE workspace_id = ? GROUP BY route',
+      [workspaceId]
     )
     const routeDistribution: Record<string, number> = {}
     for (const row of routes) routeDistribution[row.route || 'unknown'] = row.count
@@ -71,7 +86,8 @@ export function adminRoutes(ctx: AppContext) {
       `SELECT
         SUM(CASE WHEN feedback = 'positive' THEN 1 ELSE 0 END) as positive,
         SUM(CASE WHEN feedback = 'negative' THEN 1 ELSE 0 END) as negative
-      FROM query_logs WHERE feedback IS NOT NULL`
+      FROM query_logs WHERE feedback IS NOT NULL AND workspace_id = ?`,
+      [workspaceId]
     )
 
     return c.json({
@@ -85,13 +101,14 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   app.get('/api/v1/admin/query-logs', requireRole('admin'), requireScope('admin'), (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '50', 10) || 50, 1), 500)
     const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
     const intent = c.req.query('intent')
     const route = c.req.query('route')
 
-    let sql = 'SELECT * FROM query_logs WHERE 1=1'
-    const params: unknown[] = []
+    let sql = 'SELECT * FROM query_logs WHERE workspace_id = ?'
+    const params: unknown[] = [workspaceId]
 
     if (intent) { sql += ' AND intent = ?'; params.push(intent) }
     if (route) { sql += ' AND route = ?'; params.push(route) }
@@ -101,8 +118,8 @@ export function adminRoutes(ctx: AppContext) {
 
     const logs = ctx.db.all<any>(sql, params)
 
-    let countSql = 'SELECT COUNT(*) as count FROM query_logs WHERE 1=1'
-    const countParams: unknown[] = []
+    let countSql = 'SELECT COUNT(*) as count FROM query_logs WHERE workspace_id = ?'
+    const countParams: unknown[] = [workspaceId]
     if (intent) { countSql += ' AND intent = ?'; countParams.push(intent) }
     if (route) { countSql += ' AND route = ?'; countParams.push(route) }
     const total = ctx.db.get<any>(countSql, countParams)
@@ -218,7 +235,8 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   app.get('/api/v1/admin/connectors', requireRole('admin'), requireScope('admin'), (c) => {
-    const connectors = ctx.connectorManager.listConnectors()
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const connectors = ctx.forWorkspace(workspaceId).connectorManager.listConnectors()
     return c.json({ connectors })
   })
 

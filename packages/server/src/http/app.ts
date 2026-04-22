@@ -13,6 +13,7 @@ import { tagRoutes } from './routes/tags.js'
 import { collectionRoutes } from './routes/collections.js'
 import { pluginRoutes } from './routes/plugins.js'
 import { authRoutes } from './routes/auth-routes.js'
+import { getSharedConversationHandler } from './routes/conversations.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import type { AppContext } from '../bootstrap.js'
@@ -43,6 +44,9 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
 
   // Mount OAuth routes BEFORE authMiddleware (public routes -- no API key required)
   app.route('/', authRoutes(ctx))
+  const sharedConversationHandler = getSharedConversationHandler(ctx)
+  app.get('/shared/:token', sharedConversationHandler)
+  app.get('/api/v1/shared/:token', sharedConversationHandler)
 
   // Auth middleware: personal mode passes through, team mode requires X-API-Key
   app.use('/api/*', authMiddleware(ctx))

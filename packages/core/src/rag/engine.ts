@@ -13,12 +13,14 @@ import { expandQuery, reciprocalRankFusion } from './cross-lingual.js'
 import { rerankResults } from './reranker.js'
 import { checkGrounding, checkSemanticGrounding } from './grounding.js'
 import { createQueryCache } from './cache.js'
-import { fitToContextWindow } from './context-window.js'
+import { DEFAULT_CONTEXT_WINDOW_CONFIG, fitToContextWindow } from './context-window.js'
 import { generateHypotheticalAnswer } from './hyde.js'
 import { expandMultiQuery } from './multi-query.js'
 import { attachParentContext } from './parent-doc.js'
 import { crossEncoderRerank } from './cross-encoder.js'
 import { sha256 } from '../utils/hash.js'
+import { getSystemPrompt, trimConversationHistory } from './generator.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface QueryInput {
   query: string
@@ -114,6 +116,10 @@ export class RAGEngine {
     this.retriever = new Retriever(this.store, this.embedder)
   }
 
+  private buildCacheKey(query: string, profile: string, conversationHistory?: string): string {
+    return sha256(`${query}\x00${profile}\x00${conversationHistory || ''}`)
+  }
+
   async query(input: QueryInput): Promise<QueryResult> {
     const trimmedQuery = (input.query || '').trim()
     if (!trimmedQuery) {
@@ -122,12 +128,13 @@ export class RAGEngine {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
+    const trimmedHistory = trimConversationHistory(input.conversationHistory, config.context.historyMaxTokens)
     const route = routeQuery(trimmedQuery)
 
     this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
 
     // L1 cache check (null byte delimiter prevents "queryA" + "B" == "query" + "AB" collisions)
-    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
+    const cacheKey = this.buildCacheKey(trimmedQuery, profileName, trimmedHistory)
 
     if (route === 'direct') {
       return this.handleDirect(queryId, trimmedQuery, profileName)
@@ -138,7 +145,7 @@ export class RAGEngine {
       return { ...cached, queryId }
     }
 
-    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route, input.conversationHistory)
+    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route, trimmedHistory)
     // Note: Full QueryResult including source content is cached.
     // Memory impact: ~500 entries * ~10KB average = ~5MB max. Acceptable for L1 cache.
     this.queryCache.set(cacheKey, result)
@@ -153,6 +160,7 @@ export class RAGEngine {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
+    const trimmedHistory = trimConversationHistory(input.conversationHistory, config.context.historyMaxTokens)
     const route = routeQuery(trimmedQuery)
 
     this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
@@ -171,7 +179,7 @@ export class RAGEngine {
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config, intent)
+    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config, intent, trimmedHistory)
 
     // Apply metadata-based boosting
     sources = boostByMetadata(sources, trimmedQuery, intent)
@@ -188,7 +196,8 @@ export class RAGEngine {
       query: trimmedQuery,
       context: sources,
       intent,
-      conversationHistory: input.conversationHistory,
+      conversationHistory: trimmedHistory,
+      maxHistoryTokens: config.context.historyMaxTokens,
     }
 
     let fullAnswer = ''
@@ -212,7 +221,7 @@ export class RAGEngine {
     }
 
     // Cache the streamed result
-    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
+    const cacheKey = this.buildCacheKey(trimmedQuery, profileName, trimmedHistory)
     this.queryCache.set(cacheKey, {
       queryId, answer: fullAnswer, sources, confidence, route, profile: profileName,
     })
@@ -247,7 +256,7 @@ export class RAGEngine {
     const intent = classifyIntent(query)
 
     // Retrieve with decomposition and cross-lingual support
-    let sources = await this.retrieveWithFeatures(queryId, query, config, intent)
+    let sources = await this.retrieveWithFeatures(queryId, query, config, intent, conversationHistory)
 
     // Apply metadata-based boosting
     sources = boostByMetadata(sources, query, intent)
@@ -262,6 +271,7 @@ export class RAGEngine {
       context: sources,
       intent,
       conversationHistory,
+      maxHistoryTokens: config.context.historyMaxTokens,
     }
 
     let answer = ''
@@ -306,6 +316,7 @@ export class RAGEngine {
     query: string,
     config: RAGProfileConfig,
     intent?: import('./intent.js').QueryIntent,
+    conversationHistory?: string,
   ): Promise<SearchResult[]> {
     // Decompose query if enabled
     const decomposed = config.features.queryDecomposition
@@ -384,10 +395,16 @@ export class RAGEngine {
     results = results.slice(0, config.retrieval.finalTopK)
 
     // Expand with sibling chunks for additional context
-    results = this.retriever.expandWithSiblings(results, this.store, 1)
+    results = await this.retriever.expandWithSiblings(results, this.store, 1)
 
     // Fit chunks into context window budget
-    results = fitToContextWindow(results, undefined, 0, 0, intent)
+    const contextWindowConfig = {
+      ...DEFAULT_CONTEXT_WINDOW_CONFIG,
+      maxContextTokens: config.context.maxTokens,
+    }
+    const systemPromptTokens = estimateTokens(getSystemPrompt({ intent: intent || 'general' }))
+    const historyTokens = estimateTokens(conversationHistory || '')
+    results = fitToContextWindow(results, contextWindowConfig, historyTokens, systemPromptTokens, intent)
 
     // Web search integration
     if (this.webSearchProvider && config.features.webSearch) {

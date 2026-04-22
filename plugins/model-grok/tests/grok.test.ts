@@ -20,7 +20,7 @@ describe('GrokModelPlugin', () => {
   it('has correct metadata', () => {
     expect(plugin.name).toBe('@opendocuments/model-grok')
     expect(plugin.type).toBe('model')
-    expect(plugin.version).toBe('0.1.0')
+    expect(plugin.version).toBe('0.1.1')
     expect(plugin.capabilities.llm).toBe(true)
     expect(plugin.capabilities.embedding).toBe(true)
     expect(plugin.capabilities.reranker).toBe(false)

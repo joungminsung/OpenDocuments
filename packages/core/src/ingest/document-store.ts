@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DB } from '../storage/db.js'
-import type { VectorDB } from '../storage/vector-db.js'
+import type { VectorDB, VectorRecord } from '../storage/vector-db.js'
 
 const COLLECTION = 'opendocuments_chunks'
 
@@ -101,7 +101,8 @@ export class DocumentStore {
 
   getDocument(id: string): DocumentRow | undefined {
     return this.db.get<DocumentRow>(
-      'SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]
+      'SELECT * FROM documents WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
+      [id, this.workspaceId]
     )
   }
 
@@ -205,7 +206,26 @@ export class DocumentStore {
     })
   }
 
-  searchFTS(query: string, topK: number): SearchResult[] {
+  private toSearchResult(record: VectorRecord, score: number): SearchResult | null {
+    const docId = record.metadata.document_id as string
+    const doc = this.getDocument(docId)
+    if (!doc) return null
+
+    return {
+      chunkId: record.id,
+      content: record.content,
+      score,
+      documentId: docId,
+      chunkType: (record.metadata.chunk_type as string) || 'semantic',
+      headingHierarchy: JSON.parse((record.metadata.heading_hierarchy as string) || '[]'),
+      sourcePath: doc.source_path,
+      sourceType: doc.source_type,
+      contextualPrefix: (record.metadata.contextual_prefix as string) || undefined,
+      parentSection: (record.metadata.parent_section as string) || undefined,
+    }
+  }
+
+  async searchFTS(query: string, topK: number): Promise<SearchResult[]> {
     // Sanitize for FTS5: strip operators, wrap each token in double quotes
     const safeQuery = query
       .split(/\s+/)
@@ -222,23 +242,25 @@ export class DocumentStore {
       `SELECT chunk_id, content, rank FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?`,
       [safeQuery, topK]
     )
-    return rows.map((r) => {
-      const docId = r.chunk_id.split('_chunk_')[0]
-      const doc = this.getDocument(docId)
-      return {
-        chunkId: r.chunk_id,
-        content: r.content,
-        score: 1 / (1 + Math.abs(r.rank)), // normalize FTS5 rank to 0-1
-        documentId: docId,
-        chunkType: 'semantic',
-        headingHierarchy: [],
-        sourcePath: doc?.source_path || '',
-        sourceType: doc?.source_type || '',
-      }
-    })
+    if (rows.length === 0) return []
+
+    const records = await this.vectorDb.getByIds(
+      COLLECTION,
+      rows.map((row) => row.chunk_id),
+      { workspace_id: this.workspaceId },
+    )
+    const byId = new Map(records.map((record) => [record.id, record]))
+
+    return rows
+      .map((row) => {
+        const record = byId.get(row.chunk_id)
+        if (!record) return null
+        return this.toSearchResult(record, 1 / (1 + Math.abs(row.rank)))
+      })
+      .filter((result): result is SearchResult => result !== null)
   }
 
-  getAdjacentChunks(chunkId: string, window = 1): SearchResult[] {
+  async getAdjacentChunks(chunkId: string, window = 1): Promise<SearchResult[]> {
     const match = chunkId.match(/^(.+)_chunk_(\d+)$/)
     if (!match) return []
     const [, documentId, posStr] = match
@@ -253,28 +275,20 @@ export class DocumentStore {
       adjacentIds.push(`${documentId}_chunk_${position + offset}`)
     }
 
-    const results: SearchResult[] = []
-    for (const adjId of adjacentIds) {
-      interface FTSRow { chunk_id: string; content: string; [key: string]: unknown }
-      const row = this.db.get<FTSRow>(
-        'SELECT chunk_id, content FROM chunks_fts WHERE chunk_id = ?',
-        [adjId]
-      )
-      if (row) {
-        results.push({
-          chunkId: row.chunk_id,
-          content: row.content,
-          score: 0,
-          documentId,
-          chunkType: 'semantic',
-          headingHierarchy: [],
-          sourcePath: doc.source_path,
-          sourceType: doc.source_type,
-        })
-      }
-    }
+    const records = await this.vectorDb.getByIds(
+      COLLECTION,
+      adjacentIds,
+      { workspace_id: this.workspaceId },
+    )
+    const byId = new Map(records.map((record) => [record.id, record]))
 
-    return results
+    return adjacentIds
+      .map((adjId) => {
+        const record = byId.get(adjId)
+        if (!record) return null
+        return this.toSearchResult(record, 0)
+      })
+      .filter((result): result is SearchResult => result !== null)
   }
 
   /**
@@ -286,8 +300,8 @@ export class DocumentStore {
     // Soft delete: set deleted_at timestamp
     const now = new Date().toISOString()
     this.db.run(
-      'UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ?',
-      [now, now, documentId]
+      'UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [now, now, documentId, this.workspaceId]
     )
     // Clean FTS index
     const escapedId = documentId.replace(/%/g, '\\%').replace(/_/g, '\\_')
@@ -301,7 +315,7 @@ export class DocumentStore {
     await this.vectorDb.deleteByFilter(COLLECTION, { document_id: documentId })
 
     // Step 2: Delete SQLite row permanently.
-    this.db.run('DELETE FROM documents WHERE id = ?', [documentId])
+    this.db.run('DELETE FROM documents WHERE id = ? AND workspace_id = ?', [documentId, this.workspaceId])
   }
 
   /**
@@ -310,8 +324,8 @@ export class DocumentStore {
    */
   restoreDocument(documentId: string): void {
     this.db.run(
-      'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ?',
-      ['pending', new Date().toISOString(), documentId]
+      'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      ['pending', new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 
@@ -324,8 +338,8 @@ export class DocumentStore {
 
   updateContentHash(documentId: string, hash: string): void {
     this.db.run(
-      'UPDATE documents SET content_hash = ?, updated_at = ? WHERE id = ?',
-      [hash, new Date().toISOString(), documentId]
+      'UPDATE documents SET content_hash = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [hash, new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 
@@ -337,8 +351,8 @@ export class DocumentStore {
 
   updateStatus(documentId: string, status: string, errorMessage?: string): void {
     this.db.run(
-      'UPDATE documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ?',
-      [status, errorMessage || null, new Date().toISOString(), documentId]
+      'UPDATE documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [status, errorMessage || null, new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 }

@@ -1,5 +1,6 @@
 import type { SearchResult } from '../ingest/document-store.js'
 import type { ModelPlugin } from '../plugin/interfaces.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface GenerateInput {
   query: string
@@ -7,6 +8,7 @@ export interface GenerateInput {
   intent: string
   systemPrompt?: string
   conversationHistory?: string
+  maxHistoryTokens?: number
 }
 
 const INTENT_PROMPTS: Record<string, string> = {
@@ -19,8 +21,56 @@ const INTENT_PROMPTS: Record<string, string> = {
   general: 'You are a helpful documentation assistant. Answer questions accurately based on the provided context. If the context does not contain enough information, say so clearly.',
 }
 
+export function getSystemPrompt(input: Pick<GenerateInput, 'intent' | 'systemPrompt'>): string {
+  return input.systemPrompt || INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general
+}
+
+function trimLineToTokenBudget(line: string, maxTokens: number): string {
+  const words = line.trim().split(/\s+/)
+  const kept: string[] = []
+
+  for (let i = words.length - 1; i >= 0; i--) {
+    kept.unshift(words[i])
+    const candidate = kept.join(' ')
+    if (estimateTokens(candidate) > maxTokens) {
+      kept.shift()
+      break
+    }
+  }
+
+  return kept.join(' ')
+}
+
+export function trimConversationHistory(history?: string, maxHistoryTokens?: number): string | undefined {
+  if (!history) return undefined
+
+  const normalized = history.trim()
+  if (!normalized) return undefined
+  if (!maxHistoryTokens || maxHistoryTokens <= 0) return normalized
+  if (estimateTokens(normalized) <= maxHistoryTokens) return normalized
+
+  const lines = normalized.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
+  const kept: string[] = []
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const candidate = [lines[i], ...kept].join('\n')
+    if (estimateTokens(candidate) <= maxHistoryTokens) {
+      kept.unshift(lines[i])
+      continue
+    }
+    if (kept.length === 0) {
+      const truncatedLine = trimLineToTokenBudget(lines[i], maxHistoryTokens)
+      if (truncatedLine) kept.unshift(truncatedLine)
+    }
+    break
+  }
+
+  return kept.length > 0 ? kept.join('\n') : undefined
+}
+
 export function buildPrompt(input: GenerateInput): string {
-  const systemPrompt = input.systemPrompt || INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general
+  const systemPrompt = getSystemPrompt(input)
+  const trimmedHistory = trimConversationHistory(input.conversationHistory, input.maxHistoryTokens)
 
   const contextBlock = input.context.length > 0
     ? input.context.map((r) => {
@@ -30,8 +80,8 @@ export function buildPrompt(input: GenerateInput): string {
     }).join('\n\n')
     : 'No relevant documentation found.'
 
-  const historyBlock = input.conversationHistory
-    ? `\n## Conversation History\n${input.conversationHistory}\n`
+  const historyBlock = trimmedHistory
+    ? `\n## Conversation History\n${trimmedHistory}\n`
     : ''
 
   return `${systemPrompt}

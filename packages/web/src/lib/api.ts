@@ -1,11 +1,14 @@
 import type { QueryResult, Document, StatsResponse, AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from './types'
+import { withStoredApiKey } from './auth'
 
 const BASE = '/api/v1'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const { headers, ...rest } = options || {}
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
+    ...rest,
+    credentials: 'same-origin',
+    headers: withStoredApiKey({ 'Content-Type': 'application/json', ...headers }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }))
@@ -39,6 +42,8 @@ export async function uploadDocument(file: File): Promise<{ documentId: string; 
   const formData = new FormData()
   formData.append('file', file)
   const res = await fetch(`${BASE}/documents/upload`, {
+    credentials: 'same-origin',
+    headers: withStoredApiKey(),
     method: 'POST',
     body: formData,
   })

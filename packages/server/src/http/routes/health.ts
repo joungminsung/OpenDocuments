@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { getCachedUpdateInfo } from '../../utils/update-checker.js'
+import { SERVER_VERSION } from '../../version.js'
+import { getWorkspaceServices } from '../workspace.js'
 
 type CheckStatus = 'ok' | 'error' | 'warning'
 
@@ -12,10 +14,11 @@ interface CheckResult {
 export function healthRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: '0.2.0' }))
+  app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: SERVER_VERSION }))
 
   app.get('/api/v1/stats', (c) => {
-    const docs = ctx.store.listDocuments()
+    const { store } = getWorkspaceServices(c, ctx)
+    const docs = store.listDocuments()
     const workspaces = ctx.workspaceManager.list()
     const plugins = ctx.registry.listAll()
     const updateInfo = getCachedUpdateInfo()
@@ -45,7 +48,7 @@ export function healthRoutes(ctx: AppContext) {
 
     // VectorDB connectivity check
     try {
-      await ctx.vectorDb.count('chunks')
+      await ctx.vectorDb.count('opendocuments_chunks')
       checks.vectorDb = { status: 'ok' }
     } catch (err) {
       checks.vectorDb = { status: 'error', message: (err as Error).message }

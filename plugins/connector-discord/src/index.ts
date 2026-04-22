@@ -26,8 +26,8 @@ interface DiscordMessage {
 export class DiscordConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-discord'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private token = ''
   private guildId = ''

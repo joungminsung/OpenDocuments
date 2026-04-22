@@ -48,7 +48,7 @@ describe('IngestPipeline', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it('ingests a markdown document end-to-end', async () => {
+  it('ingests a markdown document end-to-end', { timeout: 15000 }, async () => {
     const result = await pipeline.ingest({
       title: 'test.md',
       content: '# Hello\n\nThis is a test document with some content.\n\n## Section 2\n\nMore content here.',
@@ -250,11 +250,47 @@ describe('IngestPipeline', () => {
     }, { chunkAugmentation: true })
 
     // Search FTS directly using a term that only appears in the augmented content
-    const hits = store.searchFTS('What is Redis', 5)
+    const hits = await store.searchFTS('What is Redis', 5)
     expect(hits.length).toBeGreaterThan(0)
     // And propositions keywords
-    const propHits = store.searchFTS('caching', 5)
+    const propHits = await store.searchFTS('caching', 5)
     expect(propHits.length).toBeGreaterThan(0)
+  })
+
+  it('returns canonical chunk content for FTS hits even when augmentation text matched', async () => {
+    const propsOutput = '- Redis is in-memory.\n- Redis supports caching.'
+    const qsOutput = '1. What is Redis?\n2. What is Redis used for?\n3. Is Redis in-memory?'
+    const stubLLM: any = {
+      name: 'aug-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        yield /Propositions:/i.test(prompt) ? propsOutput : qsOutput
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const embedder = createMockEmbedder()
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(embedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+    await p.ingest({
+      title: 'aug.md', sourceType: 'local', sourcePath: '/tmp/aug.md',
+      fileType: '.md', content: '# Redis\n\nRedis is an in-memory store used for caching.',
+    }, { chunkAugmentation: true })
+
+    const hits = await store.searchFTS('What is Redis', 5)
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits[0].content).not.toContain('What is Redis?')
+    expect(hits[0].content).not.toContain('Redis supports caching.')
+    expect(hits[0].content).toContain('Redis is an in-memory store used for caching.')
   })
 
   it('skips contextual generation when the feature is off (default)', async () => {

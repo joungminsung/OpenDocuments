@@ -105,6 +105,34 @@ describe('RAGEngine', () => {
     expect(result2.queryId).not.toBe(result1.queryId)
     expect(result2.answer).toBe(result1.answer)
   })
+
+  it('does not reuse cached answers across different conversation histories', async () => {
+    const llm = makeFakeLLM((prompt) => {
+      if (prompt.includes('History Alpha')) return 'answer-from-alpha-history'
+      if (prompt.includes('History Beta')) return 'answer-from-beta-history'
+      return 'fallback-answer'
+    })
+    const embedder = makeFakeEmbedder()
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const doc = store.createDocument({
+      title: 'guide.md', sourceType: 'local', sourcePath: '/guide.md', fileType: '.md',
+    })
+    await store.storeChunks(doc.id, [
+      { content: 'Redis configuration guide with examples', embedding: [0.1, 0.2, 0.3], chunkType: 'semantic', position: 0, tokenCount: 5, headingHierarchy: ['# Redis'] },
+    ])
+
+    const localEngine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+
+    const first = await localEngine.query({ query: 'redis', conversationHistory: 'History Alpha' })
+    const second = await localEngine.query({ query: 'redis', conversationHistory: 'History Beta' })
+
+    expect(first.answer).toBe('answer-from-alpha-history')
+    expect(second.answer).toBe('answer-from-beta-history')
+  })
 })
 
 function makeFakeEmbedder(onEmbed?: (texts: string[]) => void): any {
@@ -244,6 +272,36 @@ describe('RAGEngine advanced retrieval features', () => {
     })
     await engine.query({ query: 'redis' })
     expect(llmCalls.filter(p => /Rate how well the passage/.test(p))).toHaveLength(0)
+  })
+
+  it('applies profile-specific history budgets to the generation prompt', async () => {
+    const store = await seedStore()
+    const prompts: string[] = []
+    const llm = makeFakeLLM((prompt) => {
+      if (prompt.includes('## Context')) prompts.push(prompt)
+      if (/Rewrite/.test(prompt)) return '1. redis cache\n2. redis in-memory'
+      if (/single-paragraph passage|factual extract from a reference/.test(prompt)) return 'Redis hypothetical.'
+      if (/Rate how well the passage/.test(prompt)) return '9'
+      return 'stub answer'
+    })
+    const embedder = makeFakeEmbedder()
+    const localEngine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+
+    const history = Array.from(
+      { length: 40 },
+      (_, i) => `Turn ${i}: ${'history-token '.repeat(20)}`.trim(),
+    ).join('\n')
+
+    await localEngine.query({ query: 'redis', profile: 'fast', conversationHistory: history })
+    await localEngine.query({ query: 'redis', profile: 'precise', conversationHistory: history })
+
+    expect(prompts).toHaveLength(2)
+    expect(prompts[0]).toContain('Turn 39:')
+    expect(prompts[0]).not.toContain('Turn 0:')
+    expect(prompts[1]).toContain('Turn 0:')
+    expect(prompts[1]).toContain('Turn 39:')
   })
 })
 

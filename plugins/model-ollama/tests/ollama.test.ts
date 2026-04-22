@@ -16,7 +16,7 @@ describe('OllamaModelPlugin', () => {
   it('has correct metadata', () => {
     expect(plugin.name).toBe('@opendocuments/model-ollama')
     expect(plugin.type).toBe('model')
-    expect(plugin.version).toBe('0.1.0')
+    expect(plugin.version).toBe('0.1.3')
     expect(plugin.capabilities.llm).toBe(true)
     expect(plugin.capabilities.embedding).toBe(true)
     expect(plugin.capabilities.reranker).toBe(false)

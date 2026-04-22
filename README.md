@@ -47,6 +47,10 @@ Open `http://localhost:3000`, and ask away.
 > **OpenDocuments** is a free, open source alternative to proprietary enterprise AI search tools. It's a self-hosted RAG (Retrieval-Augmented Generation) platform that runs on your own infrastructure.
 
 ### Recent Improvements
+- **RAG accuracy overhaul**: Structure-preserving chunking, contextual prefixes, HyDE + multi-query retrieval, parent-document recall, proposition augmentation, reranking, and adaptive context fitting
+- **Workspace-scoped team mode**: Admin/chat/document APIs stay inside the authenticated workspace, with shared conversation links plus session and API-key auth support
+- **Backup & restore CLI**: Snapshot SQLite + LanceDB data and recover an instance with one command
+- **Plugin hardening**: Plugin search/install routes are admin-only and use validated npm argument execution
 - **One-touch Ollama setup**: `init` auto-detects Ollama, offers to pull missing models
 - **`.env` auto-loading**: API keys in `.env` are loaded automatically (no manual export needed)
 - **Multi-turn conversations**: Chat remembers previous context for follow-up questions

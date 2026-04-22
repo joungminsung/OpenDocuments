@@ -12,7 +12,7 @@ export interface ContextWindowConfig {
   }
 }
 
-const DEFAULT_CONFIG: ContextWindowConfig = {
+export const DEFAULT_CONTEXT_WINDOW_CONFIG: ContextWindowConfig = {
   maxContextTokens: 16384,
   allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
 }
@@ -31,13 +31,16 @@ const INTENT_ALLOCATIONS: Partial<Record<QueryIntent, ContextWindowConfig['alloc
  */
 export function fitToContextWindow(
   chunks: SearchResult[],
-  config: ContextWindowConfig = DEFAULT_CONFIG,
-  _chatHistoryTokens = 0,
-  _systemPromptTokens = 0,
+  config: ContextWindowConfig = DEFAULT_CONTEXT_WINDOW_CONFIG,
+  chatHistoryTokens = 0,
+  systemPromptTokens = 0,
   intent?: QueryIntent
 ): SearchResult[] {
   const allocation = (intent && INTENT_ALLOCATIONS[intent]) || config.allocation
-  const maxChunkTokens = Math.floor(config.maxContextTokens * allocation.retrievedChunks)
+  const intendedChunkTokens = Math.floor(config.maxContextTokens * allocation.retrievedChunks)
+  const generationBufferTokens = Math.floor(config.maxContextTokens * allocation.generationBuffer)
+  const availableChunkTokens = config.maxContextTokens - generationBufferTokens - chatHistoryTokens - systemPromptTokens
+  const maxChunkTokens = Math.max(0, Math.min(intendedChunkTokens, availableChunkTokens))
 
   // Already sorted by score (highest first)
   const fitted: SearchResult[] = []

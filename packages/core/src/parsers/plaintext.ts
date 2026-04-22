@@ -3,8 +3,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class PlainTextParser implements ParserPlugin {
   name = '@opendocuments/parser-plaintext'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.3.0'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.txt']
 
   async setup(_ctx: PluginContext): Promise<void> {}

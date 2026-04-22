@@ -8,7 +8,7 @@ describe('Plugin Loader', () => {
       name: 'test',
       type: 'parser',
       version: '1.0.0',
-      coreVersion: '^0.1.0',
+      coreVersion: '^0.3.0',
       setup: async () => {},
     })).toBe(true)
   })
@@ -21,7 +21,7 @@ describe('Plugin Loader', () => {
     expect(isValidPlugin({
       type: 'parser',
       version: '1.0.0',
-      coreVersion: '^0.1.0',
+      coreVersion: '^0.3.0',
       setup: async () => {},
     })).toBe(false)
   })
@@ -31,7 +31,7 @@ describe('Plugin Loader', () => {
       name: 'test',
       type: 'invalid',
       version: '1.0.0',
-      coreVersion: '^0.1.0',
+      coreVersion: '^0.3.0',
       setup: async () => {},
     })).toBe(false)
   })
@@ -41,7 +41,7 @@ describe('Plugin Loader', () => {
       name: 'test',
       type: 'parser',
       version: '1.0.0',
-      coreVersion: '^0.1.0',
+      coreVersion: '^0.3.0',
     })).toBe(false)
   })
 
@@ -51,7 +51,7 @@ describe('Plugin Loader', () => {
         name: 'test',
         type,
         version: '1.0.0',
-        coreVersion: '^0.1.0',
+        coreVersion: '^0.3.0',
         setup: async () => {},
       })).toBe(true)
     }

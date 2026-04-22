@@ -20,8 +20,8 @@ describe('SlackConnector', () => {
   it('has correct metadata', () => {
     expect(connector.name).toBe('@opendocuments/connector-slack')
     expect(connector.type).toBe('connector')
-    expect(connector.version).toBe('0.1.0')
-    expect(connector.coreVersion).toBe('^0.1.0')
+    expect(connector.version).toBe('0.1.1')
+    expect(connector.coreVersion).toBe('^0.3.0')
   })
 
   it('reports unhealthy without token', async () => {

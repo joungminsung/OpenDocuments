@@ -49,8 +49,8 @@ function createRunnerMockEmbedder(): ModelPlugin {
   return {
     name: '@opendocuments/model-runner-mock-embedder',
     type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
+    version: '0.3.0',
+    coreVersion: '^0.3.0',
     capabilities: { embedding: true },
     async setup(): Promise<void> {},
     async embed(texts: string[]) {

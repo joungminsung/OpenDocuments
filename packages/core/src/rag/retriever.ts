@@ -38,7 +38,7 @@ export class Retriever {
     // Sparse search (FTS5)
     let sparseResults: SearchResult[] = []
     try {
-      sparseResults = this.store.searchFTS(query, opts.k)
+      sparseResults = await this.store.searchFTS(query, opts.k)
     } catch (err) {
       console.warn('[retriever] FTS5 search failed, using dense-only:', err instanceof Error ? err.message : String(err))
     }
@@ -52,16 +52,16 @@ export class Retriever {
     return denseResults.slice(0, opts.finalTopK)
   }
 
-  expandWithSiblings(
+  async expandWithSiblings(
     results: SearchResult[],
     store: DocumentStore,
     window = 1
-  ): SearchResult[] {
+  ): Promise<SearchResult[]> {
     const seen = new Set(results.map(r => r.chunkId))
     const expanded = [...results]
 
     for (const result of results) {
-      const siblings = store.getAdjacentChunks(result.chunkId, window)
+      const siblings = await store.getAdjacentChunks(result.chunkId, window)
       for (const sibling of siblings) {
         if (!seen.has(sibling.chunkId)) {
           seen.add(sibling.chunkId)
