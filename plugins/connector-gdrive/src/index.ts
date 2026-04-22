@@ -35,8 +35,8 @@ const SUPPORTED_MIME_TYPES = new Set([
 export class GDriveConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-gdrive'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private accessToken = ''
   private folderId = ''

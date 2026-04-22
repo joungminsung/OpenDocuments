@@ -12,7 +12,7 @@ import { checkCompatibility } from './capability.js'
 export class PluginRegistry {
   private plugins = new Map<string, AnyPlugin>()
 
-  constructor(private coreVersion: string = '0.1.0') {}
+  constructor(private coreVersion: string = '0.3.0') {}
 
   async register(plugin: AnyPlugin, ctx: PluginContext): Promise<void> {
     if (this.plugins.has(plugin.name)) {

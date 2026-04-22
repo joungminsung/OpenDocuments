@@ -7,7 +7,7 @@ function createMockParser(overrides: Partial<ParserPlugin> = {}): ParserPlugin {
     name: '@opendocuments/parser-test',
     type: 'parser',
     version: '1.0.0',
-    coreVersion: '^0.1.0',
+    coreVersion: '^0.3.0',
     supportedTypes: ['.test'],
     setup: vi.fn().mockResolvedValue(undefined),
     teardown: vi.fn().mockResolvedValue(undefined),
@@ -21,7 +21,7 @@ function createMockConnector(overrides: Partial<ConnectorPlugin> = {}): Connecto
     name: '@opendocuments/plugin-test',
     type: 'connector',
     version: '1.0.0',
-    coreVersion: '^0.1.0',
+    coreVersion: '^0.3.0',
     setup: vi.fn().mockResolvedValue(undefined),
     discover: vi.fn(),
     fetch: vi.fn(),
@@ -77,7 +77,7 @@ describe('PluginRegistry', () => {
   })
 
   it('rejects incompatible plugins', async () => {
-    const registry = new PluginRegistry('0.1.0')
+    const registry = new PluginRegistry('0.3.0')
     const parser = createMockParser({ coreVersion: '^5.0.0' })
     const ctx: PluginContext = { config: {}, dataDir: '/tmp', log: console as any }
 

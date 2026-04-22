@@ -6,8 +6,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class ArchiveParser implements ParserPlugin {
   name = '@opendocuments/parser-archive'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.3.0'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.zip']
 
   async setup(_ctx: PluginContext): Promise<void> {}

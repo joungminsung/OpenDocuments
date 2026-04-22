@@ -24,6 +24,14 @@ export interface Message {
 export class ConversationManager {
   constructor(private db: DB, private workspaceId: string) {}
 
+  private hasConversation(conversationId: string): boolean {
+    const row = this.db.get<{ id: string }>(
+      'SELECT id FROM conversations WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
+      [conversationId, this.workspaceId]
+    )
+    return Boolean(row)
+  }
+
   create(title?: string): Conversation {
     const id = randomUUID()
     const now = new Date().toISOString()
@@ -40,6 +48,10 @@ export class ConversationManager {
     confidenceScore?: number
     responseTimeMs?: number
   }): Message {
+    if (!this.hasConversation(conversationId)) {
+      throw new Error(`Conversation not found in workspace ${this.workspaceId}`)
+    }
+
     const id = randomUUID()
     const now = new Date().toISOString()
     this.db.run(
@@ -55,8 +67,11 @@ export class ConversationManager {
 
   getMessages(conversationId: string): Message[] {
     return this.db.all<any>(
-      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
-      [conversationId]
+      `SELECT m.* FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE m.conversation_id = ? AND c.workspace_id = ? AND c.deleted_at IS NULL
+       ORDER BY m.created_at ASC`,
+      [conversationId, this.workspaceId]
     ).map(row => ({
       id: row.id,
       conversationId: row.conversation_id,
@@ -84,6 +99,9 @@ export class ConversationManager {
   }
 
   delete(id: string): void {
-    this.db.run('UPDATE conversations SET deleted_at = ? WHERE id = ?', [new Date().toISOString(), id])
+    this.db.run(
+      'UPDATE conversations SET deleted_at = ? WHERE id = ? AND workspace_id = ?',
+      [new Date().toISOString(), id, this.workspaceId]
+    )
   }
 }

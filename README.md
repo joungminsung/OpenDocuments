@@ -47,6 +47,10 @@ Open `http://localhost:3000`, and ask away.
 > **OpenDocuments** is a free, open source alternative to proprietary enterprise AI search tools. It's a self-hosted RAG (Retrieval-Augmented Generation) platform that runs on your own infrastructure.
 
 ### Recent Improvements
+- **RAG accuracy overhaul**: Structure-preserving chunking, contextual prefixes, HyDE + multi-query retrieval, parent-document recall, proposition augmentation, reranking, and adaptive context fitting
+- **Workspace-scoped team mode**: Admin/chat/document APIs stay inside the authenticated workspace, with shared conversation links plus session and API-key auth support
+- **Backup & restore CLI**: Snapshot SQLite + LanceDB data and recover an instance with one command
+- **Plugin hardening**: Plugin search/install routes are admin-only and use validated npm argument execution
 - **One-touch Ollama setup**: `init` auto-detects Ollama, offers to pull missing models
 - **`.env` auto-loading**: API keys in `.env` are loaded automatically (no manual export needed)
 - **Multi-turn conversations**: Chat remembers previous context for follow-up questions
@@ -371,14 +375,33 @@ Your AI assistant can then:
 |--|--------|------------|-----------|
 | **Speed** | ~1s | ~3s | ~5s+ |
 | **Search depth** | 10 docs | 20 docs | 50 docs |
+| **Semantic chunking** | On | On | On |
 | **Reranking** | Off | On | On |
+| **Cross-encoder** | Off | Off | On |
 | **Cross-lingual** | Off | Korean + English | Korean + English |
+| **Contextual prefix** | Off | On | On |
+| **Multi-query expansion** | Off | 3x paraphrases | 5x paraphrases |
+| **HyDE** | Off | Off | On |
+| **Parent-document retrieval** | Off | On | On |
+| **Chunk augmentation** (propositions/HQs) | Off | Off | On |
 | **Query decomposition** | Off | Off | Splits complex queries |
 | **Web search** | Off | Fallback when local results are weak | Always merged |
 | **Hallucination guard** | Off | Checks source grounding | Strict mode (annotates unverified) |
 | **Best for** | Quick lookups, 8B local models | Daily use, 14B+ models | Critical questions, cloud LLMs |
 
 Switch anytime: CLI flag (`--profile precise`), Web UI toggle, or config file.
+
+### Retrieval quality
+
+OpenDocuments ships a redesigned RAG pipeline with structure-preserving chunking, contextual retrieval, HyDE + multi-query + parent-document retrieval, proposition augmentation, and a cross-encoder reranker — all profile-gated via the table above. See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full list of additions.
+
+Benchmark against your own dataset with the evaluation harness:
+
+```bash
+cd packages/core && npx tsx tests/_fixtures/run-eval.ts
+```
+
+Metrics reported: hit@3, hit@5, MRR, nDCG@5 — per-intent and aggregate.
 
 ---
 

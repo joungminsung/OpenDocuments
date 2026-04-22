@@ -8,6 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { discoverFiles } from 'opendocuments-core'
 import type { AppContext } from '../bootstrap.js'
+import { SERVER_VERSION } from '../version.js'
 
 const TOOLS = [
   {
@@ -147,7 +148,7 @@ const TOOLS = [
 
 export function createMCPServer(ctx: AppContext): Server {
   const server = new Server(
-    { name: 'opendocuments', version: '0.1.0' },
+    { name: 'opendocuments', version: SERVER_VERSION },
     { capabilities: { tools: {}, resources: {} } }
   )
 

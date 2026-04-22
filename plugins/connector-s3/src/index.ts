@@ -28,8 +28,8 @@ const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.html', '.
 export class S3Connector implements ConnectorPlugin {
   name = '@opendocuments/connector-s3'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private provider: S3Provider = 's3'
   private bucket = ''

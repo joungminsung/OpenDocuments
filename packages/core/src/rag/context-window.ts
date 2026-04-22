@@ -1,4 +1,6 @@
 import type { SearchResult } from '../ingest/document-store.js'
+import type { QueryIntent } from './intent.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface ContextWindowConfig {
   maxContextTokens: number
@@ -10,14 +12,17 @@ export interface ContextWindowConfig {
   }
 }
 
-const DEFAULT_CONFIG: ContextWindowConfig = {
-  maxContextTokens: 4096,
-  allocation: { systemPrompt: 0.1, chatHistory: 0.2, retrievedChunks: 0.5, generationBuffer: 0.2 },
+export const DEFAULT_CONTEXT_WINDOW_CONFIG: ContextWindowConfig = {
+  maxContextTokens: 16384,
+  allocation: { systemPrompt: 0.1, chatHistory: 0.15, retrievedChunks: 0.65, generationBuffer: 0.1 },
 }
 
-function estimateTokens(text: string): number {
-  const cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || []).length
-  return Math.ceil((text.length - cjk) / 4 + cjk / 1.5)
+const INTENT_ALLOCATIONS: Partial<Record<QueryIntent, ContextWindowConfig['allocation']>> = {
+  code:    { systemPrompt: 0.1, chatHistory: 0.05, retrievedChunks: 0.75, generationBuffer: 0.1 },
+  concept: { systemPrompt: 0.1, chatHistory: 0.2,  retrievedChunks: 0.55, generationBuffer: 0.15 },
+  config:  { systemPrompt: 0.1, chatHistory: 0.1,  retrievedChunks: 0.7,  generationBuffer: 0.1 },
+  data:    { systemPrompt: 0.1, chatHistory: 0.05, retrievedChunks: 0.7,  generationBuffer: 0.15 },
+  compare: { systemPrompt: 0.1, chatHistory: 0.1,  retrievedChunks: 0.65, generationBuffer: 0.15 },
 }
 
 /**
@@ -26,13 +31,16 @@ function estimateTokens(text: string): number {
  */
 export function fitToContextWindow(
   chunks: SearchResult[],
-  config: ContextWindowConfig = DEFAULT_CONFIG,
-  _chatHistoryTokens = 0,
-  _systemPromptTokens = 0
+  config: ContextWindowConfig = DEFAULT_CONTEXT_WINDOW_CONFIG,
+  chatHistoryTokens = 0,
+  systemPromptTokens = 0,
+  intent?: QueryIntent
 ): SearchResult[] {
-  const maxChunkTokens = Math.floor(
-    config.maxContextTokens * config.allocation.retrievedChunks
-  )
+  const allocation = (intent && INTENT_ALLOCATIONS[intent]) || config.allocation
+  const intendedChunkTokens = Math.floor(config.maxContextTokens * allocation.retrievedChunks)
+  const generationBufferTokens = Math.floor(config.maxContextTokens * allocation.generationBuffer)
+  const availableChunkTokens = config.maxContextTokens - generationBufferTokens - chatHistoryTokens - systemPromptTokens
+  const maxChunkTokens = Math.max(0, Math.min(intendedChunkTokens, availableChunkTokens))
 
   // Already sorted by score (highest first)
   const fitted: SearchResult[] = []

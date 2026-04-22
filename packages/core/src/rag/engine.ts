@@ -11,10 +11,16 @@ import { classifyIntent } from './intent.js'
 import { decomposeQuery } from './decomposer.js'
 import { expandQuery, reciprocalRankFusion } from './cross-lingual.js'
 import { rerankResults } from './reranker.js'
-import { checkGrounding } from './grounding.js'
+import { checkGrounding, checkSemanticGrounding } from './grounding.js'
 import { createQueryCache } from './cache.js'
-import { fitToContextWindow } from './context-window.js'
+import { DEFAULT_CONTEXT_WINDOW_CONFIG, fitToContextWindow } from './context-window.js'
+import { generateHypotheticalAnswer } from './hyde.js'
+import { expandMultiQuery } from './multi-query.js'
+import { attachParentContext } from './parent-doc.js'
+import { crossEncoderRerank } from './cross-encoder.js'
 import { sha256 } from '../utils/hash.js'
+import { getSystemPrompt, trimConversationHistory } from './generator.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface QueryInput {
   query: string
@@ -51,6 +57,41 @@ export type StreamEvent =
   | { type: 'intent'; data: string }
   | { type: 'done'; data: { queryId: string; route: QueryRoute; profile: string } }
 
+const INTENT_CHUNK_TYPES: Record<string, string[]> = {
+  code: ['code-ast'],
+  config: ['semantic', 'code-ast'],
+  data: ['table'],
+}
+
+export function boostByMetadata(
+  results: SearchResult[],
+  query: string,
+  intent: string,
+): SearchResult[] {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
+
+  return results.map(r => {
+    let boost = 1.0
+
+    // Heading match boost
+    const headingText = (r.headingHierarchy || []).join(' ').toLowerCase()
+    for (const qw of queryWords) {
+      if (headingText.includes(qw)) {
+        boost += 0.15
+        break // Cap heading boost at 0.15
+      }
+    }
+
+    // Intent-chunk type alignment boost
+    const preferredTypes = INTENT_CHUNK_TYPES[intent]
+    if (preferredTypes && preferredTypes.includes(r.chunkType)) {
+      boost += 0.1
+    }
+
+    return { ...r, score: r.score * boost }
+  })
+}
+
 export class RAGEngine {
   private store: DocumentStore
   private llm: ModelPlugin
@@ -75,6 +116,10 @@ export class RAGEngine {
     this.retriever = new Retriever(this.store, this.embedder)
   }
 
+  private buildCacheKey(query: string, profile: string, conversationHistory?: string): string {
+    return sha256(`${query}\x00${profile}\x00${conversationHistory || ''}`)
+  }
+
   async query(input: QueryInput): Promise<QueryResult> {
     const trimmedQuery = (input.query || '').trim()
     if (!trimmedQuery) {
@@ -83,12 +128,13 @@ export class RAGEngine {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
+    const trimmedHistory = trimConversationHistory(input.conversationHistory, config.context.historyMaxTokens)
     const route = routeQuery(trimmedQuery)
 
     this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
 
     // L1 cache check (null byte delimiter prevents "queryA" + "B" == "query" + "AB" collisions)
-    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
+    const cacheKey = this.buildCacheKey(trimmedQuery, profileName, trimmedHistory)
 
     if (route === 'direct') {
       return this.handleDirect(queryId, trimmedQuery, profileName)
@@ -99,7 +145,7 @@ export class RAGEngine {
       return { ...cached, queryId }
     }
 
-    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route, input.conversationHistory)
+    const result = await this.handleRAG(queryId, trimmedQuery, config, profileName, route, trimmedHistory)
     // Note: Full QueryResult including source content is cached.
     // Memory impact: ~500 entries * ~10KB average = ~5MB max. Acceptable for L1 cache.
     this.queryCache.set(cacheKey, result)
@@ -114,6 +160,7 @@ export class RAGEngine {
     const queryId = randomUUID()
     const profileName = input.profile || this.defaultProfile
     const config = getProfileConfig(profileName, this.customProfileConfig)
+    const trimmedHistory = trimConversationHistory(input.conversationHistory, config.context.historyMaxTokens)
     const route = routeQuery(trimmedQuery)
 
     this.eventBus.emit('query:received', { queryId, query: trimmedQuery })
@@ -132,7 +179,11 @@ export class RAGEngine {
     yield { type: 'intent', data: intent }
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config)
+    let sources = await this.retrieveWithFeatures(queryId, trimmedQuery, config, intent, trimmedHistory)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, trimmedQuery, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     yield { type: 'sources', data: sources }
 
@@ -145,7 +196,8 @@ export class RAGEngine {
       query: trimmedQuery,
       context: sources,
       intent,
-      conversationHistory: input.conversationHistory,
+      conversationHistory: trimmedHistory,
+      maxHistoryTokens: config.context.historyMaxTokens,
     }
 
     let fullAnswer = ''
@@ -159,14 +211,17 @@ export class RAGEngine {
     // Apply grounding check after streaming completes (requires full answer)
     if (config.features.hallucinationGuard && fullAnswer) {
       const strictMode = config.features.hallucinationGuard === 'strict'
-      const grounding = checkGrounding(fullAnswer, sources, strictMode)
+      const embedFn = this.embedder.embed
+        ? (texts: string[]) => this.embedder.embed!(texts)
+        : null
+      const grounding = await checkSemanticGrounding(fullAnswer, sources, embedFn, strictMode)
       if (grounding.warnings.length > 0) {
         yield { type: 'grounding', data: grounding }
       }
     }
 
     // Cache the streamed result
-    const cacheKey = sha256(`${trimmedQuery}\x00${profileName}`)
+    const cacheKey = this.buildCacheKey(trimmedQuery, profileName, trimmedHistory)
     this.queryCache.set(cacheKey, {
       queryId, answer: fullAnswer, sources, confidence, route, profile: profileName,
     })
@@ -201,7 +256,11 @@ export class RAGEngine {
     const intent = classifyIntent(query)
 
     // Retrieve with decomposition and cross-lingual support
-    const sources = await this.retrieveWithFeatures(queryId, query, config)
+    let sources = await this.retrieveWithFeatures(queryId, query, config, intent, conversationHistory)
+
+    // Apply metadata-based boosting
+    sources = boostByMetadata(sources, query, intent)
+    sources.sort((a, b) => b.score - a.score)
 
     // Calculate confidence
     const confidence = this.computeConfidence(query, sources)
@@ -212,6 +271,7 @@ export class RAGEngine {
       context: sources,
       intent,
       conversationHistory,
+      maxHistoryTokens: config.context.historyMaxTokens,
     }
 
     let answer = ''
@@ -229,7 +289,10 @@ export class RAGEngine {
     // Hallucination guard
     if (config.features.hallucinationGuard) {
       const strictMode = config.features.hallucinationGuard === 'strict'
-      const grounding = checkGrounding(answer, sources, strictMode)
+      const embedFn = this.embedder.embed
+        ? (texts: string[]) => this.embedder.embed!(texts)
+        : null
+      const grounding = await checkSemanticGrounding(answer, sources, embedFn, strictMode)
       if (strictMode && grounding.warnings.length > 0) {
         answer = grounding.annotatedAnswer
       }
@@ -252,19 +315,45 @@ export class RAGEngine {
     queryId: string,
     query: string,
     config: RAGProfileConfig,
+    intent?: import('./intent.js').QueryIntent,
+    conversationHistory?: string,
   ): Promise<SearchResult[]> {
     // Decompose query if enabled
     const decomposed = config.features.queryDecomposition
       ? decomposeQuery(query)
       : { original: query, subQueries: [query], isDecomposed: false }
 
+    // HyDE: generate a hypothetical passage once per query; reused as an extra
+    // embedding variant for every sub-query below. Costs 1 LLM call total when on.
+    const hydePassage = config.features.hyde
+      ? await generateHypotheticalAnswer(query, this.llm)
+      : ''
+
+    // Multi-query: paraphrases are computed lazily inside the per-sub-query loop
+    // (1 LLM call per sub-query). On balanced this is 1 extra call per query;
+    // on precise with decomposition it can be N. The accuracy lift justifies the cost.
+
     const subQueryResultSets: SearchResult[][] = []
 
     for (const subQuery of decomposed.subQueries) {
-      // Cross-lingual expansion if enabled
-      const queryVariants = config.features.crossLingual
+      // Start with cross-lingual variants of this sub-query
+      let queryVariants = config.features.crossLingual
         ? expandQuery(subQuery)
         : [subQuery]
+
+      // Multi-query paraphrase expansion on top of cross-lingual
+      if (config.features.multiQuery && config.features.multiQueryN > 0) {
+        const mqVariants = await expandMultiQuery(subQuery, this.llm, config.features.multiQueryN)
+        // Merge dedup with existing variants (case-insensitive)
+        const seen = new Set(queryVariants.map(v => v.toLowerCase()))
+        for (const v of mqVariants) {
+          const k = v.toLowerCase()
+          if (!seen.has(k)) { seen.add(k); queryVariants.push(v) }
+        }
+      }
+
+      // Optional HyDE variant: embed the hypothetical passage as another retrieval query.
+      if (hydePassage) queryVariants = [...queryVariants, hydePassage]
 
       const variantResultSets: SearchResult[][] = []
 
@@ -288,14 +377,34 @@ export class RAGEngine {
 
     // Rerank if enabled
     if (config.features.reranker && results.length > 1) {
-      results = await rerankResults(query, results, this.rerankerModel)
+      results = await rerankResults(query, results, this.rerankerModel, intent)
+    }
+
+    // Cross-encoder rerank (expensive: 1 LLM call per candidate). Runs after the
+    // heuristic/rerank stage so it only scores already-filtered candidates.
+    if (config.features.crossEncoder && results.length > 1) {
+      results = await crossEncoderRerank(query, results, this.llm, Math.min(10, results.length))
+    }
+
+    // Parent-doc retrieval: replace precise chunks with their enclosing section text
+    if (config.features.parentDocRetrieval) {
+      results = attachParentContext(results)
     }
 
     // Trim to finalTopK after merging/reranking
     results = results.slice(0, config.retrieval.finalTopK)
 
+    // Expand with sibling chunks for additional context
+    results = await this.retriever.expandWithSiblings(results, this.store, 1)
+
     // Fit chunks into context window budget
-    results = fitToContextWindow(results)
+    const contextWindowConfig = {
+      ...DEFAULT_CONTEXT_WINDOW_CONFIG,
+      maxContextTokens: config.context.maxTokens,
+    }
+    const systemPromptTokens = estimateTokens(getSystemPrompt({ intent: intent || 'general' }))
+    const historyTokens = estimateTokens(conversationHistory || '')
+    results = fitToContextWindow(results, contextWindowConfig, historyTokens, systemPromptTokens, intent)
 
     // Web search integration
     if (this.webSearchProvider && config.features.webSearch) {
@@ -342,11 +451,14 @@ export class RAGEngine {
 
     let results = await this.retriever.retrieve(query, retrieveOpts)
 
-    // Fallback: if minScore filtered everything, retry without threshold.
+    // Fallback: if minScore filtered everything, retry with a relaxed (but non-zero) threshold
+    // to avoid returning completely irrelevant results.
+    const FALLBACK_MIN_SCORE = 0.15
     if (results.length === 0 && config.retrieval.minScore > 0) {
       results = await this.retriever.retrieve(query, {
         k: config.retrieval.k,
         finalTopK: config.retrieval.finalTopK,
+        minScore: FALLBACK_MIN_SCORE,
       })
     }
 
@@ -355,7 +467,7 @@ export class RAGEngine {
       const relaxedResults = await this.retriever.retrieve(query, {
         k: retrieveOpts.k * 2,
         finalTopK: retrieveOpts.finalTopK,
-        minScore: 0,
+        minScore: FALLBACK_MIN_SCORE,
       })
       if (relaxedResults.length > results.length) {
         results = relaxedResults

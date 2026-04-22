@@ -1,5 +1,6 @@
 import type { SearchResult } from '../ingest/document-store.js'
 import type { ModelPlugin } from '../plugin/interfaces.js'
+import { estimateTokens } from '../utils/tokenizer.js'
 
 export interface GenerateInput {
   query: string
@@ -7,6 +8,7 @@ export interface GenerateInput {
   intent: string
   systemPrompt?: string
   conversationHistory?: string
+  maxHistoryTokens?: number
 }
 
 const INTENT_PROMPTS: Record<string, string> = {
@@ -19,8 +21,56 @@ const INTENT_PROMPTS: Record<string, string> = {
   general: 'You are a helpful documentation assistant. Answer questions accurately based on the provided context. If the context does not contain enough information, say so clearly.',
 }
 
+export function getSystemPrompt(input: Pick<GenerateInput, 'intent' | 'systemPrompt'>): string {
+  return input.systemPrompt || INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general
+}
+
+function trimLineToTokenBudget(line: string, maxTokens: number): string {
+  const words = line.trim().split(/\s+/)
+  const kept: string[] = []
+
+  for (let i = words.length - 1; i >= 0; i--) {
+    kept.unshift(words[i])
+    const candidate = kept.join(' ')
+    if (estimateTokens(candidate) > maxTokens) {
+      kept.shift()
+      break
+    }
+  }
+
+  return kept.join(' ')
+}
+
+export function trimConversationHistory(history?: string, maxHistoryTokens?: number): string | undefined {
+  if (!history) return undefined
+
+  const normalized = history.trim()
+  if (!normalized) return undefined
+  if (!maxHistoryTokens || maxHistoryTokens <= 0) return normalized
+  if (estimateTokens(normalized) <= maxHistoryTokens) return normalized
+
+  const lines = normalized.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
+  const kept: string[] = []
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const candidate = [lines[i], ...kept].join('\n')
+    if (estimateTokens(candidate) <= maxHistoryTokens) {
+      kept.unshift(lines[i])
+      continue
+    }
+    if (kept.length === 0) {
+      const truncatedLine = trimLineToTokenBudget(lines[i], maxHistoryTokens)
+      if (truncatedLine) kept.unshift(truncatedLine)
+    }
+    break
+  }
+
+  return kept.length > 0 ? kept.join('\n') : undefined
+}
+
 export function buildPrompt(input: GenerateInput): string {
-  const systemPrompt = input.systemPrompt || INTENT_PROMPTS[input.intent] || INTENT_PROMPTS.general
+  const systemPrompt = getSystemPrompt(input)
+  const trimmedHistory = trimConversationHistory(input.conversationHistory, input.maxHistoryTokens)
 
   const contextBlock = input.context.length > 0
     ? input.context.map((r) => {
@@ -30,11 +80,18 @@ export function buildPrompt(input: GenerateInput): string {
     }).join('\n\n')
     : 'No relevant documentation found.'
 
-  const historyBlock = input.conversationHistory
-    ? `\n## Conversation History\n${input.conversationHistory}\n`
+  const historyBlock = trimmedHistory
+    ? `\n## Conversation History\n${trimmedHistory}\n`
     : ''
 
   return `${systemPrompt}
+
+## RULES
+1. ONLY use information from the Context section below. Do not add external knowledge.
+2. Quote or closely paraphrase source text when possible.
+3. If sources conflict, mention both perspectives.
+4. If the context lacks sufficient information, say exactly what is missing.
+5. Cite every claim using [Source: filename#section] format.
 
 ## Context
 ${contextBlock}
@@ -42,8 +99,8 @@ ${historyBlock}
 ## Question
 ${input.query}
 
-## Instructions
-Answer based on the context above. If the context does not contain enough information to answer fully, acknowledge what is missing. Cite sources using [Source: filename#section] format.`
+## RESPONSE FORMAT
+Start with a direct answer in 1-2 sentences, then provide supporting details with citations.`
 }
 
 export async function* generateAnswer(

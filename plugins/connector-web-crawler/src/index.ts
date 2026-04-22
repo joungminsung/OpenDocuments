@@ -11,8 +11,8 @@ export interface WebCrawlerConfig {
 export class WebCrawlerConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-web-crawler'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private urls: string[] = []
   private headers: Record<string, string> = {}
@@ -40,7 +40,7 @@ export class WebCrawlerConnector implements ConnectorPlugin {
 
   async fetch(ref: DocumentRef): Promise<RawDocument> {
     const res = await fetchWithTimeout(ref.sourcePath, {
-      headers: { 'User-Agent': 'OpenDocuments/0.1.0', ...this.headers },
+      headers: { 'User-Agent': 'OpenDocuments/0.3.0', ...this.headers },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${ref.sourcePath}`)
 

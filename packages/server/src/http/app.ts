@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
-import { join, extname } from 'node:path'
+import { join, extname, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
 import { healthRoutes } from './routes/health.js'
@@ -11,7 +11,9 @@ import { conversationRoutes } from './routes/conversations.js'
 import { adminRoutes } from './routes/admin.js'
 import { tagRoutes } from './routes/tags.js'
 import { collectionRoutes } from './routes/collections.js'
+import { pluginRoutes } from './routes/plugins.js'
 import { authRoutes } from './routes/auth-routes.js'
+import { getSharedConversationHandler } from './routes/conversations.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import type { AppContext } from '../bootstrap.js'
@@ -42,6 +44,9 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
 
   // Mount OAuth routes BEFORE authMiddleware (public routes -- no API key required)
   app.route('/', authRoutes(ctx))
+  const sharedConversationHandler = getSharedConversationHandler(ctx)
+  app.get('/shared/:token', sharedConversationHandler)
+  app.get('/api/v1/shared/:token', sharedConversationHandler)
 
   // Auth middleware: personal mode passes through, team mode requires X-API-Key
   app.use('/api/*', authMiddleware(ctx))
@@ -81,6 +86,7 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   app.route('/', adminRoutes(ctx))
   app.route('/', tagRoutes(ctx))
   app.route('/', collectionRoutes(ctx))
+  app.route('/', pluginRoutes(ctx))
 
   app.onError((err, c) => {
     console.error('Unhandled error:', err.message)
@@ -115,7 +121,12 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
 
     app.get('/*', async (c) => {
       const reqPath = c.req.path === '/' ? '/index.html' : c.req.path
-      const filePath = join(webDir, reqPath)
+      const filePath = resolve(webDir, '.' + reqPath)
+
+      // Prevent path traversal: ensure resolved path stays within webDir
+      if (!filePath.startsWith(resolve(webDir) + '/') && filePath !== resolve(webDir)) {
+        return c.json({ error: 'Forbidden' }, 403)
+      }
 
       if (existsSync(filePath) && statSync(filePath).isFile()) {
         const content = await readFile(filePath)

@@ -8,13 +8,20 @@ export interface RAGProfileConfig {
     webSearch: boolean | 'fallback'
     hallucinationGuard: boolean | 'strict'
     adaptiveRetrieval: boolean
+    contextualRetrieval: boolean
+    hyde: boolean
+    multiQuery: boolean
+    multiQueryN: number
+    parentDocRetrieval: boolean
+    chunkAugmentation: boolean
+    crossEncoder: boolean
   }
 }
 
 const PROFILES: Record<string, RAGProfileConfig> = {
   fast: {
     retrieval: { k: 10, minScore: 0.5, finalTopK: 3 },
-    context: { maxTokens: 2048, historyMaxTokens: 512 },
+    context: { maxTokens: 8192, historyMaxTokens: 512 },
     features: {
       reranker: false,
       queryDecomposition: false,
@@ -22,11 +29,18 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: false,
       hallucinationGuard: false,
       adaptiveRetrieval: false,
+      contextualRetrieval: false,
+      hyde: false,
+      multiQuery: false,
+      multiQueryN: 0,
+      parentDocRetrieval: false,
+      chunkAugmentation: false,
+      crossEncoder: false,
     },
   },
   balanced: {
     retrieval: { k: 20, minScore: 0.3, finalTopK: 5 },
-    context: { maxTokens: 4096, historyMaxTokens: 1024 },
+    context: { maxTokens: 16384, historyMaxTokens: 1024 },
     features: {
       reranker: true,
       queryDecomposition: false,
@@ -34,11 +48,18 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: 'fallback',
       hallucinationGuard: true,
       adaptiveRetrieval: true,
+      contextualRetrieval: true,
+      hyde: false,
+      multiQuery: true,
+      multiQueryN: 3,
+      parentDocRetrieval: true,
+      chunkAugmentation: false,
+      crossEncoder: false,
     },
   },
   precise: {
     retrieval: { k: 50, minScore: 0.15, finalTopK: 10 },
-    context: { maxTokens: 8192, historyMaxTokens: 2048 },
+    context: { maxTokens: 32768, historyMaxTokens: 2048 },
     features: {
       reranker: true,
       queryDecomposition: true,
@@ -46,6 +67,13 @@ const PROFILES: Record<string, RAGProfileConfig> = {
       webSearch: true,
       hallucinationGuard: 'strict',
       adaptiveRetrieval: true,
+      contextualRetrieval: true,
+      hyde: true,
+      multiQuery: true,
+      multiQueryN: 5,
+      parentDocRetrieval: true,
+      chunkAugmentation: true,
+      crossEncoder: true,
     },
   },
 }

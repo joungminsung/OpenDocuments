@@ -18,8 +18,8 @@ interface Notebook {
 export class JupyterParser implements ParserPlugin {
   name = '@opendocuments/parser-jupyter'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.ipynb']
 
   async setup(_ctx: PluginContext): Promise<void> {}

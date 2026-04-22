@@ -3,8 +3,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class XLSXParser implements ParserPlugin {
   name = '@opendocuments/parser-xlsx'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.xlsx', '.xls', '.csv']
 
   async setup(_ctx: PluginContext): Promise<void> {}

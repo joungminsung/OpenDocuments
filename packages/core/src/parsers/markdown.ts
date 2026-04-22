@@ -5,8 +5,8 @@ import type {
 export class MarkdownParser implements ParserPlugin {
   name = '@opendocuments/parser-markdown'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.3.0'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.md', '.mdx']
 
   async setup(_ctx: PluginContext): Promise<void> {}

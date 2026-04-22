@@ -2,29 +2,51 @@ import { describe, it, expect } from 'vitest'
 import { getProfileConfig } from '../../src/rag/profiles.js'
 
 describe('RAG Profiles', () => {
-  it('returns fast profile config', () => {
+  it('returns fast profile config with all advanced features off', () => {
     const config = getProfileConfig('fast')
     expect(config.retrieval.k).toBe(10)
     expect(config.retrieval.minScore).toBe(0.5)
     expect(config.retrieval.finalTopK).toBe(3)
     expect(config.features.reranker).toBe(false)
+    expect(config.features.contextualRetrieval).toBe(false)
+    expect(config.features.hyde).toBe(false)
+    expect(config.features.multiQuery).toBe(false)
+    expect(config.features.multiQueryN).toBe(0)
+    expect(config.features.parentDocRetrieval).toBe(false)
+    expect(config.features.crossEncoder).toBe(false)
+    expect(config.features.chunkAugmentation).toBe(false)
   })
 
-  it('returns balanced profile config', () => {
+  it('returns balanced profile config with contextual + multi-query + parent-doc on', () => {
     const config = getProfileConfig('balanced')
     expect(config.retrieval.k).toBe(20)
     expect(config.retrieval.minScore).toBe(0.3)
     expect(config.retrieval.finalTopK).toBe(5)
     expect(config.features.reranker).toBe(true)
+    expect(config.features.contextualRetrieval).toBe(true)
+    expect(config.features.multiQuery).toBe(true)
+    expect(config.features.multiQueryN).toBe(3)
+    expect(config.features.parentDocRetrieval).toBe(true)
+    // The expensive features stay OFF for balanced
+    expect(config.features.hyde).toBe(false)
+    expect(config.features.crossEncoder).toBe(false)
+    expect(config.features.chunkAugmentation).toBe(false)
   })
 
-  it('returns precise profile config', () => {
+  it('returns precise profile config with all advanced features on', () => {
     const config = getProfileConfig('precise')
     expect(config.retrieval.k).toBe(50)
     expect(config.retrieval.minScore).toBe(0.15)
     expect(config.retrieval.finalTopK).toBe(10)
     expect(config.features.reranker).toBe(true)
     expect(config.features.queryDecomposition).toBe(true)
+    expect(config.features.contextualRetrieval).toBe(true)
+    expect(config.features.hyde).toBe(true)
+    expect(config.features.multiQuery).toBe(true)
+    expect(config.features.multiQueryN).toBe(5)
+    expect(config.features.parentDocRetrieval).toBe(true)
+    expect(config.features.crossEncoder).toBe(true)
+    expect(config.features.chunkAugmentation).toBe(true)
   })
 
   it('returns balanced base config for custom profile without overrides', () => {

@@ -7,6 +7,14 @@ import { tmpdir } from 'node:os'
 describe('bootstrap', () => {
   let tempDir: string
   let ctx: AppContext | null = null
+  const stubModel = {
+    provider: 'stub',
+    llm: 'stub-llm',
+    embedding: 'stub-embedding',
+    apiKey: '',
+    baseUrl: '',
+    embeddingDimensions: 384,
+  } as any
 
   afterEach(async () => {
     if (ctx) { await ctx.shutdown(); ctx = null }
@@ -15,7 +23,7 @@ describe('bootstrap', () => {
 
   it('initializes all core components with default config', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })
     expect(ctx.config).toBeDefined()
     expect(ctx.db).toBeDefined()
     expect(ctx.vectorDb).toBeDefined()
@@ -28,7 +36,7 @@ describe('bootstrap', () => {
 
   it('creates default workspace on bootstrap', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })
     const ws = ctx.workspaceManager.getByName('default')
     expect(ws).toBeDefined()
   })

@@ -1,6 +1,6 @@
 {
   "name": "opendocuments-parser-pptx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,14 +17,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "opendocuments-core": "0.1.0"
+    "opendocuments-core": "0.3.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   },
   "peerDependencies": {
-    "opendocuments-core": "^0.1.0"
+    "opendocuments-core": "^0.3.0"
   },
   "license": "MIT",
   "files": [

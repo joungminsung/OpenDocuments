@@ -2,9 +2,10 @@ import { useState } from 'react'
 
 interface Props {
   onLogin: (apiKey: string) => void
+  errorMessage?: string
 }
 
-export function LoginPage({ onLogin }: Props) {
+export function LoginPage({ onLogin, errorMessage }: Props) {
   const [key, setKey] = useState('')
 
   return (
@@ -13,6 +14,11 @@ export function LoginPage({ onLogin }: Props) {
         <h1 className="text-2xl font-bold text-center text-primary-600 mb-6">OpenDocuments</h1>
 
         <div className="space-y-4">
+          {errorMessage && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300">
+              {errorMessage}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">API Key</label>
             <input

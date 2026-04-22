@@ -56,8 +56,8 @@ const PATTERNS: Record<string, RegExp[]> = {
 export class CodeParser implements ParserPlugin {
   name = '@opendocuments/parser-code'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   supportedTypes = Object.keys(LANGUAGE_MAP)
 
   async setup(_ctx: PluginContext): Promise<void> {}
