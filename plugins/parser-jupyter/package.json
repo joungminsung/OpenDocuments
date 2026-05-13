@@ -34,5 +34,25 @@
     "type": "git",
     "url": "https://github.com/joungminsung/OpenDocuments.git",
     "directory": "plugins/parser-jupyter"
-  }
+  },
+  "description": "Jupyter notebook parser for OpenDocuments AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "parser",
+    "jupyter",
+    "ipynb",
+    "notebook-parser"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors"
 }

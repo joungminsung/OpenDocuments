@@ -1,0 +1,34 @@
+# OpenDocuments
+
+> Open source self-hosted RAG platform for AI document search across GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources.
+
+OpenDocuments connects scattered organizational documents, indexes them with hybrid retrieval, and answers natural-language questions with source citations. It includes a Web UI, CLI, HTTP API, TypeScript SDK, MCP server, plugin system, and team security controls.
+
+## Core documentation
+
+- [What is OpenDocuments?](https://joungminsung.github.io/OpenDocuments/guide/what-is-opendocuments.html): Concise definition, use cases, architecture, and included components.
+- [Quick Start](https://joungminsung.github.io/OpenDocuments/guide/): Install, initialize, run, index documents, and ask questions.
+- [Comparisons](https://joungminsung.github.io/OpenDocuments/guide/comparisons.html): OpenDocuments versus vector databases, hosted enterprise search, chatbot wrappers, local RAG scripts, and building RAG from scratch.
+- [Self-Hosted RAG with Ollama](https://joungminsung.github.io/OpenDocuments/guide/self-hosted-rag-ollama.html): Run OpenDocuments with local LLMs and embeddings.
+- [MCP Knowledge Base](https://joungminsung.github.io/OpenDocuments/guide/mcp-knowledge-base.html): Use OpenDocuments with Claude Code, Cursor, Windsurf, and other MCP clients.
+- [Architecture](https://joungminsung.github.io/OpenDocuments/guide/architecture.html): Package structure and data flow.
+- [Configuration](https://joungminsung.github.io/OpenDocuments/guide/configuration.html): Configure models, connectors, plugins, RAG profile, security, and storage.
+- [Deployment](https://joungminsung.github.io/OpenDocuments/guide/deployment.html): Docker and production deployment notes.
+
+## Developer references
+
+- [HTTP API](https://joungminsung.github.io/OpenDocuments/api/): API endpoint overview.
+- [TypeScript SDK](https://joungminsung.github.io/OpenDocuments/sdk/guide.html): Programmatic client usage.
+- [Plugin overview](https://joungminsung.github.io/OpenDocuments/plugins/): Plugin system introduction.
+- [Parser API](https://joungminsung.github.io/OpenDocuments/plugins/parser-api.html): Build custom document parsers.
+- [Connector API](https://joungminsung.github.io/OpenDocuments/plugins/connector-api.html): Build custom source connectors.
+- [Model API](https://joungminsung.github.io/OpenDocuments/plugins/model-api.html): Add custom model providers.
+
+## Repository
+
+- [GitHub repository](https://github.com/joungminsung/OpenDocuments)
+- [npm CLI package](https://www.npmjs.com/package/opendocuments)
+
+## Keywords
+
+self-hosted RAG, open source RAG, AI document search, document question answering, cited AI answers, internal knowledge base, enterprise search alternative, Ollama RAG, MCP server, Claude Code knowledge base, Cursor knowledge base, TypeScript RAG platform

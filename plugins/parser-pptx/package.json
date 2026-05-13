@@ -17,6 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "opendocuments-core": "0.3.0"
   },
   "devDependencies": {
@@ -34,5 +35,25 @@
     "type": "git",
     "url": "https://github.com/joungminsung/OpenDocuments.git",
     "directory": "plugins/parser-pptx"
-  }
+  },
+  "description": "PowerPoint PPTX parser for OpenDocuments AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "parser",
+    "pptx",
+    "powerpoint",
+    "slides"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors"
 }
