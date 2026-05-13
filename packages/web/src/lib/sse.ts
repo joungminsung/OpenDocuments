@@ -5,13 +5,14 @@ export interface SSECallbacks {
   onChunk: (text: string) => void
   onSources: (sources: SearchResult[]) => void
   onConfidence?: (confidence: ConfidenceResult) => void
-  onDone: (data: { queryId: string; route: string; profile: string }) => void
+  onDone: (data: { queryId: string; route: string; profile: string; conversationId?: string }) => void
   onError: (error: string) => void
 }
 
 export async function streamChat(
   query: string,
   profile: string | undefined,
+  conversationId: string | null | undefined,
   callbacks: SSECallbacks,
   signal?: AbortSignal
 ): Promise<void> {
@@ -19,7 +20,7 @@ export async function streamChat(
     method: 'POST',
     credentials: 'same-origin',
     headers: withStoredApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ query, profile }),
+    body: JSON.stringify({ query, profile, conversationId: conversationId || undefined }),
     signal,
   })
 

@@ -7,7 +7,7 @@ import { streamChat } from '../../lib/sse'
 import { submitFeedback } from '../../lib/api'
 
 export function ChatPage() {
-  const { messages, isStreaming, currentStreamText, currentSources, currentConfidence } = useChatStore()
+  const { messages, isStreaming, currentStreamText, currentSources, currentConfidence, conversationId } = useChatStore()
   const { profile } = useAppStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -25,11 +25,14 @@ export function ChatPage() {
 
     abortRef.current = new AbortController()
 
-    await streamChat(query, profile, {
+    await streamChat(query, profile, conversationId, {
       onChunk: (text) => useChatStore.getState().appendStreamChunk(text),
       onSources: (sources) => useChatStore.getState().setSources(sources),
       onConfidence: (confidence) => useChatStore.getState().setConfidence(confidence),
-      onDone: (data) => useChatStore.getState().finishStreaming(data.profile || profile, data.queryId),
+      onDone: (data) => {
+        if (data.conversationId) useChatStore.getState().setConversationId(data.conversationId)
+        useChatStore.getState().finishStreaming(data.profile || profile, data.queryId)
+      },
       onError: (error) => {
         useChatStore.getState().appendStreamChunk(`\n\nError: ${error}`)
         useChatStore.getState().finishStreaming(profile)

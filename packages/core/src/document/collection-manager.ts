@@ -34,23 +34,37 @@ export class CollectionManager {
   }
 
   delete(id: string): void {
-    this.db.run('DELETE FROM collections WHERE id = ?', [id])
+    this.db.run('DELETE FROM collections WHERE id = ? AND workspace_id = ?', [id, this.workspaceId])
   }
 
   addDocument(collectionId: string, documentId: string): void {
     this.db.run(
-      'INSERT OR IGNORE INTO collection_documents (collection_id, document_id) VALUES (?, ?)',
-      [collectionId, documentId]
+      `INSERT OR IGNORE INTO collection_documents (collection_id, document_id)
+       SELECT c.id, d.id
+       FROM collections c
+       JOIN documents d ON d.id = ?
+       WHERE c.id = ? AND c.workspace_id = ? AND d.workspace_id = ?`,
+      [documentId, collectionId, this.workspaceId, this.workspaceId]
     )
   }
 
   removeDocument(collectionId: string, documentId: string): void {
-    this.db.run('DELETE FROM collection_documents WHERE collection_id = ? AND document_id = ?', [collectionId, documentId])
+    this.db.run(
+      `DELETE FROM collection_documents
+       WHERE collection_id = ? AND document_id = ?
+       AND EXISTS (SELECT 1 FROM collections WHERE id = ? AND workspace_id = ?)
+       AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND workspace_id = ?)`,
+      [collectionId, documentId, collectionId, this.workspaceId, documentId, this.workspaceId]
+    )
   }
 
   getDocuments(collectionId: string): string[] {
     return this.db.all<any>(
-      'SELECT document_id FROM collection_documents WHERE collection_id = ?', [collectionId]
+      `SELECT cd.document_id FROM collection_documents cd
+       JOIN collections c ON c.id = cd.collection_id
+       JOIN documents d ON d.id = cd.document_id
+       WHERE cd.collection_id = ? AND c.workspace_id = ? AND d.workspace_id = ?`,
+      [collectionId, this.workspaceId, this.workspaceId]
     ).map(r => r.document_id)
   }
 }

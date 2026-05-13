@@ -14,7 +14,9 @@ describe('Document Managers', () => {
     db = createSQLiteDB(':memory:')
     runMigrations(db)
     db.run("INSERT INTO workspaces (id, name) VALUES ('ws-1', 'default')")
+    db.run("INSERT INTO workspaces (id, name) VALUES ('ws-2', 'secondary')")
     db.run("INSERT INTO documents (id, workspace_id, title, source_type, source_path) VALUES ('doc-1', 'ws-1', 'test.md', 'local', '/test.md')")
+    db.run("INSERT INTO documents (id, workspace_id, title, source_type, source_path) VALUES ('doc-2', 'ws-2', 'other.md', 'local', '/other.md')")
   })
 
   afterEach(() => db.close())
@@ -61,6 +63,19 @@ describe('Document Managers', () => {
       mgr.delete(tag.id)
       expect(mgr.list()).toHaveLength(0)
     })
+
+    it('does not mutate tags or documents from another workspace', () => {
+      const ws1 = new TagManager(db, 'ws-1')
+      const ws2 = new TagManager(db, 'ws-2')
+      const foreignTag = ws2.create('foreign')
+
+      ws1.tagDocument('doc-1', foreignTag.id)
+      ws1.tagDocument('doc-2', foreignTag.id)
+      expect(ws2.getDocumentTags('doc-2')).toHaveLength(0)
+
+      ws1.delete(foreignTag.id)
+      expect(ws2.list()).toHaveLength(1)
+    })
   })
 
   describe('CollectionManager', () => {
@@ -84,6 +99,19 @@ describe('Document Managers', () => {
       const col = mgr.create('Auto', undefined, { source_type: 'github', tags: ['backend'] })
       const retrieved = mgr.list()
       expect(retrieved[0].autoRules).toEqual({ source_type: 'github', tags: ['backend'] })
+    })
+
+    it('does not mutate collections or documents from another workspace', () => {
+      const ws1 = new CollectionManager(db, 'ws-1')
+      const ws2 = new CollectionManager(db, 'ws-2')
+      const foreignCollection = ws2.create('Foreign')
+
+      ws1.addDocument(foreignCollection.id, 'doc-1')
+      ws1.addDocument(foreignCollection.id, 'doc-2')
+      expect(ws2.getDocuments(foreignCollection.id)).toEqual([])
+
+      ws1.delete(foreignCollection.id)
+      expect(ws2.list()).toHaveLength(1)
     })
   })
 
