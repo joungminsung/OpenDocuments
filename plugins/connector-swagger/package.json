@@ -25,5 +25,31 @@
   },
   "peerDependencies": {
     "opendocuments-core": "^0.3.0"
+  },
+  "description": "Swagger and OpenAPI connector for OpenDocuments AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "connector",
+    "swagger",
+    "openapi",
+    "api-docs"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "plugins/connector-swagger"
   }
 }
