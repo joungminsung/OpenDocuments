@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { RAGEngine } from '../../src/rag/engine.js'
+import { RAGEngine, boostByMetadata } from '../../src/rag/engine.js'
 import { DocumentStore } from '../../src/ingest/document-store.js'
 import { EventBus } from '../../src/events/bus.js'
 import { createSQLiteDB } from '../../src/storage/sqlite.js'
@@ -104,5 +104,231 @@ describe('RAGEngine', () => {
     // Second call should return a cached result with a different queryId
     expect(result2.queryId).not.toBe(result1.queryId)
     expect(result2.answer).toBe(result1.answer)
+  })
+
+  it('does not reuse cached answers across different conversation histories', async () => {
+    const llm = makeFakeLLM((prompt) => {
+      if (prompt.includes('History Alpha')) return 'answer-from-alpha-history'
+      if (prompt.includes('History Beta')) return 'answer-from-beta-history'
+      return 'fallback-answer'
+    })
+    const embedder = makeFakeEmbedder()
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const doc = store.createDocument({
+      title: 'guide.md', sourceType: 'local', sourcePath: '/guide.md', fileType: '.md',
+    })
+    await store.storeChunks(doc.id, [
+      { content: 'Redis configuration guide with examples', embedding: [0.1, 0.2, 0.3], chunkType: 'semantic', position: 0, tokenCount: 5, headingHierarchy: ['# Redis'] },
+    ])
+
+    const localEngine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+
+    const first = await localEngine.query({ query: 'redis', conversationHistory: 'History Alpha' })
+    const second = await localEngine.query({ query: 'redis', conversationHistory: 'History Beta' })
+
+    expect(first.answer).toBe('answer-from-alpha-history')
+    expect(second.answer).toBe('answer-from-beta-history')
+  })
+})
+
+function makeFakeEmbedder(onEmbed?: (texts: string[]) => void): any {
+  return {
+    name: 'e', type: 'model', version: '0', coreVersion: '^0',
+    capabilities: { embedding: true },
+    embed: async (texts: string[]) => {
+      onEmbed?.(texts)
+      return { dense: texts.map(() => [0.1, 0.2, 0.3]), sparse: [] }
+    },
+    setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+  }
+}
+
+function makeFakeLLM(onGenerate?: (prompt: string) => string): any {
+  return {
+    name: 'l', type: 'model', version: '0', coreVersion: '^0',
+    capabilities: { llm: true },
+    generate: async function*(prompt: string): AsyncIterable<string> {
+      yield onGenerate?.(prompt) ?? 'stub answer'
+    },
+    setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+  }
+}
+
+describe('RAGEngine advanced retrieval features', () => {
+  let db: DB
+  let vectorDb: VectorDB
+  let tempDir: string
+
+  beforeEach(async () => {
+    db = createSQLiteDB(':memory:')
+    runMigrations(db)
+    tempDir = mkdtempSync(join(tmpdir(), 'engine-adv-test-'))
+    vectorDb = await createLanceDB(tempDir)
+  })
+  afterEach(async () => {
+    db.close()
+    await vectorDb.close()
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  async function seedStore(): Promise<DocumentStore> {
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+    const docId = store.createDocument({ title: 't', sourceType: 'local', sourcePath: '/t.md' }).id
+    await store.storeChunks(docId, [
+      { content: 'Redis caching chunk', embedding: [0.1, 0.2, 0.3], chunkType: 'semantic',
+        position: 0, tokenCount: 3, headingHierarchy: ['Redis'], parentSection: 'Redis section full parent text' },
+      { content: 'PostgreSQL ACID chunk', embedding: [0.5, 0.1, 0.1], chunkType: 'semantic',
+        position: 1, tokenCount: 3, headingHierarchy: ['PostgreSQL'], parentSection: 'PostgreSQL section full parent text' },
+    ])
+    return store
+  }
+
+  it('calls HyDE when hyde feature is on', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'Redis is in-memory.' })
+    const embedder = makeFakeEmbedder()
+    const engine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'precise',
+    })
+    await engine.query({ query: 'what is redis' })
+    // Precise profile has hyde=true, so at least one LLM prompt should be a HyDE passage request.
+    // Use a pattern that matches HyDE's distinctive wording but not the answer-generator prompt.
+    const hydePrompt = llmCalls.find(p => /single-paragraph passage|factual extract from a reference/i.test(p) && p.includes('what is redis'))
+    expect(hydePrompt, 'expected a HyDE prompt').toBeTruthy()
+  })
+
+  it('calls multi-query expansion when multiQuery feature is on', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => {
+      llmCalls.push(p)
+      if (p.includes('Rewrite')) return '1. redis cache\n2. redis in-memory\n3. caching in redis'
+      return 'stub answer'
+    })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    await engine.query({ query: 'redis caching' })
+    const mqPrompt = llmCalls.find(p => /Rewrite/i.test(p))
+    expect(mqPrompt, 'expected a multi-query rewrite prompt').toBeTruthy()
+  })
+
+  it('does NOT call HyDE when profile is fast', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'stub' })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+    await engine.query({ query: 'what is redis' })
+    const hydePrompt = llmCalls.find(p => /single-paragraph passage|factual extract from a reference/i.test(p))
+    expect(hydePrompt).toBeFalsy()
+  })
+
+  it('replaces content with parentSection when parentDocRetrieval is on', async () => {
+    const store = await seedStore()
+    const llm = makeFakeLLM(() => 'stub')
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(), eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    const result = await engine.query({ query: 'redis' })
+    // Balanced has parentDocRetrieval=true; at least one source should carry the parent section text.
+    const hasParentContent = result.sources.some(s => s.content.includes('full parent text'))
+    expect(hasParentContent).toBe(true)
+  })
+
+  it('invokes cross-encoder rerank when profile is precise', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => {
+      llmCalls.push(p)
+      if (/Rate how well the passage/.test(p)) return '9'
+      if (/Rewrite/.test(p)) return '1. redis cache\n2. in-memory redis'
+      if (/single-paragraph passage|factual extract from a reference/.test(p)) return 'Redis hypothetical.'
+      return 'stub answer'
+    })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(),
+      eventBus: new EventBus(), defaultProfile: 'precise',
+    })
+    await engine.query({ query: 'redis' })
+    const ceCalls = llmCalls.filter(p => /Rate how well the passage/.test(p))
+    expect(ceCalls.length).toBeGreaterThan(0)
+  })
+
+  it('does NOT invoke cross-encoder when profile is balanced', async () => {
+    const store = await seedStore()
+    const llmCalls: string[] = []
+    const llm = makeFakeLLM(p => { llmCalls.push(p); return 'stub' })
+    const engine = new RAGEngine({
+      store, llm, embedder: makeFakeEmbedder(),
+      eventBus: new EventBus(), defaultProfile: 'balanced',
+    })
+    await engine.query({ query: 'redis' })
+    expect(llmCalls.filter(p => /Rate how well the passage/.test(p))).toHaveLength(0)
+  })
+
+  it('applies profile-specific history budgets to the generation prompt', async () => {
+    const store = await seedStore()
+    const prompts: string[] = []
+    const llm = makeFakeLLM((prompt) => {
+      if (prompt.includes('## Context')) prompts.push(prompt)
+      if (/Rewrite/.test(prompt)) return '1. redis cache\n2. redis in-memory'
+      if (/single-paragraph passage|factual extract from a reference/.test(prompt)) return 'Redis hypothetical.'
+      if (/Rate how well the passage/.test(prompt)) return '9'
+      return 'stub answer'
+    })
+    const embedder = makeFakeEmbedder()
+    const localEngine = new RAGEngine({
+      store, llm, embedder, eventBus: new EventBus(), defaultProfile: 'fast',
+    })
+
+    const history = Array.from(
+      { length: 40 },
+      (_, i) => `Turn ${i}: ${'history-token '.repeat(20)}`.trim(),
+    ).join('\n')
+
+    await localEngine.query({ query: 'redis', profile: 'fast', conversationHistory: history })
+    await localEngine.query({ query: 'redis', profile: 'precise', conversationHistory: history })
+
+    expect(prompts).toHaveLength(2)
+    expect(prompts[0]).toContain('Turn 39:')
+    expect(prompts[0]).not.toContain('Turn 0:')
+    expect(prompts[1]).toContain('Turn 0:')
+    expect(prompts[1]).toContain('Turn 39:')
+  })
+})
+
+describe('boostByMetadata', () => {
+  const makeResult = (heading: string[], chunkType: string, score: number): any => ({
+    chunkId: 'c1', content: 'test', score, documentId: 'd1',
+    chunkType, headingHierarchy: heading, sourcePath: '/test.md', sourceType: 'local',
+  })
+
+  it('boosts score when query keyword is in heading', () => {
+    const result = makeResult(['Redis', 'Configuration'], 'semantic', 0.5)
+    const boosted = boostByMetadata([result], 'redis configuration', 'config')
+    expect(boosted[0].score).toBeGreaterThan(0.5)
+  })
+
+  it('boosts code chunks for code intent', () => {
+    const codeResult = makeResult(['Utils'], 'code-ast', 0.5)
+    const textResult = makeResult(['Utils'], 'semantic', 0.5)
+    const boosted = boostByMetadata([codeResult, textResult], 'how to use utils', 'code')
+    const codeScore = boosted.find(r => r.chunkType === 'code-ast')!.score
+    const textScore = boosted.find(r => r.chunkType === 'semantic')!.score
+    expect(codeScore).toBeGreaterThan(textScore)
+  })
+
+  it('does not boost when no matches', () => {
+    const result = makeResult(['Deployment'], 'semantic', 0.5)
+    const boosted = boostByMetadata([result], 'authentication', 'general')
+    expect(boosted[0].score).toBe(0.5)
   })
 })

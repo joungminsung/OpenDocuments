@@ -21,7 +21,7 @@ export interface WebSearchResult {
 
 export class WebSearchProvider {
   name = '@opendocuments/connector-web-search'
-  version = '0.1.0'
+  version = '0.1.1'
 
   private provider: 'tavily' | 'searxng' = 'tavily'
   private apiKey = ''

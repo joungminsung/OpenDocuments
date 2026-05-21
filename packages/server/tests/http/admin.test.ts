@@ -5,6 +5,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
+const stubModel = {
+  provider: 'stub',
+  llm: 'stub-llm',
+  embedding: 'stub-embedding',
+  apiKey: '',
+  baseUrl: '',
+  embeddingDimensions: 384,
+} as any
+
 describe('Admin Routes', () => {
   let ctx: AppContext
   let app: ReturnType<typeof createApp>
@@ -12,7 +21,7 @@ describe('Admin Routes', () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })  // personal mode -- no auth needed
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })  // personal mode -- no auth needed
     app = createApp(ctx)
   })
 
@@ -69,7 +78,7 @@ describe('Admin Routes (team mode)', () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team' } })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team', model: stubModel } })
     app = createApp(ctx)
   })
 

@@ -8,11 +8,19 @@ import { tmpdir } from 'node:os'
 describe('Auth Middleware', () => {
   let ctx: AppContext
   let tempDir: string
+  const stubModel = {
+    provider: 'stub',
+    llm: 'stub-llm',
+    embedding: 'stub-embedding',
+    apiKey: '',
+    baseUrl: '',
+    embeddingDimensions: 384,
+  } as any
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     // Bootstrap in team mode
-    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team' } })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { mode: 'team', model: stubModel } })
   })
 
   afterEach(async () => {
@@ -38,6 +46,18 @@ describe('Auth Middleware', () => {
     expect(res.status).toBe(200)
   })
 
+  it('accepts requests with a session cookie', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'cookie-test', workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'user-1', role: 'admin',
+    })
+    const app = createApp(ctx)
+    const res = await app.request('/api/v1/health', {
+      headers: { Cookie: `opendocuments_session=${rawKey}` },
+    })
+    expect(res.status).toBe(200)
+  })
+
   it('rejects expired API key', async () => {
     const { rawKey } = ctx.apiKeyManager.create({
       name: 'expired', workspaceId: ctx.workspaceManager.list()[0].id,
@@ -52,7 +72,7 @@ describe('Auth Middleware', () => {
 
   it('allows all requests in personal mode', async () => {
     const tempDir2 = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    const personalCtx = await bootstrap({ dataDir: tempDir2 })  // default personal mode
+    const personalCtx = await bootstrap({ dataDir: tempDir2, configOverrides: { model: stubModel } })  // default personal mode
     const app = createApp(personalCtx)
     const res = await app.request('/api/v1/health')
     expect(res.status).toBe(200)

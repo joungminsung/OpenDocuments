@@ -3,8 +3,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class DOCXParser implements ParserPlugin {
   name = '@opendocuments/parser-docx'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.docx']
 
   async setup(_ctx: PluginContext): Promise<void> {}

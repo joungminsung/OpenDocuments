@@ -1,4 +1,5 @@
 import type { StreamEvent, SearchResult, ConfidenceResult } from './types'
+import { withStoredApiKey } from './auth'
 
 export interface SSECallbacks {
   onChunk: (text: string) => void
@@ -16,7 +17,8 @@ export async function streamChat(
 ): Promise<void> {
   const res = await fetch('/api/v1/chat/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: withStoredApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ query, profile }),
     signal,
   })

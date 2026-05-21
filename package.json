@@ -1,8 +1,25 @@
 {
   "name": "opendocuments-monorepo",
   "private": true,
-  "description": "Self-hosted RAG platform that connects your scattered documents and answers questions with AI",
-  "keywords": ["rag", "llm", "ai", "document-search", "knowledge-base", "self-hosted", "mcp", "ollama", "openai", "vector-search", "embeddings", "retrieval-augmented-generation", "typescript", "open-source"],
+  "description": "Self-hosted RAG platform for AI document search across GitHub, Notion, Google Drive, local files, and web sources",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "mcp",
+    "ollama",
+    "openai",
+    "vector-search",
+    "semantic-search",
+    "embeddings",
+    "typescript",
+    "open-source"
+  ],
   "homepage": "https://github.com/joungminsung/OpenDocuments",
   "repository": {
     "type": "git",
@@ -13,7 +30,10 @@
   },
   "author": "OpenDocuments Contributors",
   "license": "MIT",
-  "workspaces": ["packages/*", "plugins/*"],
+  "workspaces": [
+    "packages/*",
+    "plugins/*"
+  ],
   "scripts": {
     "setup": "npm install && npm run build && echo 'Setup complete. Run: npm run test'",
     "build": "turbo build",

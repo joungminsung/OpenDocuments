@@ -3,8 +3,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class StructuredDataParser implements ParserPlugin {
   name = '@opendocuments/parser-structured'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.3.0'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.json', '.yaml', '.yml', '.toml']
 
   async setup(_ctx: PluginContext): Promise<void> {}

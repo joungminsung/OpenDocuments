@@ -3,8 +3,8 @@ import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatu
 export class PDFParser implements ParserPlugin {
   name = '@opendocuments/parser-pdf'
   type = 'parser' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.pdf']
 
   async setup(_ctx: PluginContext): Promise<void> {}

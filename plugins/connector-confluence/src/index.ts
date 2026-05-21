@@ -11,8 +11,8 @@ export interface ConfluenceConfig {
 export class ConfluenceConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-confluence'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private baseUrl = ''
   private authHeader = ''

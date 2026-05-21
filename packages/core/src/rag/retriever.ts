@@ -38,17 +38,38 @@ export class Retriever {
     // Sparse search (FTS5)
     let sparseResults: SearchResult[] = []
     try {
-      sparseResults = this.store.searchFTS(query, opts.k)
+      sparseResults = await this.store.searchFTS(query, opts.k)
     } catch (err) {
       console.warn('[retriever] FTS5 search failed, using dense-only:', err instanceof Error ? err.message : String(err))
     }
 
     // RRF merge if we have sparse results
     if (sparseResults.length > 0) {
-      const merged = reciprocalRankFusion([denseResults, sparseResults], 60, (item) => item.chunkId)
+      const merged = reciprocalRankFusion([denseResults, sparseResults], 60, (item) => item.chunkId, true)
       return merged.slice(0, opts.finalTopK)
     }
 
     return denseResults.slice(0, opts.finalTopK)
+  }
+
+  async expandWithSiblings(
+    results: SearchResult[],
+    store: DocumentStore,
+    window = 1
+  ): Promise<SearchResult[]> {
+    const seen = new Set(results.map(r => r.chunkId))
+    const expanded = [...results]
+
+    for (const result of results) {
+      const siblings = await store.getAdjacentChunks(result.chunkId, window)
+      for (const sibling of siblings) {
+        if (!seen.has(sibling.chunkId)) {
+          seen.add(sibling.chunkId)
+          expanded.push({ ...sibling, score: result.score * 0.6 })
+        }
+      }
+    }
+
+    return expanded.sort((a, b) => b.score - a.score)
   }
 }

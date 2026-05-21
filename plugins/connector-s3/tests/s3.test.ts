@@ -21,7 +21,7 @@ describe('S3Connector', () => {
   it('has correct metadata', () => {
     expect(connector.name).toBe('@opendocuments/connector-s3')
     expect(connector.type).toBe('connector')
-    expect(connector.version).toBe('0.1.0')
+    expect(connector.version).toBe('0.1.1')
   })
 
   it('healthCheck succeeds when bucket is accessible', async () => {

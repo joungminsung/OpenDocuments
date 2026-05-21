@@ -16,7 +16,20 @@ export function indexCommand() {
       const textExtensions = new Set(['.md', '.mdx', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv', '.html', '.htm', '.ipynb'])
       try {
         log.heading('Indexing')
-        const files = discoverFiles(absPath)
+        let files: string[]
+        try {
+          files = discoverFiles(absPath)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          if (message.includes('ENOENT')) {
+            log.fail(`Path not found: ${absPath}`)
+          } else if (message.includes('EACCES')) {
+            log.fail(`Permission denied: ${absPath}`)
+          } else {
+            log.fail(`Cannot access path: ${message}`)
+          }
+          return
+        }
         if (files.length === 0) { log.fail('No supported files found'); return }
         log.info(`Found ${files.length} file(s)`)
         for (const file of files) {

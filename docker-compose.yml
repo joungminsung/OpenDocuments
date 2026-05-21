@@ -10,12 +10,46 @@ services:
     environment:
       - OPENDOCUMENTS_DATA_DIR=/data
       - NODE_ENV=production
+      # Model provider — pick one and set the appropriate key/URL:
+      #   Ollama (local, no key required):
+      #     MODEL_PROVIDER=ollama
+      #     OLLAMA_BASE_URL=http://ollama:11434
+      #   OpenAI:
+      #     MODEL_PROVIDER=openai
+      #     OPENAI_API_KEY=sk-...
+      #   Anthropic:
+      #     MODEL_PROVIDER=anthropic
+      #     ANTHROPIC_API_KEY=sk-ant-...
+      #   Google:
+      #     MODEL_PROVIDER=google
+      #     GOOGLE_API_KEY=...
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
 
   ollama:
     image: ollama/ollama:latest
-    ports: ["11434:11434"]
-    volumes: ["ollama_models:/root/.ollama"]
-    profiles: ["with-ollama"]  # Only start with: docker compose --profile with-ollama up
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    profiles:
+      - with-ollama  # Only start with: docker compose --profile with-ollama up
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
 volumes:
   opendocuments-data:

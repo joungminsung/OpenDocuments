@@ -13,6 +13,12 @@ export interface VectorSearchResult {
   metadata: Record<string, string | number | boolean>
 }
 
+export interface VectorRecord {
+  id: string
+  content: string
+  metadata: Record<string, string | number | boolean>
+}
+
 export interface VectorSearchOpts {
   embedding: number[]
   topK: number
@@ -24,6 +30,11 @@ export interface VectorDB {
   ensureCollection(name: string, dimensions: number): Promise<void>
   upsert(collection: string, documents: VectorDocument[]): Promise<void>
   search(collection: string, opts: VectorSearchOpts): Promise<VectorSearchResult[]>
+  getByIds(
+    collection: string,
+    ids: string[],
+    filter?: Record<string, string | number | boolean>
+  ): Promise<VectorRecord[]>
   delete(collection: string, ids: string[]): Promise<void>
   /**
    * Delete documents matching a structured filter.

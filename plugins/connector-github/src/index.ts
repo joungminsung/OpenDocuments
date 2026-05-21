@@ -12,8 +12,8 @@ export interface GitHubConfig {
 export class GitHubConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-github'
   type = 'connector' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
 
   private token = ''
   private repo = ''
@@ -79,7 +79,7 @@ export class GitHubConnector implements ConnectorPlugin {
   private ghFetch(path: string): Promise<Response> {
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'OpenDocuments/0.1.0',
+      'User-Agent': 'OpenDocuments/0.3.0',
     }
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`
     return fetchWithTimeout(`${this.baseUrl}${path}`, { headers })

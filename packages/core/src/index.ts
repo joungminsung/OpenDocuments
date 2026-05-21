@@ -1,19 +1,38 @@
 // @opendocuments/core - public API
 // Will be populated as modules are implemented
 
-export const VERSION = '0.1.0'
+export const VERSION = '0.3.0'
 
 export { log } from './utils/logger.js'
+export { estimateTokens } from './utils/tokenizer.js'
 export { sha256 } from './utils/hash.js'
 export { discoverFiles } from './utils/file-discovery.js'
 export { fetchWithTimeout } from './utils/fetch.js'
+export {
+  parseModelName,
+  isOllamaRunning,
+  getOllamaModels,
+  hasOllamaModel,
+  pullOllamaModel,
+  ensureOllamaModel,
+  type OllamaModel,
+} from './utils/ollama.js'
 export { FileWatcher, type FileChange } from './utils/file-watcher.js'
+export {
+  detectHardware,
+  recommendModels,
+  type HardwareInfo,
+  type ModelRecommendation,
+} from './utils/hardware.js'
 export { EventBus, type OpenDocumentsEventMap, type EventName } from './events/bus.js'
+export { WebhookDispatcher, type WebhookConfig } from './events/webhook-dispatcher.js'
 export { PluginRegistry } from './plugin/registry.js'
 export { checkCompatibility, type CompatibilityResult } from './plugin/capability.js'
+export { fetchCommunityPlugins, filterCommunityPlugins, type CommunityPlugin } from './plugin/community-registry.js'
 
 export { configSchema, type OpenDocumentsConfig } from './config/schema.js'
 export { loadConfig, validateConfig, defineConfig } from './config/loader.js'
+export { buildConfigFromEnv } from './config/env-loader.js'
 export { DEFAULT_CONFIG } from './config/defaults.js'
 
 export type { DB, Row, DBFactory } from './storage/db.js'
@@ -26,8 +45,10 @@ export { createLanceDB } from './storage/lancedb.js'
 export { WorkspaceManager, type Workspace } from './workspace/manager.js'
 
 export { loadPlugin, loadPlugins, isValidPlugin } from './plugin/loader.js'
+export { validatePluginPermissions, enforceNetworkPermission, enforceFilesystemPermission, type ResolvedPermissions } from './plugin/sandbox.js'
 
-export { chunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
+export { chunkText, semanticChunkText, type ChunkOptions, type TextChunk } from './ingest/chunker.js'
+export { selectChunkStrategy, dispatchChunk, type ChunkStrategy, type ChunkDispatchContext } from './ingest/chunk-strategies.js'
 export { MiddlewareRunner } from './ingest/middleware.js'
 export { DocumentStore, type CreateDocumentInput, type StoredChunk, type SearchResult } from './ingest/document-store.js'
 
@@ -51,10 +72,18 @@ export { RAGEngine, type QueryInput, type QueryResult, type RAGEngineOptions } f
 export { decomposeQuery, type DecomposedQuery } from './rag/decomposer.js'
 export { expandQuery, reciprocalRankFusion } from './rag/cross-lingual.js'
 export { rerankResults } from './rag/reranker.js'
-export { checkGrounding, type GroundingResult } from './rag/grounding.js'
+export { checkGrounding, checkSemanticGrounding, type GroundingResult } from './rag/grounding.js'
 export { crossWorkspaceSearch } from './rag/cross-workspace.js'
 export { RAGCache, createQueryCache, createEmbeddingCache, createWebSearchCache } from './rag/cache.js'
 export { fitToContextWindow, type ContextWindowConfig } from './rag/context-window.js'
+export { compressContext } from './rag/prompt-compressor.js'
+export { generateChunkContexts, type ChunkContextInput } from './rag/contextual.js'
+export { generateHypotheticalAnswer } from './rag/hyde.js'
+export { expandMultiQuery } from './rag/multi-query.js'
+export { attachParentContext } from './rag/parent-doc.js'
+export { generatePropositions, generateHypotheticalQuestions } from './rag/propositions.js'
+export { crossEncoderRerank } from './rag/cross-encoder.js'
+export { hitAtK, reciprocalRank, nDCG, evaluate, type GoldCase, type EvalSummary } from './rag/eval.js'
 
 export { ConversationManager, type Conversation, type Message } from './conversation/manager.js'
 

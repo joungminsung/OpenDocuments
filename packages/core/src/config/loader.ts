@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { createJiti } from 'jiti'
 import { configSchema, type OpenDocumentsConfig } from './schema.js'
 import { DEFAULT_CONFIG } from './defaults.js'
+import { buildConfigFromEnv } from './env-loader.js'
 
 export function validateConfig(raw: unknown): OpenDocumentsConfig {
   return configSchema.parse(raw)
@@ -49,6 +50,10 @@ export function loadConfig(projectDir: string): OpenDocumentsConfig {
   const configPath = existsSync(tsPath) ? tsPath : existsSync(jsPath) ? jsPath : null
 
   if (!configPath) {
+    const envConfig = buildConfigFromEnv()
+    if (envConfig !== null) {
+      return validateConfig(envConfig)
+    }
     console.warn('\x1b[33m[WARN] No config file found. Using defaults (Ollama on localhost).\x1b[0m')
     console.warn('  Run: opendocuments init')
     return DEFAULT_CONFIG

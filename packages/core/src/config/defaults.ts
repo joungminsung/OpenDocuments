@@ -22,4 +22,5 @@ export const DEFAULT_CONFIG: OpenDocumentsConfig = {
   ui: { locale: 'auto', theme: 'auto' },
   telemetry: { enabled: false },
   storage: { db: 'sqlite', vectorDb: 'lancedb', dataDir: '~/.opendocuments' },
+  webhooks: [],
 }

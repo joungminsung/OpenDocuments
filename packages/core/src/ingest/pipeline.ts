@@ -3,7 +3,9 @@ import type { DocumentStore } from './document-store.js'
 import type { PluginRegistry } from '../plugin/registry.js'
 import type { EventBus } from '../events/bus.js'
 import type { MiddlewareRunner } from './middleware.js'
-import { chunkText } from './chunker.js'
+import { dispatchChunk } from './chunk-strategies.js'
+import { generateChunkContexts } from '../rag/contextual.js'
+import { getProfileConfig } from '../rag/profiles.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
 import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
@@ -87,7 +89,10 @@ export class IngestPipeline {
     throw new Error(`No parser found for ${fileExt}`)
   }
 
-  async ingest(input: IngestInput): Promise<IngestResult> {
+  async ingest(
+    input: IngestInput,
+    options: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } = {}
+  ): Promise<IngestResult> {
     const { store, registry, eventBus, middleware } = this.opts
     const contentHash = sha256(input.content)
 
@@ -144,32 +149,40 @@ export class IngestPipeline {
       // Apply before:chunk middleware
       await middleware.run('before:chunk', parsedChunks)
 
-      // Chunk: semantic chunks go through chunkText, code chunks pass through
+      // Resolve embedder early -- semantic chunking needs it
+      const models = registry.getModels()
+      const embeddingModel = models.find(m => m.capabilities.embedding && m.embed)
+      const embedFn = embeddingModel?.embed?.bind(embeddingModel) ?? null
+
+      // Embedder is required to index; bail early if missing
+      if (!embeddingModel || !embedFn) {
+        store.updateStatus(documentId, 'error', 'No embedding model available')
+        return { documentId, chunks: 0, status: 'error' }
+      }
+
+      // Chunk: dispatch based on file type + parser-reported chunkType.
+      // Markdown/prose use semantic sentence-level splitting; code/table/api pass through;
+      // data files (JSON/YAML) use paragraph chunking.
       const finalChunks: StoredChunk[] = []
       for (const parsed of parsedChunks) {
-        if (parsed.chunkType === 'semantic') {
-          const textChunks = chunkText(parsed.content)
-          for (const tc of textChunks) {
-            finalChunks.push({
-              content: tc.content,
-              embedding: [],
-              chunkType: 'semantic',
-              position: finalChunks.length,
-              tokenCount: tc.tokenCount,
-              headingHierarchy: tc.headingHierarchy.length > 0 ? tc.headingHierarchy : (parsed.headingHierarchy ?? []),
-            })
-          }
-        } else {
-          // code-ast, table, api-endpoint, etc. -- pass through directly
+        const textChunks = await dispatchChunk(parsed.content, {
+          fileType,
+          chunkType: parsed.chunkType,
+          embed: embedFn,
+        })
+        for (const tc of textChunks) {
           finalChunks.push({
-            content: parsed.content,
+            content: tc.content,
             embedding: [],
             chunkType: parsed.chunkType,
             position: finalChunks.length,
-            tokenCount: Math.ceil(parsed.content.length / 4),
-            headingHierarchy: parsed.headingHierarchy ?? [],
+            tokenCount: tc.tokenCount,
+            headingHierarchy: tc.headingHierarchy.length > 0
+              ? tc.headingHierarchy
+              : (parsed.headingHierarchy ?? []),
             language: parsed.language,
             codeSymbols: parsed.codeSymbols,
+            parentSection: tc.parentSection,
           })
         }
       }
@@ -179,21 +192,81 @@ export class IngestPipeline {
 
       eventBus.emit('document:chunked', { documentId, chunks: finalChunks.length })
 
-      // Embed all chunks in batches of BATCH_SIZE
-      const models = registry.getModels()
-      const embeddingModel = models.find(m => m.capabilities.embedding && m.embed)
-      if (!embeddingModel || !embeddingModel.embed) {
-        store.updateStatus(documentId, 'error', 'No embedding model available')
-        return { documentId, chunks: 0, status: 'error' }
+      // Contextual Retrieval: let an LLM author a 1-2-sentence situating prefix per chunk.
+      // We embed `${prefix}\n\n${content}` but keep raw content for later generation.
+      // Resolution order: explicit options arg > config.rag.custom.features > active profile's features.
+      // The active profile lookup is what makes `balanced`/`precise` actually turn this on by default
+      // without every caller having to thread the option explicitly.
+      const customFeatures = (this.opts.config?.rag?.custom as
+        | { features?: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } }
+        | undefined
+      )?.features
+      let profileFeatures: ReturnType<typeof getProfileConfig>['features'] | undefined
+      const profileName = this.opts.config?.rag?.profile
+      if (profileName) {
+        try {
+          profileFeatures = getProfileConfig(profileName).features
+        } catch {
+          profileFeatures = undefined
+        }
+      }
+      const enableContextual =
+        options.contextualRetrieval ??
+        customFeatures?.contextualRetrieval ??
+        profileFeatures?.contextualRetrieval ??
+        false
+      if (enableContextual && finalChunks.length > 0) {
+        const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)
+        if (llmModel) {
+          const fullDoc = parsedChunks.map(p => p.content).join('\n\n')
+          const contexts = await generateChunkContexts({
+            document: fullDoc,
+            chunks: finalChunks.map(c => c.content),
+            llm: llmModel,
+          })
+          for (let i = 0; i < finalChunks.length; i++) {
+            if (contexts[i]) finalChunks[i].contextualPrefix = contexts[i]
+          }
+        }
       }
 
-      const texts = finalChunks.map(c => c.content)
+      // Chunk Augmentation: per-chunk LLM-driven transforms whose output is
+      // concatenated into the FTS5 index ONLY (not embeddings, not generator
+      // content). Propositions boost recall on paraphrased fact queries;
+      // hypothetical questions boost recall on question-style queries.
+      const enableAugmentation =
+        options.chunkAugmentation ??
+        customFeatures?.chunkAugmentation ??
+        profileFeatures?.chunkAugmentation ??
+        false
+      if (enableAugmentation && finalChunks.length > 0) {
+        const llmModel = registry.getModels().find(m => m.capabilities.llm && m.generate)
+        if (llmModel) {
+          const { generatePropositions, generateHypotheticalQuestions } = await import('../rag/propositions.js')
+          // Run per-chunk in sequence to keep LLM load predictable; pairs run in parallel.
+          for (const chunk of finalChunks) {
+            const [props, qs] = await Promise.all([
+              generatePropositions(chunk.content, llmModel),
+              generateHypotheticalQuestions(chunk.content, llmModel, 3),
+            ])
+            const lines = [...props, ...qs]
+            if (lines.length > 0) chunk.ftsAugment = lines.join('\n')
+          }
+        }
+      }
+
+      // Embed all chunks in batches of BATCH_SIZE.
+      // Prepend the contextual prefix when present so retrieval embeddings capture
+      // the situating context, while preserving the raw chunk content for the generator.
+      const texts = finalChunks.map(c =>
+        c.contextualPrefix ? `${c.contextualPrefix}\n\n${c.content}` : c.content
+      )
       const allEmbeddings: number[][] = []
 
       let expectedDim: number | null = null
       for (let i = 0; i < texts.length; i += BATCH_SIZE) {
         const batch = texts.slice(i, i + BATCH_SIZE)
-        const result = await embeddingModel.embed(batch)
+        const result = await embedFn(batch)
         if (result.dense.length !== batch.length) {
           throw new Error(
             `Embedding count mismatch: sent ${batch.length} texts, got ${result.dense.length} embeddings`

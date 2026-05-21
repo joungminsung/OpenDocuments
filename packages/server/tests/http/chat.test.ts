@@ -9,10 +9,18 @@ describe('Chat Routes', () => {
   let ctx: AppContext
   let app: ReturnType<typeof createApp>
   let tempDir: string
+  const stubModel = {
+    provider: 'stub',
+    llm: 'stub-llm',
+    embedding: 'stub-embedding',
+    apiKey: '',
+    baseUrl: '',
+    embeddingDimensions: 384,
+  } as any
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })
     app = createApp(ctx)
   })
   afterEach(async () => { await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })
@@ -46,5 +54,19 @@ describe('Chat Routes', () => {
     })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/event-stream')
+  })
+
+  it('POST /api/v1/chat/stream records query logs for streamed chats', async () => {
+    const res = await app.request('/api/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'Hello' }),
+    })
+
+    expect(res.status).toBe(200)
+    await res.text()
+
+    const row = ctx.db.get<{ count: number }>('SELECT COUNT(*) as count FROM query_logs WHERE query = ?', ['Hello'])
+    expect(row?.count).toBe(1)
   })
 })

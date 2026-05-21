@@ -34,7 +34,19 @@ describe('MCP Server', () => {
 
   async function setupMCP() {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-mcp-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({
+      dataDir: tempDir,
+      configOverrides: {
+        model: {
+          provider: 'stub',
+          llm: 'stub-llm',
+          embedding: 'stub-embedding',
+          apiKey: '',
+          baseUrl: '',
+          embeddingDimensions: 384,
+        } as any,
+      },
+    })
     const server = createMCPServer(ctx)
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()

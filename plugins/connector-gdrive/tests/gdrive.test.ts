@@ -16,7 +16,7 @@ describe('GDriveConnector', () => {
   it('has correct metadata', () => {
     expect(connector.name).toBe('@opendocuments/connector-gdrive')
     expect(connector.type).toBe('connector')
-    expect(connector.version).toBe('0.1.0')
+    expect(connector.version).toBe('0.1.1')
   })
 
   it('healthCheck succeeds when access token is valid', async () => {

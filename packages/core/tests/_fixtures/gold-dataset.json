@@ -1,0 +1,82 @@
+[
+  {
+    "id": "code-1",
+    "intent": "code",
+    "query": "how to implement JWT authentication",
+    "corpusTitle": "auth.ts",
+    "corpusFileType": ".ts",
+    "corpusContent": "export function signJWT(payload: object, secret: string): string {\n  return jsonwebtoken.sign(payload, secret, { algorithm: 'HS256' })\n}\n\nexport function verifyJWT(token: string, secret: string): object {\n  return jsonwebtoken.verify(token, secret) as object\n}\n"
+  },
+  {
+    "id": "concept-1",
+    "intent": "concept",
+    "query": "What is Redis used for?",
+    "corpusTitle": "redis-intro.md",
+    "corpusFileType": ".md",
+    "corpusContent": "# Redis\n\nRedis is an in-memory data store commonly used for caching, pub/sub messaging, and session storage in high-throughput web applications."
+  },
+  {
+    "id": "data-1",
+    "intent": "data",
+    "query": "Q1 revenue breakdown by region",
+    "corpusTitle": "finance-q1.md",
+    "corpusFileType": ".md",
+    "corpusContent": "## Q1 Revenue\n\n| Region | Revenue |\n|--------|---------|\n| NA     | $4.2M   |\n| EU     | $3.1M   |\n| APAC   | $2.4M   |"
+  },
+  {
+    "id": "config-1",
+    "intent": "config",
+    "query": "how to set max connections in postgres",
+    "corpusTitle": "pg-tuning.md",
+    "corpusFileType": ".md",
+    "corpusContent": "## Connection Pool\n\nSet `max_connections` in postgresql.conf. Default is 100; recommended production value is (cores * 2) + effective_spindle_count."
+  },
+  {
+    "id": "ko-1",
+    "intent": "general",
+    "query": "비밀번호 해싱 방법",
+    "corpusTitle": "security-ko.md",
+    "corpusFileType": ".md",
+    "corpusContent": "## 비밀번호 보안\n\n비밀번호는 bcrypt 또는 argon2id로 해싱한다. 평문 저장은 금지. 솔트는 자동 생성되며 cost factor는 12 이상을 권장."
+  },
+  {
+    "id": "code-2",
+    "intent": "code",
+    "query": "python async http client example",
+    "corpusTitle": "http-client.py",
+    "corpusFileType": ".py",
+    "corpusContent": "import aiohttp\nimport asyncio\n\nasync def fetch(session, url):\n    async with session.get(url) as resp:\n        return await resp.text()\n\nasync def main():\n    async with aiohttp.ClientSession() as session:\n        html = await fetch(session, 'https://example.com')\n        print(html)\n\nasyncio.run(main())\n"
+  },
+  {
+    "id": "concept-2",
+    "intent": "concept",
+    "query": "What is contextual retrieval?",
+    "corpusTitle": "retrieval-techniques.md",
+    "corpusFileType": ".md",
+    "corpusContent": "# Retrieval Techniques\n\n## Contextual Retrieval\n\nContextual retrieval prepends a short LLM-authored context to each chunk before embedding. The context situates the chunk in the overall document, so retrieval can match even when the chunk alone lacks keywords the query uses."
+  },
+  {
+    "id": "config-2",
+    "intent": "config",
+    "query": "docker compose restart policy",
+    "corpusTitle": "docker-compose-ops.md",
+    "corpusFileType": ".md",
+    "corpusContent": "## Service restart policy\n\nIn docker-compose.yml, the `restart:` key accepts: `no`, `always`, `on-failure`, and `unless-stopped`. Production services should typically use `unless-stopped` so operators can stop them without the daemon bringing them back up."
+  },
+  {
+    "id": "data-2",
+    "intent": "data",
+    "query": "employee headcount by department 2025",
+    "corpusTitle": "hc-2025.md",
+    "corpusFileType": ".md",
+    "corpusContent": "## 2025 Headcount\n\n| Department | Headcount |\n|------------|-----------|\n| Engineering| 128       |\n| Sales      | 42        |\n| Marketing  | 18        |\n| Support    | 31        |"
+  },
+  {
+    "id": "ko-2",
+    "intent": "concept",
+    "query": "마이크로서비스 아키텍처의 장단점",
+    "corpusTitle": "msa-ko.md",
+    "corpusFileType": ".md",
+    "corpusContent": "# 마이크로서비스 아키텍처\n\n장점: 독립 배포, 기술 스택 자유, 팀 경계 명확.\n단점: 분산 트랜잭션 복잡도, 네트워크 장애 대응, 운영 오버헤드 증가."
+  }
+]

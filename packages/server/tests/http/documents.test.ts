@@ -12,7 +12,19 @@ describe('Document Routes', () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({
+      dataDir: tempDir,
+      configOverrides: {
+        model: {
+          provider: 'stub',
+          llm: 'stub-llm',
+          embedding: 'stub-embedding',
+          apiKey: '',
+          baseUrl: '',
+          embeddingDimensions: 384,
+        } as any,
+      },
+    })
     app = createApp(ctx)
   })
   afterEach(async () => { await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })

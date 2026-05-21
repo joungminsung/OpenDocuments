@@ -1,11 +1,14 @@
 import type { QueryResult, Document, StatsResponse, AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from './types'
+import { withStoredApiKey } from './auth'
 
 const BASE = '/api/v1'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const { headers, ...rest } = options || {}
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
+    ...rest,
+    credentials: 'same-origin',
+    headers: withStoredApiKey({ 'Content-Type': 'application/json', ...headers }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: 'Request failed' }))
@@ -39,6 +42,8 @@ export async function uploadDocument(file: File): Promise<{ documentId: string; 
   const formData = new FormData()
   formData.append('file', file)
   const res = await fetch(`${BASE}/documents/upload`, {
+    credentials: 'same-origin',
+    headers: withStoredApiKey(),
     method: 'POST',
     body: formData,
   })
@@ -83,7 +88,46 @@ export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
 }
 
+export async function getModelBenchmarks(): Promise<{ benchmarks: Array<{
+  name: string
+  version: string
+  capabilities: Record<string, boolean | undefined>
+  health: { healthy: boolean; message?: string } | null
+  generation: { latencyMs: number; tokensPerSec: number } | { error: string } | null
+  embedding: { latencyMs: number; textsPerSec: number } | { error: string } | null
+}> }> {
+  return request('/admin/benchmark')
+}
+
+// Plugins
+export async function searchPlugins(query: string): Promise<{ packages: Array<{ name: string; description: string; version: string; [key: string]: unknown }> }> {
+  return request(`/plugins/search?q=${encodeURIComponent(query)}`)
+}
+
+export async function getPlugins(): Promise<{ plugins: Array<{ name: string; type: string; version: string; health: { healthy: boolean; message?: string } }> }> {
+  return request('/plugins')
+}
+
+export async function installPlugin(name: string): Promise<{ status: string; message: string }> {
+  return request('/plugins/install', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function removePlugin(name: string): Promise<{ status: string }> {
+  return request(`/plugins/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
 // Feedback
 export async function submitFeedback(queryId: string, feedback: 'positive' | 'negative'): Promise<void> {
   await request('/chat/feedback', { method: 'POST', body: JSON.stringify({ queryId, feedback }) })
+}
+
+// Dashboard
+export async function getDashboardData() {
+  const [stats, adminStats, connectorStatus, pluginHealth] = await Promise.all([
+    getStats(), getAdminStats(), getConnectorStatus(), getPluginHealth(),
+  ])
+  return { stats, adminStats, connectorStatus, pluginHealth }
 }

@@ -66,9 +66,9 @@ export function pluginCommand() {
           test: 'vitest run',
           typecheck: 'tsc --noEmit',
         },
-        dependencies: { 'opendocuments-core': '^0.1.0' },
+        dependencies: { 'opendocuments-core': '0.3.0' },
         devDependencies: { typescript: '^5.5.0', vitest: '^2.1.0' },
-        peerDependencies: { 'opendocuments-core': '^0.1.0' },
+        peerDependencies: { 'opendocuments-core': '^0.3.0' },
       }, null, 2) + '\n')
 
       // tsconfig.json
@@ -94,7 +94,7 @@ export class MyParser implements ParserPlugin {
   name = '${name}'
   type = 'parser' as const
   version = '0.1.0'
-  coreVersion = '^0.1.0'
+  coreVersion = '^0.3.0'
   supportedTypes = ['.ext'] // TODO: set your file extensions
 
   async setup(_ctx: PluginContext): Promise<void> {}
@@ -115,7 +115,7 @@ export class MyConnector implements ConnectorPlugin {
   name = '${name}'
   type = 'connector' as const
   version = '0.1.0'
-  coreVersion = '^0.1.0'
+  coreVersion = '^0.3.0'
 
   async setup(_ctx: PluginContext): Promise<void> {}
   async healthCheck(): Promise<HealthStatus> { return { healthy: true } }
@@ -138,7 +138,7 @@ export class MyModel implements ModelPlugin {
   name = '${name}'
   type = 'model' as const
   version = '0.1.0'
-  coreVersion = '^0.1.0'
+  coreVersion = '^0.3.0'
   capabilities = { llm: false, embedding: false, reranker: false, vision: false }
 
   async setup(_ctx: PluginContext): Promise<void> {}
@@ -153,7 +153,7 @@ export class MyMiddleware implements MiddlewarePlugin {
   name = '${name}'
   type = 'middleware' as const
   version = '0.1.0'
-  coreVersion = '^0.1.0'
+  coreVersion = '^0.3.0'
   hooks = [
     {
       stage: 'after:parse' as PipelineStage,

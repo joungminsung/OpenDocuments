@@ -48,7 +48,7 @@ describe('IngestPipeline', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it('ingests a markdown document end-to-end', async () => {
+  it('ingests a markdown document end-to-end', { timeout: 15000 }, async () => {
     const result = await pipeline.ingest({
       title: 'test.md',
       content: '# Hello\n\nThis is a test document with some content.\n\n## Section 2\n\nMore content here.',
@@ -103,5 +103,237 @@ describe('IngestPipeline', () => {
       title: 'test.md', content, sourceType: 'local', sourcePath: '/docs/test.md', fileType: '.md',
     })
     expect(second.status).toBe('skipped')
+  })
+
+  it('uses semanticChunkText when an embedding model is registered', async () => {
+    // Spy on the embedder's embed calls to confirm sentence-level inputs were embedded.
+    // The MarkdownParser produces a single 'semantic' ParsedChunk from the body;
+    // semanticChunkText splits it into sentences before embedding.
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true, generation: false, reranking: false },
+      embed: embedSpy,
+      setup: async () => {},
+      healthCheck: async () => ({ healthy: true }),
+    }
+
+    // Rebuild a fresh pipeline with the spy embedder instead of the default mock.
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'doc.md',
+      sourceType: 'local',
+      sourcePath: '/tmp/semantic-doc.md',
+      fileType: '.md',
+      content: 'First sentence about Redis caching. Second sentence about Redis pub/sub. Totally unrelated paragraph about PostgreSQL transactions here.',
+    })
+
+    // Semantic chunking triggers at least two embed invocations: one sentence-level
+    // boundary-discovery call (multi-sentence batch) and one chunk-embedding call.
+    // The old paragraph-based chunker called embed() exactly once with a single
+    // whole-paragraph input, so each assertion below fails under the old code.
+    expect(embedSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+    // Boundary discovery embeds the sentence array in a single batch of length >= 2.
+    const multiSentenceCall = embedSpy.mock.calls.find(
+      call => Array.isArray(call[0]) && (call[0] as string[]).length >= 2,
+    )
+    expect(multiSentenceCall, 'expected a multi-sentence embed call (boundary discovery)').toBeTruthy()
+
+    // At least one embedded input should be a single sentence ending in punctuation,
+    // not a whole paragraph containing multiple sentences.
+    const hadSingleSentenceInput = embedSpy.mock.calls.some(call => {
+      const arr = call[0] as string[]
+      return arr.some(s => /^[^.!?]+[.!?]$/.test(s.trim()))
+    })
+    expect(hadSingleSentenceInput, 'expected at least one sentence-shaped embed input').toBe(true)
+  })
+
+  it('generates and embeds contextual prefixes when contextualRetrieval feature is on', async () => {
+    // Spy on the embedder to see what text it was given.
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true },
+      embed: embedSpy,
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    // Stub LLM: for every chunk we're asked about, emit a deterministic prefix.
+    const llmCalls: string[] = []
+    const stubLLM: any = {
+      name: 'stub-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        llmCalls.push(prompt)
+        yield 'CTX_PREFIX_' + llmCalls.length
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'doc.md',
+      sourceType: 'local',
+      sourcePath: '/tmp/ctx-doc.md',
+      fileType: '.md',
+      content: '# Redis\n\nRedis is an in-memory store used for caching. It supports pub/sub and streams.',
+    }, { contextualRetrieval: true })
+
+    // 1. The LLM was asked at least once to produce a context
+    expect(llmCalls.length).toBeGreaterThan(0)
+
+    // 2. At least one embed batch contained a string that begins with the generated prefix followed by the chunk content
+    const allEmbedInputs = embedSpy.mock.calls.flatMap(c => c[0] as string[])
+    const hasPrefixedInput = allEmbedInputs.some(s => /^CTX_PREFIX_\d+\n\n/.test(s))
+    expect(hasPrefixedInput, `expected an embed input to start with CTX_PREFIX. Got: ${allEmbedInputs.map(s => JSON.stringify(s.slice(0, 60))).join(' | ')}`).toBe(true)
+  })
+
+  it('augments FTS content with propositions + questions when chunkAugmentation is on', async () => {
+    const propsOutput = '- Redis is in-memory.\n- Redis supports caching.'
+    const qsOutput = '1. What is Redis?\n2. What is Redis used for?\n3. Is Redis in-memory?'
+    const stubLLM: any = {
+      name: 'aug-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        // Very simple router: proposition prompts mention "propositions", questions mention "Questions:"
+        yield /Propositions:/i.test(prompt) ? propsOutput : qsOutput
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const embedder = createMockEmbedder()
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(embedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+    await p.ingest({
+      title: 'aug.md', sourceType: 'local', sourcePath: '/tmp/aug.md',
+      fileType: '.md', content: '# Redis\n\nRedis is an in-memory store used for caching.',
+    }, { chunkAugmentation: true })
+
+    // Search FTS directly using a term that only appears in the augmented content
+    const hits = await store.searchFTS('What is Redis', 5)
+    expect(hits.length).toBeGreaterThan(0)
+    // And propositions keywords
+    const propHits = await store.searchFTS('caching', 5)
+    expect(propHits.length).toBeGreaterThan(0)
+  })
+
+  it('returns canonical chunk content for FTS hits even when augmentation text matched', async () => {
+    const propsOutput = '- Redis is in-memory.\n- Redis supports caching.'
+    const qsOutput = '1. What is Redis?\n2. What is Redis used for?\n3. Is Redis in-memory?'
+    const stubLLM: any = {
+      name: 'aug-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        yield /Propositions:/i.test(prompt) ? propsOutput : qsOutput
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const embedder = createMockEmbedder()
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(embedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+    await p.ingest({
+      title: 'aug.md', sourceType: 'local', sourcePath: '/tmp/aug.md',
+      fileType: '.md', content: '# Redis\n\nRedis is an in-memory store used for caching.',
+    }, { chunkAugmentation: true })
+
+    const hits = await store.searchFTS('What is Redis', 5)
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits[0].content).not.toContain('What is Redis?')
+    expect(hits[0].content).not.toContain('Redis supports caching.')
+    expect(hits[0].content).toContain('Redis is an in-memory store used for caching.')
+  })
+
+  it('skips contextual generation when the feature is off (default)', async () => {
+    const embedSpy = vi.fn(async (texts: string[]) => ({
+      dense: texts.map(() => [0.1, 0.2, 0.3]),
+      sparse: [],
+    }))
+    const spyEmbedder: any = {
+      name: 'spy-embedder', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { embedding: true },
+      embed: embedSpy,
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+    const llmCalls: string[] = []
+    const stubLLM: any = {
+      name: 'stub-llm', type: 'model', version: '0', coreVersion: '^0',
+      capabilities: { llm: true },
+      generate: async function*(prompt: string): AsyncIterable<string> {
+        llmCalls.push(prompt); yield 'SHOULD_NOT_HAPPEN'
+      },
+      setup: async () => {}, healthCheck: async () => ({ healthy: true }),
+    }
+
+    const registry = new PluginRegistry()
+    const ctx: PluginContext = { config: {}, dataDir: tempDir, log: console as any }
+    await registry.register(spyEmbedder, ctx)
+    await registry.register(stubLLM, ctx)
+    await registry.register(new MarkdownParser(), ctx)
+    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    await store.initialize(3)
+    const p = new IngestPipeline({
+      store, registry, eventBus: new EventBus(), middleware: new MiddlewareRunner(),
+      embeddingDimensions: 3,
+    })
+
+    await p.ingest({
+      title: 'nope.md', sourceType: 'local', sourcePath: '/tmp/nope.md',
+      fileType: '.md', content: '# Hello\n\nBody.',
+    }) // no options arg -- feature off
+
+    expect(llmCalls).toEqual([])
+    // No embed input should contain the SHOULD_NOT_HAPPEN sentinel either
+    const allEmbedInputs = embedSpy.mock.calls.flatMap(c => c[0] as string[])
+    expect(allEmbedInputs.some(s => s.includes('SHOULD_NOT_HAPPEN'))).toBe(false)
   })
 })

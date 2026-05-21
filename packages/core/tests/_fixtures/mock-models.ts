@@ -5,8 +5,8 @@ export function createMockEmbedder(): ModelPlugin {
   return {
     name: '@opendocuments/model-mock-embedder',
     type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
+    version: '0.3.0',
+    coreVersion: '^0.3.0',
     capabilities: { embedding: true },
     setup: vi.fn().mockResolvedValue(undefined),
     async embed(texts: string[]) {
@@ -24,8 +24,8 @@ export function createMockLLM(): ModelPlugin {
   return {
     name: '@opendocuments/model-mock-llm',
     type: 'model',
-    version: '0.1.0',
-    coreVersion: '^0.1.0',
+    version: '0.3.0',
+    coreVersion: '^0.3.0',
     capabilities: { llm: true },
     setup: vi.fn().mockResolvedValue(undefined),
     async *generate(prompt: string) {

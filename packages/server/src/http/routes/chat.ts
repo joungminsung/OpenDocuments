@@ -1,7 +1,54 @@
-import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { AppContext } from '../../bootstrap.js'
+import { getWorkspaceServices, resolveRequestWorkspaceId } from '../workspace.js'
+
+function persistQueryLog(
+  ctx: AppContext,
+  params: {
+    queryId: string
+    workspaceId: string
+    query: string
+    profile: string
+    confidenceScore: number | null | undefined
+    responseTimeMs: number
+    route: string
+  }
+) {
+  try {
+    ctx.db.run(
+      `INSERT INTO query_logs (id, workspace_id, query, intent, profile, confidence_score, response_time_ms, route, feedback, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.queryId,
+        params.workspaceId,
+        params.query,
+        'general',
+        params.profile,
+        params.confidenceScore ?? null,
+        params.responseTimeMs,
+        params.route,
+        null,
+        new Date().toISOString(),
+      ]
+    )
+  } catch (err) {
+    console.error('[query_logs] Failed to persist:', err instanceof Error ? err.message : String(err))
+  }
+}
+
+function getConversationHistory(
+  conversationManager: ReturnType<AppContext['forWorkspace']>['conversationManager'],
+  conversationId: string
+): string | undefined {
+  const messages = conversationManager.getMessages(conversationId)
+  if (messages.length === 0) return undefined
+
+  const recent = messages.slice(-6)
+  return recent
+    .map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content.substring(0, 500)}`)
+    .join('\n')
+}
 
 export function chatRoutes(ctx: AppContext) {
   const app = new Hono()
@@ -15,44 +62,37 @@ export function chatRoutes(ctx: AppContext) {
     }
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
-    const auth = c.get('auth') as any
-    const workspaceId = auth?.record?.workspaceId || body.workspaceId || ctx.config.workspace || 'default'
+    const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
+    const { conversationManager } = getWorkspaceServices(c, ctx, body.workspaceId)
 
-    // Build conversation history if continuing a conversation
     let conversationHistory: string | undefined
     if (body.conversationId) {
-      try {
-        const messages = ctx.conversationManager.getMessages(body.conversationId)
-        if (messages.length > 0) {
-          const recent = messages.slice(-6) // Last 3 turns (6 messages)
-          conversationHistory = recent
-            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.substring(0, 500)}`)
-            .join('\n')
-        }
-      } catch {}
+      const convo = ctx.db.get(
+        'SELECT id FROM conversations WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
+        [body.conversationId, workspaceId]
+      )
+      if (!convo) return c.json({ error: 'Conversation not found' }, 404)
+      conversationHistory = getConversationHistory(conversationManager, body.conversationId)
     }
 
     const startTime = Date.now()
     const result = await ctx.ragEngine.query({ query: body.query.trim(), profile: body.profile, conversationHistory })
     const responseTimeMs = Date.now() - startTime
 
-    // Query logging
-    try {
-      ctx.db.run(
-        `INSERT INTO query_logs (id, workspace_id, query, intent, profile, confidence_score, response_time_ms, route, feedback, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [result.queryId, workspaceId, body.query, 'general', body.profile || 'balanced',
-         result.confidence.score, responseTimeMs, result.route, null, new Date().toISOString()]
-      )
-    } catch (err) {
-      console.error('[query_logs] Failed to persist:', err instanceof Error ? err.message : String(err))
-    }
+    persistQueryLog(ctx, {
+      queryId: result.queryId,
+      workspaceId,
+      query: body.query,
+      profile: body.profile || 'balanced',
+      confidenceScore: result.confidence.score,
+      responseTimeMs,
+      route: result.route,
+    })
 
-    // Conversation persistence
     if (body.conversationId) {
       try {
-        ctx.conversationManager.addMessage(body.conversationId, 'user', body.query)
-        ctx.conversationManager.addMessage(body.conversationId, 'assistant', result.answer, {
+        conversationManager.addMessage(body.conversationId, 'user', body.query)
+        conversationManager.addMessage(body.conversationId, 'assistant', result.answer, {
           sources: result.sources,
           profileUsed: result.profile,
           confidenceScore: result.confidence.score,
@@ -75,51 +115,74 @@ export function chatRoutes(ctx: AppContext) {
     }
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
-    // Build conversation history if continuing a conversation
+    const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
+    const { conversationManager } = getWorkspaceServices(c, ctx, body.workspaceId)
+
     let streamConversationHistory: string | undefined
     if (body.conversationId) {
-      try {
-        const messages = ctx.conversationManager.getMessages(body.conversationId)
-        if (messages.length > 0) {
-          const recent = messages.slice(-6) // Last 3 turns (6 messages)
-          streamConversationHistory = recent
-            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.substring(0, 500)}`)
-            .join('\n')
-        }
-      } catch {}
+      const convo = ctx.db.get(
+        'SELECT id FROM conversations WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
+        [body.conversationId, workspaceId]
+      )
+      if (!convo) return c.json({ error: 'Conversation not found' }, 404)
+      streamConversationHistory = getConversationHistory(conversationManager, body.conversationId)
     }
 
     return streamSSE(c, async (stream) => {
+      const startTime = Date.now()
       let fullAnswer = ''
       let sources: any[] = []
       let confidence: any = null
       let streamError = false
+      let queryId: string | null = null
+      let route = 'unknown'
+      let profileUsed = body.profile || 'balanced'
 
       try {
-        for await (const event of ctx.ragEngine.queryStream({ query: body.query.trim(), profile: body.profile, conversationHistory: streamConversationHistory })) {
+        for await (const event of ctx.ragEngine.queryStream({
+          query: body.query.trim(),
+          profile: body.profile,
+          conversationHistory: streamConversationHistory,
+        })) {
           await stream.writeSSE({ event: event.type, data: JSON.stringify(event.data) })
 
           if (event.type === 'chunk') fullAnswer += event.data
           if (event.type === 'sources') sources = event.data as any[]
           if (event.type === 'confidence') confidence = event.data
+          if (event.type === 'done') {
+            queryId = event.data.queryId
+            route = event.data.route
+            profileUsed = event.data.profile
+          }
         }
       } catch (err) {
         streamError = true
-        const message = err instanceof Error ? err.message : 'Unknown error'
-        console.error('[chat/stream] Error during streaming:', message)
-        await stream.writeSSE({ event: 'error', data: JSON.stringify({ error: message }) })
+        const internalMessage = err instanceof Error ? err.message : 'Unknown error'
+        console.error('[chat/stream] Error during streaming:', internalMessage)
+        await stream.writeSSE({ event: 'error', data: JSON.stringify({ error: 'An error occurred while processing your request' }) })
       }
 
-      // Only persist if streaming completed successfully
       if (!streamError && fullAnswer) {
         try {
-          const conversationId = body.conversationId || ctx.conversationManager.create().id
-          ctx.conversationManager.addMessage(conversationId, 'user', body.query)
-          ctx.conversationManager.addMessage(conversationId, 'assistant', fullAnswer, {
+          const conversationId = body.conversationId || conversationManager.create().id
+          conversationManager.addMessage(conversationId, 'user', body.query)
+          conversationManager.addMessage(conversationId, 'assistant', fullAnswer, {
             sources,
-            profileUsed: body.profile || 'balanced',
+            profileUsed,
             confidenceScore: confidence?.score,
           })
+
+          if (queryId) {
+            persistQueryLog(ctx, {
+              queryId,
+              workspaceId,
+              query: body.query,
+              profile: profileUsed,
+              confidenceScore: confidence?.score,
+              responseTimeMs: Date.now() - startTime,
+              route,
+            })
+          }
         } catch (err) {
           console.error('[conversation] Failed to persist:', err instanceof Error ? err.message : String(err))
         }
@@ -135,7 +198,11 @@ export function chatRoutes(ctx: AppContext) {
       return c.json({ error: 'Invalid JSON body' }, 400)
     }
     if (!body.queryId || !body.feedback) return c.json({ error: 'queryId and feedback are required' }, 400)
-    ctx.db.run('UPDATE query_logs SET feedback = ? WHERE id = ?', [body.feedback, body.queryId])
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    ctx.db.run(
+      'UPDATE query_logs SET feedback = ? WHERE id = ? AND workspace_id = ?',
+      [body.feedback, body.queryId, workspaceId]
+    )
     return c.json({ saved: true })
   })
 

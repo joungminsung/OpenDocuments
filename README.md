@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">OpenDocuments</h1>
-  <p align="center"><strong>Open source RAG tool for AI document search — connect GitHub, Notion, Google Drive and ask questions with cited answers</strong></p>
+  <p align="center"><strong>Self-hosted RAG platform for AI document search across GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources</strong></p>
 </p>
 
 <p align="center">
@@ -19,7 +19,27 @@
 
 ---
 
-## The Problem: Scattered Knowledge, No AI Search
+## What is OpenDocuments?
+
+**OpenDocuments is an open source, self-hosted RAG (Retrieval-Augmented Generation) platform that turns scattered company documents into an AI-searchable knowledge base.** It connects to sources like GitHub, Notion, Google Drive, Confluence, S3, Swagger/OpenAPI, local files, and web pages, indexes them with hybrid vector + keyword search, and answers natural-language questions with cited sources.
+
+Use OpenDocuments when you want:
+
+- A **self-hosted alternative to enterprise AI search** and proprietary knowledge-base search tools
+- **AI document search with citations** for engineering docs, product specs, policies, spreadsheets, API docs, and meeting notes
+- A **local-first RAG stack** that can run with Ollama so sensitive documents stay on your own infrastructure
+- A **knowledge base for AI coding assistants** through MCP, including Claude Code, Cursor, Windsurf, and other MCP clients
+- A **TypeScript-first RAG platform** with a CLI, Web UI, HTTP API, SDK, plugin system, and embeddable widget
+
+```bash
+npm install -g opendocuments
+opendocuments init
+opendocuments start
+```
+
+Open `http://localhost:3000`, index your documents, and ask questions with source citations.
+
+## Why OpenDocuments?
 
 Your team's knowledge is trapped in silos:
 
@@ -30,23 +50,43 @@ Your team's knowledge is trapped in silos:
 - **Meeting notes** rot in Confluence spaces
 - **Onboarding guides** are buried in `.docx` files on S3
 
-When someone asks _"How does our auth system work?"_ or _"What was the Q3 budget for the AI team?"_, they spend 15 minutes hunting through 5 different tools. And they still might not find the answer.
+When someone asks _"How does our auth system work?"_ or _"What was the Q3 budget for the AI team?"_, they spend 15 minutes hunting through five different tools. OpenDocuments centralizes that search without forcing all of your content into a hosted vendor.
 
-## The Solution: Self-Hosted AI Document Search
+## How OpenDocuments Answers Questions
 
-OpenDocuments **connects to all your document sources**, **indexes everything into a unified search engine**, and **answers questions in natural language** -- with source citations so you know exactly where the answer came from.
+OpenDocuments **connects to your document sources**, **parses and chunks each document**, **stores metadata in SQLite and vectors in LanceDB**, then **retrieves, reranks, and generates grounded answers**. Every answer can include source citations, confidence scores, and links back to the underlying documents.
 
-```bash
-npm install -g opendocuments
-opendocuments init
-opendocuments start
-```
+In short: **OpenDocuments is a private AI search engine for your organization's documents.**
 
-Open `http://localhost:3000`, and ask away.
+## Key Features
 
-> **OpenDocuments** is a free, open source alternative to proprietary enterprise AI search tools. It's a self-hosted RAG (Retrieval-Augmented Generation) platform that runs on your own infrastructure.
+| Feature | What it means |
+|---------|---------------|
+| **Self-hosted RAG** | Run the full document search stack on your own infrastructure |
+| **Cited AI answers** | Ask natural-language questions and see exactly which documents support the answer |
+| **Hybrid retrieval** | Combine vector search, FTS5 keyword search, reranking, HyDE, multi-query retrieval, and parent-document recall |
+| **Broad source coverage** | Index GitHub, Notion, Google Drive, Confluence, S3/GCS, Swagger/OpenAPI, web pages, web search, uploads, and local files |
+| **Many file formats** | Parse Markdown, PDF, DOCX, XLSX, CSV, HTML, Jupyter notebooks, email, code, PPTX, JSON, YAML, TOML, and more |
+| **Local or cloud models** | Use Ollama locally or cloud providers such as OpenAI, Anthropic, Google, and xAI |
+| **MCP server** | Let Claude Code, Cursor, Windsurf, and other MCP clients search your internal knowledge base |
+| **Team mode** | Add API keys, roles, rate limits, PII redaction, audit logs, alerts, OAuth SSO, and workspace isolation |
+| **Extensible plugins** | Build custom parsers, connectors, model providers, and middleware in TypeScript |
+
+## OpenDocuments vs Alternatives
+
+| If you are comparing... | Choose OpenDocuments when you need... |
+|-------------------------|----------------------------------------|
+| **OpenDocuments vs hosted enterprise search** | A self-hosted, open source AI search platform with control over infrastructure and data flow |
+| **OpenDocuments vs a vector database** | A complete RAG application layer: connectors, parsers, chunking, retrieval, chat, citations, auth, CLI, Web UI, and MCP |
+| **OpenDocuments vs a chatbot wrapper** | Source-grounded answers over your real document corpus, not a generic chat UI |
+| **OpenDocuments vs building RAG from scratch** | A TypeScript monorepo with batteries included, while still keeping plugin-level extensibility |
+| **OpenDocuments vs local-only scripts** | A production-oriented system with team mode, API access, syncable connectors, backups, and admin tooling |
 
 ### Recent Improvements
+- **RAG accuracy overhaul**: Structure-preserving chunking, contextual prefixes, HyDE + multi-query retrieval, parent-document recall, proposition augmentation, reranking, and adaptive context fitting
+- **Workspace-scoped team mode**: Admin/chat/document APIs stay inside the authenticated workspace, with shared conversation links plus session and API-key auth support
+- **Backup & restore CLI**: Snapshot SQLite + LanceDB data and recover an instance with one command
+- **Plugin hardening**: Plugin search/install routes are admin-only and use validated npm argument execution
 - **One-touch Ollama setup**: `init` auto-detects Ollama, offers to pull missing models
 - **`.env` auto-loading**: API keys in `.env` are loaded automatically (no manual export needed)
 - **Multi-turn conversations**: Chat remembers previous context for follow-up questions
@@ -118,6 +158,8 @@ docker compose --profile with-ollama up -d
 
 ## Quick Start
 
+This is the fastest way to run a local AI document search engine with the OpenDocuments CLI.
+
 ### 1. Install
 
 ```bash
@@ -169,6 +211,8 @@ opendocuments ask "What's our deployment process?"
 ---
 
 ## How It Works
+
+OpenDocuments uses a standard RAG architecture with practical production pieces around it: source connectors, format parsers, chunking, embeddings, metadata storage, vector storage, retrieval profiles, answer generation, citations, and security controls.
 
 ```
     Your Documents                    OpenDocuments                     You
@@ -383,14 +427,33 @@ Your AI assistant can then:
 |--|--------|------------|-----------|
 | **Speed** | ~1s | ~3s | ~5s+ |
 | **Search depth** | 10 docs | 20 docs | 50 docs |
+| **Semantic chunking** | On | On | On |
 | **Reranking** | Off | On | On |
+| **Cross-encoder** | Off | Off | On |
 | **Cross-lingual** | Off | Korean + English | Korean + English |
+| **Contextual prefix** | Off | On | On |
+| **Multi-query expansion** | Off | 3x paraphrases | 5x paraphrases |
+| **HyDE** | Off | Off | On |
+| **Parent-document retrieval** | Off | On | On |
+| **Chunk augmentation** (propositions/HQs) | Off | Off | On |
 | **Query decomposition** | Off | Off | Splits complex queries |
 | **Web search** | Off | Fallback when local results are weak | Always merged |
 | **Hallucination guard** | Off | Checks source grounding | Strict mode (annotates unverified) |
 | **Best for** | Quick lookups, 8B local models | Daily use, 14B+ models | Critical questions, cloud LLMs |
 
 Switch anytime: CLI flag (`--profile precise`), Web UI toggle, or config file.
+
+### Retrieval quality
+
+OpenDocuments ships a redesigned RAG pipeline with structure-preserving chunking, contextual retrieval, HyDE + multi-query + parent-document retrieval, proposition augmentation, and a cross-encoder reranker — all profile-gated via the table above. See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full list of additions.
+
+Benchmark against your own dataset with the evaluation harness:
+
+```bash
+cd packages/core && npx tsx tests/_fixtures/run-eval.ts
+```
+
+Metrics reported: hit@3, hit@5, MRR, nDCG@5 — per-intent and aggregate.
 
 ---
 
@@ -576,6 +639,46 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, test patterns, and plugi
 | [TypeScript SDK](docs-site/sdk/guide.md) | Programmatic API client |
 | [Security Policy](SECURITY.md) | Vulnerability reporting |
 | [Contributing](CONTRIBUTING.md) | Development setup, conventions, plugin guide |
+
+---
+
+## Frequently Asked Questions
+
+### What is OpenDocuments used for?
+
+OpenDocuments is used to build a private AI search engine over company documents. Teams use it to ask questions across GitHub repositories, Notion pages, Google Drive files, Confluence spaces, S3 buckets, API specs, local files, and web pages, then receive answers with citations.
+
+### Is OpenDocuments open source?
+
+Yes. OpenDocuments is open source and released under the [MIT License](LICENSE).
+
+### Is OpenDocuments self-hosted?
+
+Yes. OpenDocuments is designed for self-hosted deployment. You can run it locally during development, deploy it with Docker, or host it on your own infrastructure.
+
+### Can OpenDocuments run without sending data to a cloud LLM?
+
+Yes. When configured with Ollama and local embedding models, OpenDocuments can run the LLM, embeddings, vector search, metadata database, Web UI, CLI, and MCP server on your own infrastructure.
+
+### What data sources does OpenDocuments support?
+
+OpenDocuments supports local files, file uploads, GitHub, Notion, Google Drive, Amazon S3, Google Cloud Storage, Confluence, Swagger/OpenAPI specs, registered web pages, and Tavily-backed web search.
+
+### What file formats can OpenDocuments index?
+
+OpenDocuments can index Markdown, plain text, PDF, DOCX, XLSX, CSV, HTML, Jupyter notebooks, email, source code, PPTX, JSON, YAML, TOML, and other supported plugin formats.
+
+### Does OpenDocuments work with Claude Code or Cursor?
+
+Yes. OpenDocuments includes an MCP server, so MCP-compatible AI tools such as Claude Code, Cursor, Windsurf, and similar clients can search your indexed document corpus while assisting with development.
+
+### What makes OpenDocuments different from a vector database?
+
+A vector database stores embeddings. OpenDocuments provides the surrounding RAG platform: connectors, parsers, document chunking, hybrid retrieval, reranking, answer generation, citations, Web UI, CLI, HTTP API, SDK, MCP server, authentication, and plugins.
+
+### What makes OpenDocuments different from hosted enterprise search?
+
+OpenDocuments is open source and self-hosted. It is built for teams that want AI document search, source citations, plugin extensibility, and control over where their documents, embeddings, metadata, and model calls run.
 
 ---
 

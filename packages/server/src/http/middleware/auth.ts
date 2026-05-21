@@ -10,6 +10,18 @@ export interface PersonalModeAuth {
 
 const PERSONAL_MODE_AUTH: PersonalModeAuth = { mode: 'personal' as const, record: null, hasScope: () => true }
 
+function getSessionApiKey(cookieHeader?: string): string | null {
+  if (!cookieHeader) return null
+  const cookies = cookieHeader.split(';')
+  for (const cookie of cookies) {
+    const [rawName, ...rawValue] = cookie.trim().split('=')
+    if (rawName === 'opendocuments_session') {
+      return rawValue.join('=')
+    }
+  }
+  return null
+}
+
 // Extend Hono context with auth info
 declare module 'hono' {
   interface ContextVariableMap {
@@ -30,7 +42,7 @@ export function authMiddleware(appCtx: AppContext) {
     }
 
     // Team mode: require API key
-    const apiKey = c.req.header('x-api-key')
+    const apiKey = c.req.header('x-api-key') || getSessionApiKey(c.req.header('cookie'))
     if (!apiKey) {
       return c.json({ error: 'API key required. Set X-API-Key header.' }, 401)
     }

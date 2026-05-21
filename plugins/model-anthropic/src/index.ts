@@ -12,8 +12,8 @@ export interface AnthropicConfig {
 export class AnthropicModelPlugin implements ModelPlugin {
   name = '@opendocuments/model-anthropic'
   type = 'model' as const
-  version = '0.1.0'
-  coreVersion = '^0.1.0'
+  version = '0.1.1'
+  coreVersion = '^0.3.0'
   capabilities = { llm: true, embedding: false, reranker: false, vision: false }
 
   private apiKey = ''

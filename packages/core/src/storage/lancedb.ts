@@ -1,6 +1,6 @@
 // packages/core/src/storage/lancedb.ts
 import * as lancedb from '@lancedb/lancedb'
-import type { VectorDB, VectorDocument, VectorSearchOpts, VectorSearchResult } from './vector-db.js'
+import type { VectorDB, VectorDocument, VectorRecord, VectorSearchOpts, VectorSearchResult } from './vector-db.js'
 
 function escapeDoubleQuotes(value: string): string {
   return value.replace(/"/g, '""')
@@ -29,11 +29,39 @@ function buildWhereClause(filter: Record<string, string | number | boolean>): st
     .join(' AND ')
 }
 
+function buildIdWhereClause(ids: string[]): string {
+  if (ids.length === 0) return ''
+  return ids
+    .map((id) => `id = '${sanitizeFilterValue(id)}'`)
+    .join(' OR ')
+}
+
 /**
  * Metadata fields promoted to top-level LanceDB columns for efficient filtering.
  * Any remaining metadata is stored in `metadata_json` as a JSON string.
  */
 const PROMOTED_FIELDS = ['workspace_id', 'document_id', 'chunk_type', 'position', 'token_count'] as const
+
+function hydrateRecord(row: Record<string, unknown>): VectorRecord {
+  const extra = JSON.parse((row.metadata_json as string) || '{}') as Record<string, unknown>
+  const metadata: Record<string, string | number | boolean> = {
+    workspace_id: row.workspace_id as string,
+    document_id: row.document_id as string,
+    chunk_type: row.chunk_type as string,
+    position: row.position as number,
+    token_count: row.token_count as number,
+  }
+  for (const [k, v] of Object.entries(extra)) {
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      metadata[k] = v
+    }
+  }
+  return {
+    id: row.id as string,
+    content: row.content as string,
+    metadata,
+  }
+}
 
 export async function createLanceDB(dataDir: string): Promise<VectorDB> {
   const db = await lancedb.connect(dataDir)
@@ -108,28 +136,44 @@ export async function createLanceDB(dataDir: string): Promise<VectorDB> {
 
       return results
         .map(row => {
-          // Reconstruct full metadata from promoted columns + metadata_json
-          const extra = JSON.parse((row.metadata_json as string) || '{}') as Record<string, unknown>
-          const metadata: Record<string, string | number | boolean> = {
-            workspace_id: row.workspace_id as string,
-            document_id: row.document_id as string,
-            chunk_type: row.chunk_type as string,
-            position: row.position as number,
-            token_count: row.token_count as number,
-          }
-          for (const [k, v] of Object.entries(extra)) {
-            if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-              metadata[k] = v
-            }
-          }
+          const record = hydrateRecord(row as Record<string, unknown>)
           return {
-            id: row.id as string,
-            content: row.content as string,
+            id: record.id,
+            content: record.content,
             score: 1 / (1 + (row._distance as number)), // LanceDB returns L2 distance; convert to 0-1 similarity
-            metadata,
+            metadata: record.metadata,
           }
         })
         .filter(r => !opts.minScore || r.score >= opts.minScore)
+    },
+
+    async getByIds(
+      collectionName: string,
+      ids: string[],
+      filter?: Record<string, string | number | boolean>,
+    ): Promise<VectorRecord[]> {
+      if (ids.length === 0) return []
+
+      const table = await db.openTable(collectionName)
+      const predicates = [buildIdWhereClause(ids)]
+      if (filter && Object.keys(filter).length > 0) {
+        predicates.push(buildWhereClause(filter))
+      }
+      const rows = await table.query()
+        .where(predicates.map((predicate) => `(${predicate})`).join(' AND '))
+        .limit(ids.length)
+        .toArray()
+
+      const byId = new Map(
+        rows.map((row) => {
+          const record = hydrateRecord(row as Record<string, unknown>)
+          return [record.id, record] as const
+        }),
+      )
+
+      return ids
+        .map((id) => byId.get(id))
+        .filter((record): record is VectorRecord => record !== undefined)
     },
 
     async delete(collectionName: string, ids: string[]): Promise<void> {

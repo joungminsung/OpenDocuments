@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { DB } from '../storage/db.js'
-import type { VectorDB } from '../storage/vector-db.js'
+import type { VectorDB, VectorRecord } from '../storage/vector-db.js'
 
 const COLLECTION = 'opendocuments_chunks'
 
@@ -22,6 +22,21 @@ export interface StoredChunk {
   headingHierarchy: string[]
   language?: string
   codeSymbols?: string[]
+  /** LLM-authored situating prefix for retrieval. Prepended to content before embedding; not included in content returned to the generator. */
+  contextualPrefix?: string
+  /**
+   * Enclosing heading-section text (the body bounded by the nearest heading).
+   * Used by parent-document retrieval via `attachParentContext` to swap a
+   * small-chunk match for its surrounding section on generation.
+   */
+  parentSection?: string
+  /**
+   * Extra text to concatenate into the FTS5 index only — NOT into the vector
+   * embedding and NOT returned as generator-facing content. Used by chunk
+   * augmentation (propositions + hypothetical questions) to boost lexical
+   * recall on question-style queries and paraphrased facts.
+   */
+  ftsAugment?: string
 }
 
 export interface SearchResult {
@@ -33,6 +48,14 @@ export interface SearchResult {
   headingHierarchy: string[]
   sourcePath: string
   sourceType: string
+  /**
+   * LLM-authored situating prefix stored at ingest time. Used only for embedding retrieval
+   * — NOT prepended to `content` returned to the generator, which remains the raw chunk.
+   * Exposed here for debugging / evaluation tooling.
+   */
+  contextualPrefix?: string
+  /** Enclosing heading-section text. When present, `attachParentContext` swaps content for this. */
+  parentSection?: string
 }
 
 interface DocumentRow {
@@ -78,7 +101,8 @@ export class DocumentStore {
 
   getDocument(id: string): DocumentRow | undefined {
     return this.db.get<DocumentRow>(
-      'SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]
+      'SELECT * FROM documents WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
+      [id, this.workspaceId]
     )
   }
 
@@ -110,17 +134,25 @@ export class DocumentStore {
         heading_hierarchy: JSON.stringify(chunk.headingHierarchy),
         language: chunk.language || '',
         code_symbols: chunk.codeSymbols ? JSON.stringify(chunk.codeSymbols) : '',
+        contextual_prefix: chunk.contextualPrefix || '',
+        parent_section: chunk.parentSection || '',
       },
     }))
 
     // Step 1: Upsert vectors
     await this.vectorDb.upsert(COLLECTION, vectorDocs)
 
-    // Step 2: Insert into FTS5 index -- if this fails, clean up vectors
+    // Step 2: Insert into FTS5 index -- if this fails, clean up vectors.
+    // When ftsAugment is present, index `content + ftsAugment` to boost lexical
+    // recall while keeping the vector embedding and generator-facing content
+    // unchanged.
     try {
       for (const chunk of chunks) {
         const chunkId = `${documentId}_chunk_${chunk.position}`
-        this.db.run('INSERT OR REPLACE INTO chunks_fts (chunk_id, content) VALUES (?, ?)', [chunkId, chunk.content])
+        const ftsContent = chunk.ftsAugment
+          ? `${chunk.content}\n\n${chunk.ftsAugment}`
+          : chunk.content
+        this.db.run('INSERT OR REPLACE INTO chunks_fts (chunk_id, content) VALUES (?, ?)', [chunkId, ftsContent])
       }
     } catch (err) {
       const chunkIds = chunks.map((_, i) => `${documentId}_chunk_${i}`)
@@ -168,11 +200,32 @@ export class DocumentStore {
         headingHierarchy: JSON.parse((r.metadata.heading_hierarchy as string) || '[]'),
         sourcePath: doc?.source_path || '',
         sourceType: doc?.source_type || '',
+        contextualPrefix: (r.metadata.contextual_prefix as string) || undefined,
+        parentSection: (r.metadata.parent_section as string) || undefined,
       }
     })
   }
 
-  searchFTS(query: string, topK: number): SearchResult[] {
+  private toSearchResult(record: VectorRecord, score: number): SearchResult | null {
+    const docId = record.metadata.document_id as string
+    const doc = this.getDocument(docId)
+    if (!doc) return null
+
+    return {
+      chunkId: record.id,
+      content: record.content,
+      score,
+      documentId: docId,
+      chunkType: (record.metadata.chunk_type as string) || 'semantic',
+      headingHierarchy: JSON.parse((record.metadata.heading_hierarchy as string) || '[]'),
+      sourcePath: doc.source_path,
+      sourceType: doc.source_type,
+      contextualPrefix: (record.metadata.contextual_prefix as string) || undefined,
+      parentSection: (record.metadata.parent_section as string) || undefined,
+    }
+  }
+
+  async searchFTS(query: string, topK: number): Promise<SearchResult[]> {
     // Sanitize for FTS5: strip operators, wrap each token in double quotes
     const safeQuery = query
       .split(/\s+/)
@@ -189,20 +242,53 @@ export class DocumentStore {
       `SELECT chunk_id, content, rank FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY rank LIMIT ?`,
       [safeQuery, topK]
     )
-    return rows.map((r) => {
-      const docId = r.chunk_id.split('_chunk_')[0]
-      const doc = this.getDocument(docId)
-      return {
-        chunkId: r.chunk_id,
-        content: r.content,
-        score: 1 / (1 + Math.abs(r.rank)), // normalize FTS5 rank to 0-1
-        documentId: docId,
-        chunkType: 'semantic',
-        headingHierarchy: [],
-        sourcePath: doc?.source_path || '',
-        sourceType: doc?.source_type || '',
-      }
-    })
+    if (rows.length === 0) return []
+
+    const records = await this.vectorDb.getByIds(
+      COLLECTION,
+      rows.map((row) => row.chunk_id),
+      { workspace_id: this.workspaceId },
+    )
+    const byId = new Map(records.map((record) => [record.id, record]))
+
+    return rows
+      .map((row) => {
+        const record = byId.get(row.chunk_id)
+        if (!record) return null
+        return this.toSearchResult(record, 1 / (1 + Math.abs(row.rank)))
+      })
+      .filter((result): result is SearchResult => result !== null)
+  }
+
+  async getAdjacentChunks(chunkId: string, window = 1): Promise<SearchResult[]> {
+    const match = chunkId.match(/^(.+)_chunk_(\d+)$/)
+    if (!match) return []
+    const [, documentId, posStr] = match
+    const position = parseInt(posStr, 10)
+
+    const doc = this.getDocument(documentId)
+    if (!doc) return []
+
+    const adjacentIds: string[] = []
+    for (let offset = -window; offset <= window; offset++) {
+      if (offset === 0) continue
+      adjacentIds.push(`${documentId}_chunk_${position + offset}`)
+    }
+
+    const records = await this.vectorDb.getByIds(
+      COLLECTION,
+      adjacentIds,
+      { workspace_id: this.workspaceId },
+    )
+    const byId = new Map(records.map((record) => [record.id, record]))
+
+    return adjacentIds
+      .map((adjId) => {
+        const record = byId.get(adjId)
+        if (!record) return null
+        return this.toSearchResult(record, 0)
+      })
+      .filter((result): result is SearchResult => result !== null)
   }
 
   /**
@@ -214,8 +300,8 @@ export class DocumentStore {
     // Soft delete: set deleted_at timestamp
     const now = new Date().toISOString()
     this.db.run(
-      'UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ?',
-      [now, now, documentId]
+      'UPDATE documents SET deleted_at = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [now, now, documentId, this.workspaceId]
     )
     // Clean FTS index
     const escapedId = documentId.replace(/%/g, '\\%').replace(/_/g, '\\_')
@@ -229,7 +315,7 @@ export class DocumentStore {
     await this.vectorDb.deleteByFilter(COLLECTION, { document_id: documentId })
 
     // Step 2: Delete SQLite row permanently.
-    this.db.run('DELETE FROM documents WHERE id = ?', [documentId])
+    this.db.run('DELETE FROM documents WHERE id = ? AND workspace_id = ?', [documentId, this.workspaceId])
   }
 
   /**
@@ -238,8 +324,8 @@ export class DocumentStore {
    */
   restoreDocument(documentId: string): void {
     this.db.run(
-      'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ?',
-      ['pending', new Date().toISOString(), documentId]
+      'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      ['pending', new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 
@@ -252,8 +338,8 @@ export class DocumentStore {
 
   updateContentHash(documentId: string, hash: string): void {
     this.db.run(
-      'UPDATE documents SET content_hash = ?, updated_at = ? WHERE id = ?',
-      [hash, new Date().toISOString(), documentId]
+      'UPDATE documents SET content_hash = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [hash, new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 
@@ -265,8 +351,8 @@ export class DocumentStore {
 
   updateStatus(documentId: string, status: string, errorMessage?: string): void {
     this.db.run(
-      'UPDATE documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ?',
-      [status, errorMessage || null, new Date().toISOString(), documentId]
+      'UPDATE documents SET status = ?, error_message = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [status, errorMessage || null, new Date().toISOString(), documentId, this.workspaceId]
     )
   }
 }

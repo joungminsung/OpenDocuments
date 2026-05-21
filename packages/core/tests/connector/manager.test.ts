@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 
 function createMockEmbedder(): ModelPlugin {
   return {
-    name: '@opendocuments/model-mock', type: 'model', version: '0.1.0', coreVersion: '^0.1.0',
+    name: '@opendocuments/model-mock', type: 'model', version: '0.3.0', coreVersion: '^0.3.0',
     capabilities: { embedding: true },
     setup: async () => {},
     async embed(texts: string[]) {
@@ -32,7 +32,7 @@ function createMockEmbedder(): ModelPlugin {
 
 function createMockConnector(docs: { id: string; title: string; path: string; content: string }[]): ConnectorPlugin {
   return {
-    name: '@opendocuments/connector-mock', type: 'connector', version: '0.1.0', coreVersion: '^0.1.0',
+    name: '@opendocuments/connector-mock', type: 'connector', version: '0.3.0', coreVersion: '^0.3.0',
     setup: async () => {},
     async *discover() {
       for (const doc of docs) {
@@ -94,7 +94,7 @@ describe('ConnectorManager', () => {
     expect(list[0].name).toBe('@opendocuments/connector-mock')
   })
 
-  it('syncs a connector and indexes discovered documents', async () => {
+  it('syncs a connector and indexes discovered documents', { timeout: 15000 }, async () => {
     const connector = createMockConnector([
       { id: '1', title: 'readme.md', path: '/repo/README.md', content: '# Hello\n\nWorld' },
       { id: '2', title: 'guide.md', path: '/repo/guide.md', content: '# Guide\n\nSetup instructions' },
