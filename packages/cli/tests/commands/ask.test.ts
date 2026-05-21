@@ -10,7 +10,12 @@ describe('ask command logic', () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({ dataDir: tempDir })
+    ctx = await bootstrap({
+      dataDir: tempDir,
+      configOverrides: {
+        model: { provider: 'test-stub', llm: 'stub-llm', embedding: 'stub-embedding' },
+      },
+    })
   })
   afterEach(async () => { await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })
 
