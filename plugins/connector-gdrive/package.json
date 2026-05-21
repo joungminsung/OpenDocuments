@@ -22,5 +22,32 @@
   "devDependencies": {
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
+  },
+  "description": "Google Drive connector for OpenDocuments AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "connector",
+    "google-drive",
+    "docs",
+    "sheets",
+    "slides"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "plugins/connector-gdrive"
   }
 }

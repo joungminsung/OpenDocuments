@@ -34,5 +34,25 @@
     "type": "git",
     "url": "https://github.com/joungminsung/OpenDocuments.git",
     "directory": "plugins/model-openai"
-  }
+  },
+  "description": "OpenAI model provider for OpenDocuments self-hosted RAG",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "model-provider",
+    "openai",
+    "gpt",
+    "embeddings"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors"
 }

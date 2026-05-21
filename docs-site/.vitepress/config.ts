@@ -2,25 +2,50 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'OpenDocuments',
-  description: 'Open source self-hosted RAG tool for AI document search — connect GitHub, Notion, Google Drive, and more. Ask questions in natural language with source citations.',
+  description: 'Open source self-hosted RAG platform for AI document search across GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources. Ask questions with source citations.',
   lang: 'en-US',
   base: '/OpenDocuments/',
   ignoreDeadLinks: [/localhost/],
 
   head: [
-    ['meta', { name: 'keywords', content: 'rag tool, ai document search, self-hosted knowledge base, open source rag, retrieval augmented generation, llm document search, ollama rag, vector search, ai knowledge management, document qa, enterprise search, mcp server' }],
-    ['meta', { property: 'og:title', content: 'OpenDocuments — Open Source RAG Tool for AI Document Search' }],
-    ['meta', { property: 'og:description', content: 'Self-hosted RAG platform that connects scattered documents (GitHub, Notion, Drive, Confluence) and answers questions with AI. Supports Ollama, OpenAI, Claude, Gemini.' }],
+    ['meta', { name: 'keywords', content: 'self-hosted rag, ai document search, open source rag, retrieval augmented generation, knowledge base, llm document search, ollama rag, vector search, semantic search, document qa, enterprise search alternative, mcp server, github search, notion search, google drive search' }],
+    ['meta', { property: 'og:title', content: 'OpenDocuments - Self-Hosted RAG Platform for AI Document Search' }],
+    ['meta', { property: 'og:description', content: 'Open source RAG platform that connects GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources, then answers questions with citations.' }],
     ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:url', content: 'https://opendocuments.dev' }],
+    ['meta', { property: 'og:url', content: 'https://joungminsung.github.io/OpenDocuments/' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
-    ['meta', { name: 'twitter:title', content: 'OpenDocuments — Open Source RAG Tool' }],
-    ['meta', { name: 'twitter:description', content: 'Self-hosted AI document search. Connect GitHub, Notion, Drive. Ask questions, get cited answers.' }],
-    ['link', { rel: 'canonical', href: 'https://opendocuments.dev' }],
+    ['meta', { name: 'twitter:title', content: 'OpenDocuments - Self-Hosted RAG Platform' }],
+    ['meta', { name: 'twitter:description', content: 'Self-hosted AI document search across GitHub, Notion, Google Drive, local files, and web sources.' }],
+    ['link', { rel: 'canonical', href: 'https://joungminsung.github.io/OpenDocuments/' }],
+    ['script', { type: 'application/ld+json' }, JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'OpenDocuments',
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'macOS, Linux, Windows',
+      description: 'Open source self-hosted RAG platform for AI document search with source citations.',
+      softwareVersion: '0.3.0',
+      license: 'https://github.com/joungminsung/OpenDocuments/blob/main/LICENSE',
+      codeRepository: 'https://github.com/joungminsung/OpenDocuments',
+      programmingLanguage: 'TypeScript',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+      featureList: [
+        'Self-hosted retrieval augmented generation',
+        'AI document search with source citations',
+        'GitHub, Notion, Google Drive, Confluence, S3, local file, and web connectors',
+        'Ollama, OpenAI, Anthropic, Google, and xAI model providers',
+        'MCP server for AI coding assistants',
+        'TypeScript SDK, CLI, Web UI, and HTTP API',
+      ],
+    })],
   ],
 
   sitemap: {
-    hostname: 'https://opendocuments.dev',
+    hostname: 'https://joungminsung.github.io/OpenDocuments/',
   },
 
   themeConfig: {
@@ -29,10 +54,15 @@ export default defineConfig({
       { text: 'API', link: '/api/' },
       { text: 'Plugins', link: '/plugins/' },
       { text: 'SDK', link: '/sdk/guide' },
+      { text: 'GitHub', link: 'https://github.com/joungminsung/OpenDocuments' },
     ],
     sidebar: [
       { text: 'Getting Started', items: [
         { text: 'Quick Start', link: '/guide/' },
+        { text: 'What is OpenDocuments?', link: '/guide/what-is-opendocuments' },
+        { text: 'Comparisons', link: '/guide/comparisons' },
+        { text: 'Self-Hosted RAG with Ollama', link: '/guide/self-hosted-rag-ollama' },
+        { text: 'MCP Knowledge Base', link: '/guide/mcp-knowledge-base' },
         { text: 'Architecture', link: '/guide/architecture' },
         { text: 'Configuration', link: '/guide/configuration' },
         { text: 'Deployment', link: '/guide/deployment' },

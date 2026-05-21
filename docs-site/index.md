@@ -1,16 +1,21 @@
 ---
 layout: home
+title: Self-Hosted RAG Platform for AI Document Search
+description: OpenDocuments is an open source self-hosted RAG platform for AI document search across GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources.
 hero:
   name: OpenDocuments
-  text: Open Source RAG Tool
-  tagline: Self-hosted AI document search — connect your scattered docs and ask questions with source citations
+  text: Self-Hosted RAG Platform
+  tagline: AI document search across GitHub, Notion, Google Drive, Confluence, S3, local files, and web sources with source citations
   actions:
     - theme: brand
       text: Get Started
       link: /guide/
     - theme: alt
-      text: GitHub
-      link: https://github.com/joungminsung/OpenDocuments
+      text: What is OpenDocuments?
+      link: /guide/what-is-opendocuments
+    - theme: alt
+      text: Compare Options
+      link: /guide/comparisons
 features:
   - icon:
       src: /icons/search.svg
@@ -40,9 +45,9 @@ features:
 
 ## What is OpenDocuments?
 
-OpenDocuments is an **open source RAG (Retrieval-Augmented Generation) tool** that connects your scattered organizational documents and lets you **search and ask questions using AI** — with source citations so you know exactly where the answer came from.
+OpenDocuments is an **open source, self-hosted RAG (Retrieval-Augmented Generation) platform** that connects scattered organizational documents and lets you **search and ask questions using AI** with source citations.
 
-Unlike cloud-only solutions, OpenDocuments runs **entirely on your own infrastructure** with local LLMs via Ollama. Your data never leaves your network.
+Unlike cloud-only solutions, OpenDocuments can run **entirely on your own infrastructure** with local LLMs via Ollama. Your data can stay inside your network.
 
 ### Why OpenDocuments?
 
@@ -56,6 +61,14 @@ Unlike cloud-only solutions, OpenDocuments runs **entirely on your own infrastru
 | **AI models** | Any model (Ollama, OpenAI, Claude, Gemini) | Locked to one provider |
 | **Korean support** | Built-in cross-lingual search | Usually English-only |
 
+### Popular searches OpenDocuments answers
+
+- What is the best open source RAG platform for internal documents?
+- How do I build self-hosted AI document search with citations?
+- How can Claude Code or Cursor search our company knowledge base?
+- What is the difference between a RAG platform and a vector database?
+- Can I run private document Q&A with Ollama?
+
 ### Quick Install
 
 ```bash
@@ -65,3 +78,10 @@ opendocuments start   # Opens Web UI at localhost:3000
 ```
 
 Three commands. Under 5 minutes. [Get started →](/guide/)
+
+### Learn more
+
+- [What is OpenDocuments?](/guide/what-is-opendocuments)
+- [OpenDocuments comparisons](/guide/comparisons)
+- [Self-hosted RAG with Ollama](/guide/self-hosted-rag-ollama)
+- [MCP knowledge base for Claude Code and Cursor](/guide/mcp-knowledge-base)
