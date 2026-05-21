@@ -69,4 +69,26 @@ describe('Chat Routes', () => {
     const row = ctx.db.get<{ count: number }>('SELECT COUNT(*) as count FROM query_logs WHERE query = ?', ['Hello'])
     expect(row?.count).toBe(1)
   })
+
+  it('POST /api/v1/chat/stream returns conversationId for newly persisted conversations', async () => {
+    const res = await app.request('/api/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'Hello' }),
+    })
+
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    const doneLine = text.split('\n').find((line) => line.startsWith('data: ') && line.includes('"conversationId"'))
+    expect(doneLine).toBeDefined()
+
+    const doneData = JSON.parse(doneLine!.slice('data: '.length))
+    expect(doneData.conversationId).toEqual(expect.any(String))
+
+    const row = ctx.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM conversations WHERE id = ?',
+      [doneData.conversationId]
+    )
+    expect(row?.count).toBe(1)
+  })
 })

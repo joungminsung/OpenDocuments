@@ -108,6 +108,29 @@ describe('Workspace-scoped Routes', () => {
     expect(res.status).toBe(404)
   })
 
+  it('queries only documents from the authenticated workspace', async () => {
+    await ctx.pipeline.ingest({
+      title: 'default-secret.md',
+      sourceType: 'local',
+      sourcePath: '/default-secret.md',
+      fileType: '.md',
+      content: '# Default Secret\n\nThe default workspace secret is alpha-only.',
+    })
+
+    const res = await app.request('/api/v1/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': secondaryAdminKey,
+      },
+      body: JSON.stringify({ query: 'What is the default workspace secret?' }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.sources).toEqual([])
+  })
+
   it('returns a public share link that resolves without authentication', async () => {
     const conversation = ctx.conversationManager.create('Shareable')
     ctx.conversationManager.addMessage(conversation.id, 'user', 'share this')

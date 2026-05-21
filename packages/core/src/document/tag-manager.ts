@@ -27,30 +27,47 @@ export class TagManager {
   }
 
   delete(id: string): void {
-    this.db.run('DELETE FROM tags WHERE id = ?', [id])
+    this.db.run('DELETE FROM tags WHERE id = ? AND workspace_id = ?', [id, this.workspaceId])
   }
 
   tagDocument(documentId: string, tagId: string): void {
     this.db.run(
-      'INSERT OR IGNORE INTO document_tags (document_id, tag_id) VALUES (?, ?)',
-      [documentId, tagId]
+      `INSERT OR IGNORE INTO document_tags (document_id, tag_id)
+       SELECT d.id, t.id
+       FROM documents d
+       JOIN tags t ON t.id = ?
+       WHERE d.id = ? AND d.workspace_id = ? AND t.workspace_id = ?`,
+      [tagId, documentId, this.workspaceId, this.workspaceId]
     )
   }
 
   untagDocument(documentId: string, tagId: string): void {
-    this.db.run('DELETE FROM document_tags WHERE document_id = ? AND tag_id = ?', [documentId, tagId])
+    this.db.run(
+      `DELETE FROM document_tags
+       WHERE document_id = ? AND tag_id = ?
+       AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND workspace_id = ?)
+       AND EXISTS (SELECT 1 FROM tags WHERE id = ? AND workspace_id = ?)`,
+      [documentId, tagId, documentId, this.workspaceId, tagId, this.workspaceId]
+    )
   }
 
   getDocumentTags(documentId: string): Tag[] {
     return this.db.all<any>(
-      `SELECT t.* FROM tags t JOIN document_tags dt ON t.id = dt.tag_id WHERE dt.document_id = ?`,
-      [documentId]
+      `SELECT t.* FROM tags t
+       JOIN document_tags dt ON t.id = dt.tag_id
+       JOIN documents d ON d.id = dt.document_id
+       WHERE dt.document_id = ? AND t.workspace_id = ? AND d.workspace_id = ?`,
+      [documentId, this.workspaceId, this.workspaceId]
     ).map(r => ({ id: r.id, workspaceId: r.workspace_id, name: r.name, color: r.color }))
   }
 
   getDocumentsByTag(tagId: string): string[] {
     return this.db.all<any>(
-      'SELECT document_id FROM document_tags WHERE tag_id = ?', [tagId]
+      `SELECT dt.document_id FROM document_tags dt
+       JOIN tags t ON t.id = dt.tag_id
+       JOIN documents d ON d.id = dt.document_id
+       WHERE dt.tag_id = ? AND t.workspace_id = ? AND d.workspace_id = ?`,
+      [tagId, this.workspaceId, this.workspaceId]
     ).map(r => r.document_id)
   }
 }

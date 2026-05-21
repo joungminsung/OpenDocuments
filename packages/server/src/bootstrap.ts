@@ -315,6 +315,7 @@ export interface WorkspaceServices {
   workspaceId: string
   store: DocumentStore
   pipeline: IngestPipeline
+  ragEngine: RAGEngine
   conversationManager: ConversationManager
   connectorManager: ConnectorManager
   tagManager: TagManager
@@ -488,6 +489,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     // 11. Create workspace-scoped services
     const documentStores = new Map<string, DocumentStore>()
     const pipelines = new Map<string, IngestPipeline>()
+    const ragEngines = new Map<string, RAGEngine>()
     const conversationManagers = new Map<string, ConversationManager>()
     const connectorManagers = new Map<string, ConnectorManager>()
     const tagManagers = new Map<string, TagManager>()
@@ -618,15 +620,25 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       }
     }
 
-    const ragEngine = new RAGEngine({
-      store,
-      llm,
-      embedder,
-      eventBus,
-      defaultProfile: config.rag.profile,
-      customProfileConfig: config.rag.custom,
-      webSearchProvider,
-    })
+    const getRAGEngineForWorkspace = (workspaceId: string) => {
+      ensureWorkspaceExists(workspaceId)
+      let scopedEngine = ragEngines.get(workspaceId)
+      if (!scopedEngine) {
+        scopedEngine = new RAGEngine({
+          store: getStoreForWorkspace(workspaceId),
+          llm,
+          embedder,
+          eventBus,
+          defaultProfile: config.rag.profile,
+          customProfileConfig: config.rag.custom,
+          webSearchProvider,
+        })
+        ragEngines.set(workspaceId, scopedEngine)
+      }
+      return scopedEngine
+    }
+
+    const ragEngine = getRAGEngineForWorkspace(defaultWorkspace.id)
 
     // 13. Create ConversationManager
     const conversationManager = getConversationManagerForWorkspace(defaultWorkspace.id)
@@ -724,6 +736,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
         workspaceId: resolvedWorkspaceId,
         store: getStoreForWorkspace(resolvedWorkspaceId),
         pipeline: getPipelineForWorkspace(resolvedWorkspaceId),
+        ragEngine: getRAGEngineForWorkspace(resolvedWorkspaceId),
         conversationManager: getConversationManagerForWorkspace(resolvedWorkspaceId),
         connectorManager: getConnectorManagerForWorkspace(resolvedWorkspaceId),
         tagManager: getTagManagerForWorkspace(resolvedWorkspaceId),

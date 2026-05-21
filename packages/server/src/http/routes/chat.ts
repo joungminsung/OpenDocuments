@@ -63,7 +63,7 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
-    const { conversationManager } = getWorkspaceServices(c, ctx, body.workspaceId)
+    const { conversationManager, ragEngine } = getWorkspaceServices(c, ctx, body.workspaceId)
 
     let conversationHistory: string | undefined
     if (body.conversationId) {
@@ -76,7 +76,7 @@ export function chatRoutes(ctx: AppContext) {
     }
 
     const startTime = Date.now()
-    const result = await ctx.ragEngine.query({ query: body.query.trim(), profile: body.profile, conversationHistory })
+    const result = await ragEngine.query({ query: body.query.trim(), profile: body.profile, conversationHistory })
     const responseTimeMs = Date.now() - startTime
 
     persistQueryLog(ctx, {
@@ -116,7 +116,7 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
-    const { conversationManager } = getWorkspaceServices(c, ctx, body.workspaceId)
+    const { conversationManager, ragEngine } = getWorkspaceServices(c, ctx, body.workspaceId)
 
     let streamConversationHistory: string | undefined
     if (body.conversationId) {
@@ -137,15 +137,14 @@ export function chatRoutes(ctx: AppContext) {
       let queryId: string | null = null
       let route = 'unknown'
       let profileUsed = body.profile || 'balanced'
+      let doneData: { queryId: string; route: string; profile: string } | null = null
 
       try {
-        for await (const event of ctx.ragEngine.queryStream({
+        for await (const event of ragEngine.queryStream({
           query: body.query.trim(),
           profile: body.profile,
           conversationHistory: streamConversationHistory,
         })) {
-          await stream.writeSSE({ event: event.type, data: JSON.stringify(event.data) })
-
           if (event.type === 'chunk') fullAnswer += event.data
           if (event.type === 'sources') sources = event.data as any[]
           if (event.type === 'confidence') confidence = event.data
@@ -153,7 +152,11 @@ export function chatRoutes(ctx: AppContext) {
             queryId = event.data.queryId
             route = event.data.route
             profileUsed = event.data.profile
+            doneData = event.data
+            continue
           }
+
+          await stream.writeSSE({ event: event.type, data: JSON.stringify(event.data) })
         }
       } catch (err) {
         streamError = true
@@ -183,9 +186,18 @@ export function chatRoutes(ctx: AppContext) {
               route,
             })
           }
+
+          if (doneData) {
+            await stream.writeSSE({
+              event: 'done',
+              data: JSON.stringify({ ...doneData, conversationId }),
+            })
+          }
         } catch (err) {
           console.error('[conversation] Failed to persist:', err instanceof Error ? err.message : String(err))
         }
+      } else if (!streamError && doneData) {
+        await stream.writeSSE({ event: 'done', data: JSON.stringify(doneData) })
       }
     })
   })
