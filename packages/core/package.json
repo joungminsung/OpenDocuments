@@ -35,7 +35,7 @@
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   },
-  "description": "Core engine for OpenDocuments - self-hosted RAG platform",
+  "description": "Core RAG engine for OpenDocuments, including ingestion, hybrid retrieval, storage, auth, security, and plugins",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -43,13 +43,27 @@
     "directory": "packages/core"
   },
   "keywords": [
+    "opendocuments",
     "rag",
+    "retrieval-augmented-generation",
+    "ai",
     "llm",
     "document-search",
+    "knowledge-base",
+    "self-hosted",
     "vector-search",
-    "ai"
+    "hybrid-search",
+    "embeddings",
+    "lancedb",
+    "sqlite",
+    "typescript"
   ],
   "files": [
     "dist/**/*"
-  ]
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors"
 }

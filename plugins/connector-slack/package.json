@@ -24,5 +24,31 @@
   },
   "peerDependencies": {
     "opendocuments-core": "^0.3.0"
+  },
+  "description": "Slack connector for OpenDocuments AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "connector",
+    "slack",
+    "chat-search",
+    "team-knowledge"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "plugins/connector-slack"
   }
 }

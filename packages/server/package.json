@@ -28,7 +28,7 @@
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   },
-  "description": "HTTP/MCP server for OpenDocuments - self-hosted RAG platform",
+  "description": "HTTP API and MCP server for OpenDocuments self-hosted AI document search",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,12 +36,27 @@
     "directory": "packages/server"
   },
   "keywords": [
+    "opendocuments",
     "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
     "mcp",
     "hono",
-    "api-server"
+    "api-server",
+    "http-api",
+    "claude-code",
+    "cursor"
   ],
   "files": [
     "dist/**/*"
-  ]
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors"
 }

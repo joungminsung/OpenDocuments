@@ -25,5 +25,31 @@
     "tailwindcss": "^3.4.0",
     "typescript": "^5.5.0",
     "vite": "^6.0.0"
+  },
+  "description": "React Web UI for OpenDocuments self-hosted RAG and AI document search",
+  "keywords": [
+    "opendocuments",
+    "rag",
+    "retrieval-augmented-generation",
+    "ai",
+    "llm",
+    "document-search",
+    "knowledge-base",
+    "self-hosted",
+    "react",
+    "vite",
+    "web-ui",
+    "admin-dashboard"
+  ],
+  "homepage": "https://github.com/joungminsung/OpenDocuments#readme",
+  "bugs": {
+    "url": "https://github.com/joungminsung/OpenDocuments/issues"
+  },
+  "author": "OpenDocuments Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joungminsung/OpenDocuments.git",
+    "directory": "packages/web"
   }
 }
