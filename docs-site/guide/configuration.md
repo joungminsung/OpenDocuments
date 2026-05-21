@@ -12,7 +12,7 @@ export default defineConfig({
   mode: 'personal',        // 'personal' | 'team'
 
   model: {
-    provider: 'ollama',     // 'ollama' | 'openai' | 'anthropic' | 'google' | 'grok'
+    provider: 'ollama',     // 'ollama' | 'openai' | 'anthropic' | 'google' | 'grok' | 'deepseek' | 'mistral' | 'openai-compatible'
     llm: 'qwen2.5:14b',
     embedding: 'bge-m3',
     // embeddingProvider: 'openai',    // Use different provider for embeddings
@@ -74,10 +74,32 @@ export default defineConfig({
 ```typescript
 model: {
   provider: 'ollama',
-  llm: 'qwen2.5:14b',      // Any Ollama model
+  llm: 'qwen2.5:14b',      // Any Ollama model: gemma3, gemma2, llama3.3, qwen2.5, phi4, deepseek-r1...
   embedding: 'bge-m3',
   baseUrl: 'http://localhost:11434',  // Default
 }
+```
+
+Popular Ollama models (April 2026):
+
+```bash
+# Google Gemma 4 (128K context, 140+ languages, multimodal)
+ollama pull gemma3:27b   # Gemma 3 flagship
+ollama pull gemma3:12b   # Balanced
+ollama pull gemma3:4b    # Low-spec
+ollama pull gemma3n      # Selective activation for laptops/phones
+ollama pull gemma4       # Newest release (if available)
+
+# Alibaba Qwen 3.5
+ollama pull qwen2.5:14b
+ollama pull qwen3.5:9b
+
+# Meta Llama 4
+ollama pull llama4:scout
+ollama pull llama4:maverick
+
+# DeepSeek R1 distilled
+ollama pull deepseek-r1:14b
 ```
 
 ### Cloud Models
@@ -107,6 +129,43 @@ model: {
   embedding: 'text-embedding-004',
   apiKey: process.env.GOOGLE_API_KEY,
 }
+
+// DeepSeek (V3.2 / R1 — no embedding, cheapest reasoning)
+model: {
+  provider: 'deepseek',
+  llm: 'deepseek-chat',        // or 'deepseek-reasoner' for R1
+  embedding: 'bge-m3',
+  embeddingProvider: 'ollama',
+  apiKey: process.env.DEEPSEEK_API_KEY,
+}
+
+// Mistral (Small 4 / Large / Codestral / Pixtral)
+model: {
+  provider: 'mistral',
+  llm: 'mistral-small-latest',  // MoE w/ reasoning + vision + code
+  embedding: 'mistral-embed',
+  apiKey: process.env.MISTRAL_API_KEY,
+}
+
+// Generic OpenAI-compatible — works with vLLM, LM Studio, Together, Fireworks, Groq, DeepInfra, SiliconFlow, OpenRouter
+model: {
+  provider: 'openai-compatible',
+  baseUrl: 'https://api.groq.com/openai/v1',  // required
+  llm: 'llama-4-70b-instruct',
+  embedding: 'bge-m3',
+  embeddingProvider: 'ollama',  // Groq has no embeddings
+  apiKey: process.env.GROQ_API_KEY,
+  // extraHeaders: { 'HTTP-Referer': 'https://myapp.com' },  // e.g. for OpenRouter
+}
+
+// Self-hosted vLLM
+model: {
+  provider: 'openai-compatible',
+  baseUrl: 'http://vllm.internal:8000/v1',
+  llm: 'meta-llama/Llama-4-70B-Instruct',
+  embedding: 'BAAI/bge-m3',
+  apiKey: '',  // vLLM accepts empty
+}
 ```
 
 ## Environment Variables
@@ -117,9 +176,15 @@ API keys should be stored in `.env`, never in the config file:
 # .env
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+GROK_API_KEY=xai-...
+DEEPSEEK_API_KEY=sk-...
+MISTRAL_API_KEY=...
+OPENAI_COMPATIBLE_API_KEY=...          # For generic openai-compatible provider
+OPENAI_COMPATIBLE_BASE_URL=https://... # Optional default for openai-compatible baseUrl
 GITHUB_TOKEN=ghp_...
 NOTION_TOKEN=ntn_...
-TAVILY_API_KEY=tvly-...    # For web search integration
+TAVILY_API_KEY=tvly-...                # For web search integration
 ```
 
 The `.env` file is automatically loaded before config resolution.

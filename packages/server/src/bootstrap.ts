@@ -53,6 +53,9 @@ const PROVIDER_MAP: Record<string, string> = {
   anthropic: 'opendocuments-model-anthropic',
   google: 'opendocuments-model-google',
   grok: 'opendocuments-model-grok',
+  deepseek: 'opendocuments-model-deepseek',
+  mistral: 'opendocuments-model-mistral',
+  'openai-compatible': 'opendocuments-model-openai-compatible',
 }
 
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
@@ -60,6 +63,7 @@ const EMBEDDING_DIMENSIONS: Record<string, number> = {
   openai: 1536,
   google: 768,
   grok: 1536,
+  mistral: 1024,
   default: 384,
 }
 

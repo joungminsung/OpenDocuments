@@ -4,34 +4,54 @@ import chalk from 'chalk'
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { cpus, totalmem, platform, arch } from 'node:os'
+import {
+  estimateModelSize,
+  formatBytes,
+  getAvailableDiskBytes,
+  getOllamaInstallCommand,
+  isOllamaRunning,
+  listOllamaModels,
+  pullOllamaModel as pullOllamaModelWithProgress,
+} from '../utils/ollama.js'
 
 async function checkOllamaRunning(): Promise<boolean> {
-  try {
-    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
-    return res.ok
-  } catch {
-    return false
-  }
+  return isOllamaRunning()
 }
 
-async function getOllamaModels(): Promise<string[]> {
-  try {
-    const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
-    if (!res.ok) return []
-    const data = await res.json() as { models?: Array<{ name: string }> }
-    return (data.models || []).map(m => m.name)
-  } catch {
-    return []
-  }
+async function getOllamaModelNames(): Promise<string[]> {
+  return (await listOllamaModels()).map((m) => m.name)
 }
 
 async function pullOllamaModel(model: string): Promise<boolean> {
+  let lastLine = ''
+  const ok = await pullOllamaModelWithProgress(model, 'http://localhost:11434', (line) => {
+    if (line !== lastLine) {
+      lastLine = line
+      process.stdout.write(`\r\x1b[K  ${line}`)
+    }
+  })
+  process.stdout.write('\n')
+  return ok
+}
+
+async function tryInstallOllama(): Promise<boolean> {
+  const install = getOllamaInstallCommand()
+  if (!install.supported) {
+    log.info(`Automatic install is not supported on this platform. Download from: ${install.url}`)
+    return false
+  }
+  const { confirm } = await import('@inquirer/prompts')
+  log.blank()
+  log.info('Ollama is not installed. The official install script is:')
+  log.dim(`  ${install.command}`)
+  const go = await confirm({ message: 'Run the official Ollama install script now?', default: false })
+  if (!go) return false
   const { execSync } = await import('node:child_process')
   try {
-    console.log(`  Pulling ${model}... (this may take a few minutes)`)
-    execSync(`ollama pull ${model}`, { stdio: 'inherit', timeout: 600000 })
+    execSync(install.command!, { stdio: 'inherit' })
     return true
-  } catch {
+  } catch (err) {
+    log.fail(`Install failed: ${(err as Error).message}`)
     return false
   }
 }
@@ -50,6 +70,18 @@ async function validateCloudApiKey(provider: string, apiKey: string): Promise<bo
     google: {
       url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
       headers: {},
+    },
+    grok: {
+      url: 'https://api.x.ai/v1/models',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    },
+    deepseek: {
+      url: 'https://api.deepseek.com/v1/models',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    },
+    mistral: {
+      url: 'https://api.mistral.ai/v1/models',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
     },
   }
   const endpoint = endpoints[provider]
@@ -104,26 +136,49 @@ export function initCommand() {
         message: 'Model backend:',
         choices: [
           { name: `Local (Ollama) ${chalk.dim('-- data stays on your machine')}`, value: 'ollama' },
-          { name: `Cloud ${chalk.dim('-- OpenAI, Anthropic, Google, Grok')}`, value: 'cloud' },
+          { name: `Cloud ${chalk.dim('-- OpenAI, Anthropic, Google, Grok, DeepSeek, Mistral')}`, value: 'cloud' },
+          { name: `OpenAI-compatible endpoint ${chalk.dim('-- vLLM / LM Studio / Groq / Together / Fireworks / OpenRouter')}`, value: 'openai-compatible' },
         ],
       })
 
       let provider = 'ollama'
       let apiKey = ''
+      let baseUrl = ''
       let embeddingProvider: string | undefined
       let embeddingApiKey: string | undefined
       let llmModel = 'qwen2.5:14b'
       let embeddingModel = 'bge-m3'
 
-      if (backend === 'cloud') {
+      if (backend === 'openai-compatible') {
+        provider = 'openai-compatible'
+        baseUrl = await input({
+          message: 'Base URL (include /v1 path):',
+          default: 'https://api.groq.com/openai/v1',
+        })
+        apiKey = await input({ message: 'API key (leave empty for local vLLM/LM Studio):', default: '' })
+        llmModel = await input({ message: 'LLM model id:', default: 'llama-4-70b-instruct' })
+        const wantEmbed = await confirm({
+          message: 'Does this endpoint provide embeddings?',
+          default: false,
+        })
+        if (wantEmbed) {
+          embeddingModel = await input({ message: 'Embedding model id:', default: 'bge-m3' })
+        } else {
+          log.info('Using local Ollama BGE-M3 as secondary embedding provider.')
+          embeddingProvider = 'ollama'
+          embeddingModel = 'bge-m3'
+        }
+      } else if (backend === 'cloud') {
         // 5. Cloud provider
         provider = await select({
           message: 'Cloud provider:',
           choices: [
-            { name: 'OpenAI (GPT-4o)', value: 'openai' },
-            { name: 'Anthropic (Claude)', value: 'anthropic' },
-            { name: 'Google (Gemini)', value: 'google' },
-            { name: 'Grok (xAI)', value: 'grok' },
+            { name: 'OpenAI (GPT-4o / GPT-5.4)', value: 'openai' },
+            { name: 'Anthropic (Claude Sonnet 4)', value: 'anthropic' },
+            { name: 'Google (Gemini 2.5 Flash)', value: 'google' },
+            { name: 'Grok (xAI Grok 4)', value: 'grok' },
+            { name: `DeepSeek ${chalk.dim('(V3.2 / R1 — cheap reasoning, 164K ctx)')}`, value: 'deepseek' },
+            { name: `Mistral ${chalk.dim('(Small 4 MoE — reasoning + vision + code)')}`, value: 'mistral' },
           ],
         })
 
@@ -133,6 +188,8 @@ export function initCommand() {
           anthropic: 'ANTHROPIC_API_KEY',
           google: 'GOOGLE_API_KEY',
           grok: 'XAI_API_KEY',
+          deepseek: 'DEEPSEEK_API_KEY',
+          mistral: 'MISTRAL_API_KEY',
         }
 
         apiKey = await input({
@@ -156,17 +213,19 @@ export function initCommand() {
         }
 
         // Set defaults based on provider
-        const providerDefaults: Record<string, { llm: string; embedding: string }> = {
+        const providerDefaults: Record<string, { llm: string; embedding: string; needsSecondaryEmbedding?: boolean }> = {
           openai: { llm: 'gpt-4o', embedding: 'text-embedding-3-small' },
-          anthropic: { llm: 'claude-sonnet-4-20250514', embedding: 'bge-m3' }, // Anthropic has no embedding
+          anthropic: { llm: 'claude-sonnet-4-20250514', embedding: 'bge-m3', needsSecondaryEmbedding: true },
           google: { llm: 'gemini-2.5-flash', embedding: 'text-embedding-004' },
-          grok: { llm: 'grok-3', embedding: 'grok-2-embed' },
+          grok: { llm: 'grok-4', embedding: 'grok-2-embed' },
+          deepseek: { llm: 'deepseek-chat', embedding: 'bge-m3', needsSecondaryEmbedding: true },
+          mistral: { llm: 'mistral-small-latest', embedding: 'mistral-embed' },
         }
         llmModel = providerDefaults[provider].llm
         embeddingModel = providerDefaults[provider].embedding
 
-        if (provider === 'anthropic') {
-          log.wait('Anthropic does not provide an embedding API.')
+        if (providerDefaults[provider].needsSecondaryEmbedding) {
+          log.wait(`${provider} does not provide an embedding API — choose a secondary embedding provider.`)
           const embeddingChoice = await select({
             message: 'Embedding provider:',
             choices: [
@@ -187,25 +246,31 @@ export function initCommand() {
           log.info(`Embedding will use ${embeddingChoice === 'ollama' ? 'Ollama BGE-M3' : 'OpenAI text-embedding-3-small'}`)
         }
       } else {
-        // Local model recommendation
+        // Local model recommendation (April 2026)
         log.blank()
         log.info('Recommended models for your system:')
 
         if (specs.ramGB >= 32) {
-          log.arrow(`${chalk.cyan('*')} Qwen 2.5 14B ${chalk.dim('(recommended -- Vision, Korean support)')}`)
-          log.dim('    Llama 3.3 8B (lightweight)')
-          log.dim('    EXAONE 7.8B (Korean specialized)')
+          log.arrow(`${chalk.cyan('*')} Gemma 3 27B ${chalk.dim('(recommended -- 128K ctx, multilingual, multimodal)')}`)
+          log.dim('    Qwen 3.5 27B (flagship Korean)')
+          log.dim('    Llama 4 Scout (10M context, MoE)')
+          log.dim('    DeepSeek R1 14B (reasoning, distilled)')
         } else if (specs.ramGB >= 16) {
-          log.arrow(`${chalk.cyan('*')} Qwen 2.5 7B ${chalk.dim('(recommended for 16GB RAM)')}`)
+          log.arrow(`${chalk.cyan('*')} Gemma 3 12B ${chalk.dim('(recommended for 16GB RAM)')}`)
+          log.dim('    Qwen 3.5 9B (Korean excellent)')
           log.dim('    Gemma 3 4B (lightweight)')
         } else {
           log.arrow(`${chalk.cyan('*')} Gemma 3 4B ${chalk.dim('(recommended for limited RAM)')}`)
-          log.info('Limited RAM detected. Consider a cloud provider for better performance.')
+          log.dim('    Gemma 3n (selective activation, laptop/phone)')
+          log.info('Limited RAM detected. A cloud provider (DeepSeek is cheapest) may give better results.')
         }
 
         llmModel = await input({
           message: 'LLM model:',
-          default: specs.ramGB >= 32 ? 'qwen2.5:14b' : specs.ramGB >= 16 ? 'qwen2.5:7b' : 'gemma3:4b',
+          default:
+            specs.ramGB >= 32 ? 'gemma3:27b' :
+            specs.ramGB >= 16 ? 'gemma3:12b' :
+                                'gemma3:4b',
         })
 
         embeddingModel = await input({
@@ -247,6 +312,7 @@ export function initCommand() {
         mode: mode as 'personal' | 'team',
         provider,
         apiKey,
+        baseUrl,
         embeddingProvider,
         embeddingApiKey,
         llmModel,
@@ -307,28 +373,64 @@ export function initCommand() {
       log.dim(`  Preset     ${preset}`)
       log.blank()
       log.heading('Next Steps')
-      if (backend === 'ollama') {
+      // Ollama flow triggers both when backend=='ollama' AND when cloud provider
+      // needs a secondary Ollama embedder.
+      const needsOllama = backend === 'ollama' || embeddingProvider === 'ollama'
+      if (needsOllama) {
         log.blank()
         log.wait('Checking Ollama availability...')
-        const ollamaRunning = await checkOllamaRunning()
+        let ollamaRunning = await checkOllamaRunning()
+        if (!ollamaRunning) {
+          // Try to auto-install
+          const installed = await tryInstallOllama()
+          if (installed) {
+            log.ok('Ollama installed')
+            log.wait('Waiting for Ollama daemon to come up...')
+            for (let i = 0; i < 10; i++) {
+              await new Promise((r) => setTimeout(r, 1500))
+              if (await checkOllamaRunning()) { ollamaRunning = true; break }
+            }
+          }
+        }
+
         if (ollamaRunning) {
           log.ok('Ollama is running')
-          const models = await getOllamaModels()
+          const models = await getOllamaModelNames()
           const needsPull: string[] = []
-          for (const model of [llmModel, embeddingModel]) {
-            if (models.some(m => m.startsWith(model.split(':')[0]))) {
+          const modelsToCheck = backend === 'ollama' ? [llmModel, embeddingModel] : [embeddingModel]
+          for (const model of modelsToCheck) {
+            if (models.some(m => m === model || m === `${model}:latest` || m.startsWith(`${model}:`))) {
               log.ok(`Model ${model} is available`)
             } else {
               needsPull.push(model)
             }
           }
           if (needsPull.length > 0) {
+            // Disk space pre-check
+            const available = getAvailableDiskBytes()
+            let totalEstimate = 0
+            const sizeLines: string[] = []
+            for (const m of needsPull) {
+              const est = estimateModelSize(m)
+              if (est) { totalEstimate += est; sizeLines.push(`  ${m.padEnd(24)} ~${formatBytes(est)}`) }
+            }
+            if (sizeLines.length > 0) {
+              log.info('Estimated disk footprint:')
+              for (const l of sizeLines) console.log(l)
+              if (available !== null) {
+                log.info(`Available disk: ${formatBytes(available)}`)
+                if (available < totalEstimate + 1.5e9) {
+                  log.fail(`Warning: disk may be too low (need ~${formatBytes(totalEstimate + 1.5e9)}).`)
+                }
+              }
+            }
             const autoPull = await confirm({
               message: `Pull missing models (${needsPull.join(', ')})?`,
               default: true,
             })
             if (autoPull) {
               for (const model of needsPull) {
+                log.wait(`Pulling ${model}...`)
                 const success = await pullOllamaModel(model)
                 if (success) {
                   log.ok(`${model} pulled successfully`)
@@ -341,13 +443,18 @@ export function initCommand() {
             }
           }
         } else {
-          log.fail('Ollama is not running or not installed')
-          log.arrow('Install Ollama: https://ollama.com')
-          log.arrow('Then start it:  ollama serve')
-          log.arrow(`Then pull models: ollama pull ${llmModel} && ollama pull ${embeddingModel}`)
+          log.fail('Ollama is still not reachable')
+          const install = getOllamaInstallCommand()
+          if (install.supported) {
+            log.arrow(`Install:  ${install.command}`)
+          } else {
+            log.arrow(`Download: ${install.url}`)
+          }
+          log.arrow('Then start: ollama serve')
+          log.arrow(`Then pull:  ollama pull ${llmModel} && ollama pull ${embeddingModel}`)
         }
       }
-      if (backend === 'cloud' && !apiKey) {
+      if ((backend === 'cloud' || backend === 'openai-compatible') && !apiKey) {
         const envVarName = getEnvVarName(provider)
         log.arrow(`Set API key: export ${envVarName}=your-key-here`)
       }
@@ -387,6 +494,7 @@ interface ConfigOptions {
   mode: 'personal' | 'team'
   provider: string
   apiKey: string
+  baseUrl?: string
   embeddingProvider?: string
   embeddingApiKey?: string
   llmModel: string
@@ -413,7 +521,11 @@ function generateConfigFile(opts: ConfigOptions): string {
     lines.push(`    embeddingProvider: '${opts.embeddingProvider}',`)
   }
 
-  if (opts.apiKey) {
+  if (opts.baseUrl) {
+    lines.push(`    baseUrl: '${opts.baseUrl}',`)
+  }
+
+  if (opts.apiKey || opts.provider === 'openai-compatible') {
     lines.push(`    apiKey: process.env.${getEnvVarName(opts.provider)},`)
   }
 
@@ -461,6 +573,9 @@ function getEnvVarName(provider: string): string {
     anthropic: 'ANTHROPIC_API_KEY',
     google: 'GOOGLE_API_KEY',
     grok: 'XAI_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
+    'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY',
     ollama: 'OLLAMA_URL',
   }
   return map[provider] || 'API_KEY'
