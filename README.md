@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  English | <a href="README.ko.md">한국어</a>
+</p>
+
+<p align="center">
   <img src="assets/demo.gif" alt="OpenDocuments Demo" width="800">
 </p>
 
