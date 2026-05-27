@@ -4,6 +4,10 @@ dist/
 *.sqlite
 .env
 .env.local
+opendocuments.config.ts
+.opendocuments*/
+outputs/
+examples/
 .turbo/
 coverage/
 .DS_Store
