@@ -636,7 +636,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, test patterns, and plugi
 | Guide | Description |
 |-------|-------------|
 | [Quick Start](#quick-start) | Install and run in 5 minutes |
-| [Architecture](docs-site/guide/architecture.md) | Package structure, data flow, design decisions |
+| [Architecture](docs/architecture.md) | Package structure, data flow, design decisions |
 | [Plugin API: Parsers](docs-site/plugins/parser-api.md) | Create custom document parsers |
 | [Plugin API: Connectors](docs-site/plugins/connector-api.md) | Connect external data sources |
 | [Plugin API: Models](docs-site/plugins/model-api.md) | Add custom AI providers |
