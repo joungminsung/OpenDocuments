@@ -1,5 +1,7 @@
 # OpenDocuments Architecture
 
+[English](architecture.md) | [한국어](architecture.ko.md)
+
 OpenDocuments is a self-hosted RAG platform for searching private documents across GitHub, Notion, Google Drive, local files, and other sources.
 
 The system is designed around three principles:

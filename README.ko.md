@@ -642,7 +642,7 @@ npm run dev      # Watch mode
 | 가이드                                                       | 설명                                  |
 | ------------------------------------------------------------ | ------------------------------------- |
 | [빠른 시작](#빠른-시작)                                      | 5분 안에 설치 및 실행                 |
-| [아키텍처](docs/architecture.md)                  | 패키지 구조, 데이터 흐름, 설계 결정   |
+| [아키텍처](docs/architecture.ko.md)                  | 패키지 구조, 데이터 흐름, 설계 결정   |
 | [Plugin API: Parsers](docs-site/plugins/parser-api.md)       | 커스텀 문서 파서 만들기               |
 | [Plugin API: Connectors](docs-site/plugins/connector-api.md) | 외부 데이터 소스 연결                 |
 | [Plugin API: Models](docs-site/plugins/model-api.md)         | 커스텀 AI 제공자 추가                 |
