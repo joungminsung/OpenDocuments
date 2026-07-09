@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 20
       - run: cd docs-site && npm install && npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/.vitepress/dist
 
@@ -35,4 +35,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
