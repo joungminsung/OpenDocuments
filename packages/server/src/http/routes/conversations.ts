@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { Hono, type Context } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { getWorkspaceServices, resolveRequestWorkspaceId } from '../workspace.js'
+import { requireScope } from '../middleware/auth.js'
 
 export function getSharedConversationHandler(ctx: AppContext) {
   return async (c: Context) => {
@@ -86,7 +87,7 @@ export function conversationRoutes(ctx: AppContext) {
     return c.json({ updated: true })
   })
 
-  app.post('/api/v1/conversations/:id/share', async (c) => {
+  app.post('/api/v1/conversations/:id/share', requireScope('ask'), async (c) => {
     const id = c.req.param('id')
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const convo = ctx.db.get<any>(

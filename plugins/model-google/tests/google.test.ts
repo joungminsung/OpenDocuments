@@ -83,50 +83,29 @@ describe('GoogleModelPlugin', () => {
     expect(status.message).toContain('ECONNREFUSED')
   })
 
-  it('generate yields streamed tokens from SSE', async () => {
-    const encoder = new TextEncoder()
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          encoder.encode(
-            'data: {"candidates":[{"content":{"parts":[{"text":"Hello "}]}}]}\n\n',
-          ),
-        )
-        controller.enqueue(
-          encoder.encode(
-            'data: {"candidates":[{"content":{"parts":[{"text":"world"}]}}]}\n\n',
-          ),
-        )
-        controller.close()
-      },
-    })
-
+  it('generate yields generated text', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: true, body: stream }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'world' }] } }],
+        }),
+      }),
     )
 
     const tokens: string[] = []
     for await (const token of plugin.generate('test prompt')) {
       tokens.push(token)
     }
-    expect(tokens).toEqual(['Hello ', 'world'])
+    expect(tokens).toEqual(['Hello world'])
   })
 
   it('generate includes systemInstruction when systemPrompt provided', async () => {
-    const encoder = new TextEncoder()
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          encoder.encode(
-            'data: {"candidates":[{"content":{"parts":[{"text":"Hi"}]}}]}\n\n',
-          ),
-        )
-        controller.close()
-      },
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'Hi' }] } }] }),
     })
-
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, body: stream })
     vi.stubGlobal('fetch', mockFetch)
 
     const tokens: string[] = []
@@ -138,6 +117,29 @@ describe('GoogleModelPlugin', () => {
     const callBody = JSON.parse(mockFetch.mock.calls[0][1].body)
     expect(callBody.systemInstruction).toBeDefined()
     expect(callBody.systemInstruction.parts[0].text).toBe('You are helpful.')
+    expect(callBody.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+  })
+
+  it('generate allows overriding thinking budget through config', async () => {
+    const configPlugin = new GoogleModelPlugin()
+    await configPlugin.setup({
+      config: { apiKey: 'test-api-key', thinkingBudget: 256 },
+      dataDir: '/tmp',
+      log: console as any,
+    } as any)
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: 'Hi' }] } }] }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    for await (const _ of configPlugin.generate('hello')) {
+      // consume
+    }
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(callBody.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 256 })
   })
 
   it('generate throws on HTTP error', async () => {

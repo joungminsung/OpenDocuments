@@ -22,10 +22,43 @@ describe('OpenDocumentsClient', () => {
 
   it('asks a question', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ queryId: 'q1', answer: 'test', sources: [], confidence: {}, route: 'rag', profile: 'balanced' }),
+      ok: true, json: async () => ({
+        queryId: 'q1',
+        answer: 'test',
+        sources: [],
+        confidence: { score: 0.8, level: 'high', reason: 'grounded' },
+        route: 'rag',
+        profile: 'balanced',
+      }),
     }))
-    const result = await client.ask('Hello')
+    const result = await client.ask('Hello', { profile: 'balanced' })
     expect(result.answer).toBe('test')
+    expect(result.confidence.level).toBe('high')
+    vi.unstubAllGlobals()
+  })
+
+  it('uploads documents with the server response shape', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ documentId: 'doc-1', chunks: 3, status: 'indexed' }),
+    }))
+
+    const result = await client.uploadDocument(new File(['hello'], 'hello.md'))
+
+    expect(result.documentId).toBe('doc-1')
+    expect(result.chunks).toBe(3)
+    vi.unstubAllGlobals()
+  })
+
+  it('lists conversations', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ conversations: [{ id: 'c1', title: 'Thread' }], limit: 50, offset: 0 }),
+    }))
+
+    const result = await client.listConversations()
+
+    expect(result.conversations[0].id).toBe('c1')
     vi.unstubAllGlobals()
   })
 })

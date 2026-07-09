@@ -115,6 +115,6 @@ export async function* generateAnswer(
 
   yield* model.generate(prompt, {
     temperature: 0.3,
-    maxTokens: 4096,
+    maxTokens: 1024,
   })
 }

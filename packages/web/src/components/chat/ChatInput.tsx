@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
+import { Paperclip, Send } from 'lucide-react'
 import { useAppStore } from '../../stores/appStore'
-import type { RAGProfile } from '../../lib/types'
+import { translate as tr } from '../../lib/i18n'
 
 interface Props {
   onSend: (query: string) => void
+  onAttach?: (file: File) => Promise<void>
   disabled?: boolean
+  uploading?: boolean
+  className?: string
 }
 
-export function ChatInput({ onSend, disabled }: Props) {
+export function ChatInput({ onSend, onAttach, disabled, uploading, className = '' }: Props) {
+  const { locale } = useAppStore()
+  const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { profile, setProfile } = useAppStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!disabled) textareaRef.current?.focus()
@@ -30,55 +36,62 @@ export function ChatInput({ onSend, disabled }: Props) {
     }
   }
 
+  const handleAttach = async (file: File | undefined) => {
+    if (!file || !onAttach || disabled || uploading) return
+    try {
+      await onAttach(file)
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-end gap-2">
+    <div className={`rounded-lg border border-slate-200 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.09)] ${className}`}>
+      <div className="flex min-h-[116px] flex-col px-6 py-5">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your documents..."
+          placeholder={t('chat.placeholder')}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
-          style={{ minHeight: '42px', maxHeight: '120px' }}
+          className="min-h-[36px] flex-1 resize-none border-0 bg-transparent p-0 text-[15px] leading-6 text-slate-950 placeholder-slate-400 outline-none disabled:opacity-50"
+          style={{ maxHeight: '76px' }}
           onInput={(e) => {
             const target = e.target as HTMLTextAreaElement
             target.style.height = 'auto'
-            target.style.height = Math.min(target.scrollHeight, 120) + 'px'
+            target.style.height = Math.min(target.scrollHeight, 76) + 'px'
           }}
         />
-        <button
-          onClick={handleSubmit}
-          disabled={disabled || !input.trim()}
-          className="px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {disabled ? '...' : 'Send'}
-        </button>
-      </div>
-      <div className="flex items-center gap-3 text-xs">
-        <select className="text-xs bg-transparent border border-gray-300 dark:border-gray-700 rounded px-2 py-0.5 text-gray-400">
-          <option value="">All sources</option>
-          <option value="local">Local</option>
-          <option value="github">GitHub</option>
-          <option value="notion">Notion</option>
-          <option value="web">Web</option>
-        </select>
-        <span className="text-gray-400">Profile:</span>
-        {(['fast', 'balanced', 'precise'] as RAGProfile[]).map((p) => (
+        <div className="mt-4 flex items-end justify-between">
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(event) => void handleAttach(event.target.files?.[0])}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!onAttach || disabled || uploading}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={t('chat.uploadSource')}
+              title={uploading ? t('chat.uploadingSource') : t('chat.uploadSource')}
+            >
+              <Paperclip size={19} strokeWidth={2} />
+            </button>
+          </div>
           <button
-            key={p}
-            onClick={() => setProfile(p)}
-            className={`px-2 py-0.5 rounded transition-colors ${
-              profile === p
-                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-medium'
-                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-            }`}
+            onClick={handleSubmit}
+            disabled={disabled || !input.trim()}
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.28)] transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={t('chat.sendQuestion')}
           >
-            {p}
+            <Send size={19} strokeWidth={2.1} />
           </button>
-        ))}
+        </div>
       </div>
     </div>
   )

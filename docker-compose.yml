@@ -29,7 +29,7 @@ services:
         condition: service_healthy
         required: false
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
       interval: 30s
       timeout: 10s
       start_period: 15s

@@ -1,202 +1,260 @@
-import { useState, useEffect } from 'react'
-import { getAdminStats, getSearchQuality, getQueryLogs, getPluginHealth, getConnectorStatus } from '../../lib/api'
-import type { AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from '../../lib/types'
+import { useEffect, useMemo, useState } from 'react'
+import { Activity, Gauge, Plug, RefreshCw, SearchCheck } from 'lucide-react'
+import { getAdminStats, getConnectorStatus, getPluginHealth, getQueryLogs, getSearchQuality } from '../../lib/api'
+import type {
+  AdminStatsResponse,
+  ConnectorStatusResponse,
+  PluginHealthResponse,
+  QueryLogsResponse,
+  SearchQualityResponse,
+} from '../../lib/types'
+import { useAppStore } from '../../stores/appStore'
+import { translate as tr, type Locale } from '../../lib/i18n'
+
+type Tab = 'overview' | 'queries' | 'plugins' | 'connectors'
+
+function pct(value?: number | null) {
+  return `${Math.round((value || 0) * 100)}%`
+}
+
+function formatDate(value: string | null | undefined, locale: Locale) {
+  if (!value) return tr(locale, 'common.notRecorded')
+  return new Date(value).toLocaleString(locale === 'ko' ? 'ko-KR' : 'en-US')
+}
+
+function Metric({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-[22px] font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-[12px] font-medium text-slate-500">{label}</p>
+      {detail && <p className="mt-0.5 text-[11px] text-slate-400">{detail}</p>}
+    </div>
+  )
+}
+
+function Distribution({ values, emptyText }: { values: Record<string, number>; emptyText: string }) {
+  const entries = Object.entries(values)
+  const total = entries.reduce((sum, [, count]) => sum + count, 0)
+
+  if (entries.length === 0) {
+    return <p className="text-[13px] text-slate-400">{emptyText}</p>
+  }
+
+  return (
+    <div className="space-y-3">
+      {entries.map(([name, count]) => {
+        const percent = total > 0 ? Math.round((count / total) * 100) : 0
+        return (
+          <div key={name}>
+            <div className="mb-1 flex justify-between gap-3 text-[13px]">
+              <span className="truncate text-slate-700">{name}</span>
+              <span className="shrink-0 text-slate-500">{count} · {percent}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100">
+              <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${percent}%` }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export function HealthPage() {
+  const { locale } = useAppStore()
+  const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [stats, setStats] = useState<AdminStatsResponse | null>(null)
   const [quality, setQuality] = useState<SearchQualityResponse | null>(null)
   const [logs, setLogs] = useState<QueryLogsResponse | null>(null)
   const [plugins, setPlugins] = useState<PluginHealthResponse | null>(null)
   const [connectors, setConnectors] = useState<ConnectorStatusResponse | null>(null)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'queries' | 'plugins' | 'connectors'>('overview')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const refresh = async () => {
     setLoading(true)
-    if (activeTab === 'overview') {
-      Promise.all([getAdminStats(), getSearchQuality()])
-        .then(([s, q]) => { setStats(s); setQuality(q) })
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false))
-    } else if (activeTab === 'queries') {
-      getQueryLogs({ limit: 20 })
-        .then(setLogs)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false))
-    } else if (activeTab === 'plugins') {
-      getPluginHealth()
-        .then(setPlugins)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false))
-    } else if (activeTab === 'connectors') {
-      getConnectorStatus()
-        .then(setConnectors)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false))
+    setError(null)
+    try {
+      if (activeTab === 'overview') {
+        const [nextStats, nextQuality] = await Promise.all([getAdminStats(), getSearchQuality()])
+        setStats(nextStats)
+        setQuality(nextQuality)
+      } else if (activeTab === 'queries') {
+        setLogs(await getQueryLogs({ limit: 50 }))
+      } else if (activeTab === 'plugins') {
+        setPlugins(await getPluginHealth())
+      } else {
+        setConnectors(await getConnectorStatus())
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('activity.loading'))
+    } finally {
+      setLoading(false)
     }
-  }, [activeTab])
-
-  if (error) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <h2 className="text-xl font-semibold mb-4">Admin Dashboard</h2>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-sm text-red-600 dark:text-red-400">Error: {error}</p>
-        </div>
-      </div>
-    )
   }
 
-  if (loading) return <div className="p-8 text-gray-400">Loading dashboard...</div>
+  useEffect(() => {
+    void refresh()
+  }, [activeTab])
+
+  const queryRows = logs?.logs || []
+  const averageConfidence = quality ? pct(quality.avgConfidence) : '-'
+  const healthyPlugins = useMemo(() => plugins?.plugins.filter((plugin) => plugin.health.healthy).length || 0, [plugins])
+  const activeConnectors = useMemo(() => connectors?.connectors.filter((connector) => connector.status === 'active').length || 0, [connectors])
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
-
-      {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-800">
-        {(['overview', 'queries', 'plugins', 'connectors'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Overview Tab */}
-      {activeTab === 'overview' && stats && (
-        <div className="space-y-6">
-          {/* Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Documents', value: stats.documents },
-              { label: 'Chunks', value: stats.chunks },
-              { label: 'Workspaces', value: stats.workspaces },
-              { label: 'Plugins', value: stats.plugins },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-                <p className="text-2xl font-bold text-primary-600">{value}</p>
-                <p className="text-xs text-gray-400 mt-1">{label}</p>
-              </div>
-            ))}
+    <div className="min-h-full bg-slate-50 px-6 py-6 text-slate-950">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-medium text-blue-600">{t('activity.eyebrow')}</p>
+            <h2 className="mt-1 text-[26px] font-semibold tracking-normal">{t('activity.title')}</h2>
+            <p className="mt-2 max-w-2xl text-[14px] leading-6 text-slate-500">
+              {t('activity.subtitle')}
+            </p>
           </div>
+          <button
+            onClick={() => void refresh()}
+            className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+          >
+            <RefreshCw size={15} />
+            {t('common.refresh')}
+          </button>
+        </header>
 
-          {/* Quality Metrics */}
-          {quality && (
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">Search Quality</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-lg font-semibold">{quality.totalQueries}</p>
-                  <p className="text-xs text-gray-400">Total Queries</p>
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        )}
+
+        <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+          {([
+            ['overview', Activity],
+            ['queries', SearchCheck],
+            ['plugins', Gauge],
+            ['connectors', Plug],
+          ] as const).map(([tab, Icon]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex h-9 items-center gap-2 rounded-md px-3 text-[13px] font-medium capitalize ${
+                activeTab === tab ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Icon size={15} />
+              {t(`activity.${tab}`)}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="rounded-lg border border-slate-200 bg-white px-5 py-12 text-center text-[14px] text-slate-400 shadow-sm">
+            {t('activity.loading')}
+          </div>
+        ) : activeTab === 'overview' && stats && quality ? (
+          <div className="space-y-5">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label={t('common.documents')} value={stats.documents} detail={`${stats.chunks} ${t('common.chunks')}`} />
+              <Metric label={t('activity.queries')} value={quality.totalQueries} />
+              <Metric label={t('dashboard.confidence')} value={averageConfidence} />
+              <Metric label={t('activity.avgResponse')} value={`${quality.avgResponseTimeMs}ms`} />
+            </section>
+
+            <div className="grid gap-5 lg:grid-cols-3">
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-[15px] font-semibold text-slate-950">{t('activity.sourceDistribution')}</h3>
+                <div className="mt-4"><Distribution values={stats.sourceDistribution} emptyText={t('dashboard.noIndexedData')} /></div>
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-[15px] font-semibold text-slate-950">{t('activity.routeDistribution')}</h3>
+                <div className="mt-4"><Distribution values={quality.routeDistribution} emptyText={t('dashboard.noIndexedData')} /></div>
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-[15px] font-semibold text-slate-950">{t('activity.feedback')}</h3>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Metric label={t('activity.helpful')} value={quality.feedback.positive} />
+                  <Metric label={t('activity.notUseful')} value={quality.feedback.negative} />
                 </div>
-                <div>
-                  <p className="text-lg font-semibold">{(quality.avgConfidence * 100).toFixed(0)}%</p>
-                  <p className="text-xs text-gray-400">Avg Confidence</p>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">{quality.avgResponseTimeMs}ms</p>
-                  <p className="text-xs text-gray-400">Avg Response</p>
-                </div>
-              </div>
-              {quality.feedback && (
-                <div className="mt-3 flex gap-4 text-sm">
-                  <span className="text-green-500">+{quality.feedback.positive}</span>
-                  <span className="text-red-500">-{quality.feedback.negative}</span>
-                </div>
-              )}
+              </section>
             </div>
-          )}
-
-          {/* Distributions */}
-          {stats.sourceDistribution && Object.keys(stats.sourceDistribution).length > 0 && (
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">Source Distribution</h3>
-              <div className="space-y-2">
-                {Object.entries(stats.sourceDistribution).map(([source, count]) => (
-                  <div key={source} className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">{source}</span>
-                    <span className="font-medium">{count as number}</span>
+          </div>
+        ) : activeTab === 'queries' ? (
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-3 text-[13px] text-slate-500">
+              {t('activity.queryLogs', { count: logs?.total || 0 })}
+            </div>
+            {queryRows.length === 0 ? (
+              <div className="px-5 py-12 text-center text-[14px] text-slate-400">{t('activity.noQueries')}</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {queryRows.map((log, index) => (
+                  <div key={log.id || `${log.created_at}-${index}`} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <p className="min-w-0 text-[14px] font-semibold text-slate-900">{log.query}</p>
+                      <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        {log.route || 'unknown'}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-400">
+                      <span>{t('activity.intent')}: {log.intent || 'general'}</span>
+                      <span>{t('activity.profile')}: {log.profile}</span>
+                      <span>{t('dashboard.confidence')}: {log.confidence_score === null ? '-' : pct(log.confidence_score)}</span>
+                      <span>{t('activity.response')}: {log.response_time_ms === null ? '-' : `${log.response_time_ms}ms`}</span>
+                      <span>{formatDate(log.created_at, locale)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
+            )}
+          </section>
+        ) : activeTab === 'plugins' ? (
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-3 text-[13px] text-slate-500">
+              {t('activity.pluginsHealthy', { healthy: healthyPlugins, total: plugins?.plugins.length || 0 })}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Queries Tab */}
-      {activeTab === 'queries' && logs && (
-        <div className="space-y-4">
-          <div className="text-sm text-gray-400">{logs.total} total queries</div>
-          <div className="space-y-2">
-            {(logs.logs || []).map((log: any, i: number) => (
-              <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
-                <div className="flex justify-between items-start">
-                  <p className="text-sm font-medium truncate flex-1">{log.query}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${
-                    log.route === 'rag' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {log.route || 'unknown'}
-                  </span>
+            <div className="divide-y divide-slate-100">
+              {(plugins?.plugins || []).map((plugin) => (
+                <div key={plugin.name} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-slate-900">{plugin.name}</p>
+                    <p className="mt-1 text-[12px] text-slate-400">{plugin.type} · v{plugin.version} · {plugin.health.message || t('common.notRecorded')}</p>
+                  </div>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${plugin.health.healthy ? 'bg-emerald-500' : 'bg-red-500'}`} />
                 </div>
-                <div className="flex gap-4 mt-1 text-xs text-gray-400">
-                  <span>Intent: {log.intent || 'general'}</span>
-                  <span>Confidence: {log.confidence_score ? (log.confidence_score * 100).toFixed(0) + '%' : '-'}</span>
-                  <span>{log.response_time_ms ? log.response_time_ms + 'ms' : ''}</span>
-                  <span className="ml-auto">{log.created_at ? new Date(log.created_at).toLocaleString() : ''}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Plugins Tab */}
-      {activeTab === 'plugins' && plugins && (
-        <div className="space-y-2">
-          {(plugins.plugins || []).map((p: any) => (
-            <div key={p.name} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
-              <div>
-                <p className="text-sm font-mono">{p.name}</p>
-                <p className="text-xs text-gray-400">{p.type} · v{p.version}</p>
-              </div>
-              <span className={`w-2.5 h-2.5 rounded-full ${p.health?.healthy ? 'bg-green-500' : 'bg-red-500'}`} />
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Connectors Tab */}
-      {activeTab === 'connectors' && connectors && (
-        <div className="space-y-2">
-          {(connectors.connectors || []).length === 0 ? (
-            <p className="text-sm text-gray-400">No connectors registered</p>
-          ) : (
-            connectors.connectors.map((c: any) => (
-              <div key={c.connectorId} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium">{c.name}</p>
-                  <p className="text-xs text-gray-400">Last sync: {c.lastSyncedAt || 'never'}</p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {c.status}
-                </span>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-3 text-[13px] text-slate-500">
+              {t('activity.connectorsActive', { active: activeConnectors, total: connectors?.connectors.length || 0 })}
+            </div>
+            {(connectors?.connectors || []).length === 0 ? (
+              <div className="px-5 py-12 text-center text-[14px] text-slate-400">{t('activity.noConnectors')}</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {(connectors?.connectors || []).map((connector) => (
+                  <div key={connector.connectorId} className="flex items-center justify-between gap-4 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[14px] font-semibold text-slate-900">{connector.name}</p>
+                      <p className="mt-1 text-[12px] text-slate-400">
+                        {connector.repo || connector.type} · {t('connections.lastSync', { value: formatDate(connector.lastSyncedAt, locale) })}
+                      </p>
+                    </div>
+                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${
+                      connector.status === 'active'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                    }`}>
+                      {connector.status}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))
-          )}
-        </div>
-      )}
+            )}
+          </section>
+        )}
+      </div>
     </div>
   )
 }

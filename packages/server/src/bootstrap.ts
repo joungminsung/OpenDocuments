@@ -53,17 +53,13 @@ const PROVIDER_MAP: Record<string, string> = {
   anthropic: 'opendocuments-model-anthropic',
   google: 'opendocuments-model-google',
   grok: 'opendocuments-model-grok',
-  deepseek: 'opendocuments-model-deepseek',
-  mistral: 'opendocuments-model-mistral',
-  'openai-compatible': 'opendocuments-model-openai-compatible',
 }
 
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
   ollama: 1024,
   openai: 1536,
-  google: 768,
+  google: 3072,
   grok: 1536,
-  mistral: 1024,
   default: 384,
 }
 
@@ -347,6 +343,13 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
   const dataDir = opts.dataDir || process.env.OPENDOCUMENTS_DATA_DIR || config.storage.dataDir.replace(/^~/, homedir())
   mkdirSync(dataDir, { recursive: true })
 
+  if (config.storage.db !== 'sqlite') {
+    throw new Error('Postgres storage is not implemented yet. Use storage.db = "sqlite".')
+  }
+  if (config.storage.vectorDb !== 'lancedb') {
+    throw new Error('Qdrant storage is not implemented yet. Use storage.vectorDb = "lancedb".')
+  }
+
   // Resolve embedding dimensions from config or provider default
   const embeddingDimensions =
     config.model.embeddingDimensions ||
@@ -496,7 +499,7 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
     const collectionManagers = new Map<string, CollectionManager>()
     const configuredConnectors: Array<{
       plugin: ConnectorPlugin
-      config: { name?: string; syncIntervalSeconds?: number }
+      config: { name?: string; syncIntervalSeconds?: number; autoSync?: boolean; config?: Record<string, unknown> }
     }> = []
 
     const ensureWorkspaceExists = (workspaceId: string) => {
@@ -672,41 +675,57 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
 
     // Connector type -> package mapping
     const CONNECTOR_PLUGINS_MAP: Record<string, string> = {
-      github: 'opendocuments-connector-github',
-      notion: 'opendocuments-connector-notion',
-      'web-crawler': 'opendocuments-connector-web-crawler',
+      github: '@opendocuments/connector-github',
+      notion: '@opendocuments/connector-notion',
+      'web-crawler': '@opendocuments/connector-web-crawler',
       'gdrive': '@opendocuments/connector-gdrive',
       'google-drive': '@opendocuments/connector-gdrive',
       's3': '@opendocuments/connector-s3',
       'gcs': '@opendocuments/connector-s3',
       'confluence': '@opendocuments/connector-confluence',
-      'swagger': 'opendocuments-connector-swagger',
-      'openapi': 'opendocuments-connector-swagger',
+      'swagger': '@opendocuments/connector-swagger',
+      'openapi': '@opendocuments/connector-swagger',
+    }
+
+    const createConnector = async (
+      connectorConfig: Record<string, unknown>,
+      dataDirForConnector: string
+    ): Promise<ConnectorPlugin | null> => {
+      const type = typeof connectorConfig.type === 'string' ? connectorConfig.type : ''
+      const packageName = CONNECTOR_PLUGINS_MAP[type] || type
+      if (!packageName) return null
+
+      const mod = await import(packageName)
+      const ConnectorClass = mod.default
+      if (typeof ConnectorClass !== 'function') return null
+
+      const connector = new ConnectorClass() as ConnectorPlugin
+      const connectorCtx: PluginContext = {
+        config: connectorConfig,
+        dataDir: dataDirForConnector,
+        log: pluginCtx.log,
+      }
+      await connector.setup(connectorCtx)
+      return connector
     }
 
     // Config-driven connector registration
     for (const connectorConfig of config.connectors) {
-      const packageName = CONNECTOR_PLUGINS_MAP[connectorConfig.type]
-      if (!packageName) continue
-
       try {
-        const mod = await import(packageName)
-        const ConnectorClass = mod.default
-        if (typeof ConnectorClass !== 'function') continue
-
-        const connector = new ConnectorClass()
-
-        // Create a context with connector-specific config
+        const connectorRecord = connectorConfig as unknown as Record<string, unknown>
+        const connector = await createConnector(connectorRecord, dataDir)
+        if (!connector) continue
         const connectorCtx: PluginContext = {
-          config: connectorConfig as unknown as Record<string, unknown>,
+          config: connectorRecord,
           dataDir,
           log: pluginCtx.log,
         }
-
         await registry.register(connector, connectorCtx)
         const registration = {
           name: connectorConfig.type,
           syncIntervalSeconds: (connectorConfig as any).syncInterval || 300,
+          autoSync: true,
+          config: connectorRecord,
         }
         configuredConnectors.push({ plugin: connector, config: registration })
         for (const manager of connectorManagers.values()) {
@@ -714,6 +733,42 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
         }
       } catch (err) {
         log.fail(`Failed to load connector ${connectorConfig.type}: ${(err as Error).message}`)
+      }
+    }
+
+    const persistedConnectors = db.all<{
+      workspace_id: string
+      name: string
+      type: string
+      config: string
+      sync_interval_seconds: number | null
+    }>(
+      `SELECT workspace_id, name, type, config, sync_interval_seconds
+       FROM connectors
+       WHERE deleted_at IS NULL`
+    )
+    for (const row of persistedConnectors) {
+      try {
+        const parsedConfig = JSON.parse(row.config || '{}') as Record<string, unknown>
+        const connectorType = typeof parsedConfig.type === 'string' ? parsedConfig.type : row.name
+        const connector = await createConnector({ ...parsedConfig, type: connectorType }, dataDir)
+        if (!connector) continue
+        if (!registry.get(connector.name)) {
+          const connectorCtx: PluginContext = {
+            config: { ...parsedConfig, type: connectorType },
+            dataDir,
+            log: pluginCtx.log,
+          }
+          await registry.register(connector, connectorCtx)
+        }
+        getConnectorManagerForWorkspace(row.workspace_id).registerConnector(connector, {
+          name: row.name,
+          syncIntervalSeconds: row.sync_interval_seconds || 300,
+          autoSync: true,
+          config: { ...parsedConfig, type: connectorType },
+        })
+      } catch (err) {
+        log.fail(`Failed to restore connector ${row.name}: ${(err as Error).message}`)
       }
     }
 

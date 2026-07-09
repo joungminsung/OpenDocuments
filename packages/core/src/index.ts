@@ -6,7 +6,7 @@ export const VERSION = '0.3.0'
 export { log } from './utils/logger.js'
 export { estimateTokens } from './utils/tokenizer.js'
 export { sha256 } from './utils/hash.js'
-export { discoverFiles } from './utils/file-discovery.js'
+export { discoverFiles, SUPPORTED_EXTENSIONS } from './utils/file-discovery.js'
 export { fetchWithTimeout } from './utils/fetch.js'
 export {
   parseModelName,
@@ -17,7 +17,7 @@ export {
   ensureOllamaModel,
   type OllamaModel,
 } from './utils/ollama.js'
-export { FileWatcher, type FileChange } from './utils/file-watcher.js'
+export { FileWatcher, type FileChange, type FileWatcherOptions } from './utils/file-watcher.js'
 export {
   detectHardware,
   recommendModels,

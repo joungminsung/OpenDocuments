@@ -7,17 +7,20 @@ import { tmpdir } from 'node:os'
 describe('doctor command logic', () => {
   let ctx: AppContext
   let tempDir: string
+  const stubModel = {
+    provider: 'stub',
+    llm: 'stub-llm',
+    embedding: 'stub-embedding',
+    apiKey: '',
+    baseUrl: '',
+    embeddingDimensions: 384,
+  } as any
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
-    ctx = await bootstrap({
-      dataDir: tempDir,
-      configOverrides: {
-        model: { provider: 'test-stub', llm: 'stub-llm', embedding: 'stub-embedding' },
-      },
-    })
+    ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })
   })
-  afterEach(async () => { await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })
+  afterEach(async () => { if (ctx) await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })
 
   it('reports healthy state', () => {
     expect(ctx.store.listDocuments()).toEqual([])

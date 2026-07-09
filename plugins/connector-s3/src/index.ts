@@ -7,6 +7,7 @@ import type {
   HealthStatus,
 } from 'opendocuments-core'
 import { fetchWithTimeout } from 'opendocuments-core'
+import { createHash, createHmac } from 'node:crypto'
 
 export type S3Provider = 's3' | 'gcs'
 
@@ -17,10 +18,8 @@ export interface S3Config {
   region?: string        // AWS region (default: us-east-1)
   accessKeyId?: string   // AWS or HMAC key (overrides env)
   secretAccessKey?: string // AWS or HMAC secret (overrides env)
+  sessionToken?: string
   endpoint?: string      // custom endpoint for MinIO / compatible stores
-  // TODO: Implement AWS Signature V4 signing for private S3 buckets.
-  //       Currently supports public buckets, custom endpoints with pre-configured
-  //       credentials, or GCS with a Bearer token via GOOGLE_ACCESS_TOKEN env var.
 }
 
 const SUPPORTED_EXTENSIONS = new Set(['.md', '.mdx', '.txt', '.rst', '.html', '.htm'])
@@ -38,6 +37,7 @@ export class S3Connector implements ConnectorPlugin {
   private endpoint = ''
   private accessKeyId = ''
   private secretAccessKey = ''
+  private sessionToken = ''
 
   async setup(ctx: PluginContext): Promise<void> {
     const config = ctx.config as unknown as S3Config
@@ -50,6 +50,8 @@ export class S3Connector implements ConnectorPlugin {
       config.accessKeyId || process.env.AWS_ACCESS_KEY_ID || ''
     this.secretAccessKey =
       config.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || ''
+    this.sessionToken =
+      config.sessionToken || process.env.AWS_SESSION_TOKEN || ''
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -193,10 +195,69 @@ export class S3Connector implements ConnectorPlugin {
     if (this.provider === 'gcs' && gcsToken) {
       headers['Authorization'] = `Bearer ${gcsToken}`
     }
-    // TODO: For private S3 buckets, add AWS Signature V4 Authorization header here.
-    //       Use this.accessKeyId and this.secretAccessKey with the signing algorithm:
-    //       https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
+    if (this.provider === 's3' && this.accessKeyId && this.secretAccessKey) {
+      Object.assign(headers, this.signS3Request('GET', url))
+    }
     return fetchWithTimeout(url, { headers })
+  }
+
+  private signS3Request(method: 'GET', url: string): Record<string, string> {
+    const parsed = new URL(url)
+    const now = new Date()
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
+    const dateStamp = amzDate.slice(0, 8)
+    const payloadHash = 'UNSIGNED-PAYLOAD'
+    const headers: Record<string, string> = {
+      host: parsed.host,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+    }
+    if (this.sessionToken) headers['x-amz-security-token'] = this.sessionToken
+
+    const canonicalUri = parsed.pathname
+      .split('/')
+      .map((segment) => encodeURIComponent(decodeURIComponent(segment)))
+      .join('/')
+    const canonicalQuery = Array.from(parsed.searchParams.entries())
+      .sort(([aKey, aValue], [bKey, bValue]) => aKey === bKey ? aValue.localeCompare(bValue) : aKey.localeCompare(bKey))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    const signedHeaders = Object.keys(headers).sort().join(';')
+    const canonicalHeaders = Object.keys(headers)
+      .sort()
+      .map((key) => `${key}:${headers[key].trim()}\n`)
+      .join('')
+    const canonicalRequest = [
+      method,
+      canonicalUri || '/',
+      canonicalQuery,
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash,
+    ].join('\n')
+    const credentialScope = `${dateStamp}/${this.region}/s3/aws4_request`
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      createHash('sha256').update(canonicalRequest).digest('hex'),
+    ].join('\n')
+    const signingKey = this.getSignatureKey(dateStamp)
+    const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex')
+
+    return {
+      ...(this.sessionToken ? { 'x-amz-security-token': this.sessionToken } : {}),
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+      Authorization: `AWS4-HMAC-SHA256 Credential=${this.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    }
+  }
+
+  private getSignatureKey(dateStamp: string): Buffer {
+    const kDate = createHmac('sha256', `AWS4${this.secretAccessKey}`).update(dateStamp).digest()
+    const kRegion = createHmac('sha256', kDate).update(this.region).digest()
+    const kService = createHmac('sha256', kRegion).update('s3').digest()
+    return createHmac('sha256', kService).update('aws4_request').digest()
   }
 
   private hasSupportedExtension(key: string): boolean {

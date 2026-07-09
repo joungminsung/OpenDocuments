@@ -99,6 +99,26 @@ export class DocumentStore {
     return { id, status: 'pending' }
   }
 
+  updateDocumentForReindex(documentId: string, input: CreateDocumentInput): void {
+    this.db.run(
+      `UPDATE documents
+       SET title = ?, source_type = ?, source_path = ?, file_type = ?, file_size_bytes = ?,
+           connector_id = ?, status = 'pending', error_message = NULL, updated_at = ?
+       WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+      [
+        input.title,
+        input.sourceType,
+        input.sourcePath,
+        input.fileType || null,
+        input.fileSizeBytes || null,
+        input.connectorId || null,
+        new Date().toISOString(),
+        documentId,
+        this.workspaceId,
+      ]
+    )
+  }
+
   getDocument(id: string): DocumentRow | undefined {
     return this.db.get<DocumentRow>(
       'SELECT * FROM documents WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
@@ -121,6 +141,8 @@ export class DocumentStore {
   }
 
   async storeChunks(documentId: string, chunks: StoredChunk[]): Promise<void> {
+    const existing = this.getDocument(documentId)
+    const previousChunkCount = existing?.chunk_count ?? 0
     const vectorDocs = chunks.map((chunk, i) => ({
       id: `${documentId}_chunk_${i}`,
       content: chunk.content,
@@ -141,12 +163,20 @@ export class DocumentStore {
 
     // Step 1: Upsert vectors
     await this.vectorDb.upsert(COLLECTION, vectorDocs)
+    if (previousChunkCount > chunks.length) {
+      const staleChunkIds: string[] = []
+      for (let i = chunks.length; i < previousChunkCount; i++) {
+        staleChunkIds.push(`${documentId}_chunk_${i}`)
+      }
+      await this.vectorDb.delete(COLLECTION, staleChunkIds).catch(() => {})
+    }
 
     // Step 2: Insert into FTS5 index -- if this fails, clean up vectors.
     // When ftsAugment is present, index `content + ftsAugment` to boost lexical
     // recall while keeping the vector embedding and generator-facing content
     // unchanged.
     try {
+      this.deleteFtsRowsForDocument(documentId)
       for (const chunk of chunks) {
         const chunkId = `${documentId}_chunk_${chunk.position}`
         const ftsContent = chunk.ftsAugment
@@ -185,31 +215,19 @@ export class DocumentStore {
       filter: { workspace_id: this.workspaceId },
       minScore,
     })
-    return results.map(r => {
-      const docId = r.metadata.document_id as string
-      const doc = this.getDocument(docId)
-      if (!doc) {
-        console.warn(`[searchChunks] Orphaned chunk: ${r.id}, document ${docId} not found`)
-      }
-      return {
-        chunkId: r.id,
-        content: r.content,
-        score: r.score,
-        documentId: docId,
-        chunkType: r.metadata.chunk_type as string,
-        headingHierarchy: JSON.parse((r.metadata.heading_hierarchy as string) || '[]'),
-        sourcePath: doc?.source_path || '',
-        sourceType: doc?.source_type || '',
-        contextualPrefix: (r.metadata.contextual_prefix as string) || undefined,
-        parentSection: (r.metadata.parent_section as string) || undefined,
-      }
-    })
+    return results
+      .map(result => this.toSearchResult(result, result.score))
+      .filter((result): result is SearchResult => result !== null)
   }
 
   private toSearchResult(record: VectorRecord, score: number): SearchResult | null {
     const docId = record.metadata.document_id as string
     const doc = this.getDocument(docId)
-    if (!doc) return null
+    if (!doc) {
+      console.warn(`[DocumentStore] Orphaned chunk: ${record.id}, document ${docId} not found`)
+      return null
+    }
+    if (doc.status !== 'indexed') return null
 
     return {
       chunkId: record.id,
@@ -304,8 +322,7 @@ export class DocumentStore {
       [now, now, documentId, this.workspaceId]
     )
     // Clean FTS index
-    const escapedId = documentId.replace(/%/g, '\\%').replace(/_/g, '\\_')
-    this.db.run("DELETE FROM chunks_fts WHERE chunk_id LIKE ? ESCAPE '\\'", [escapedId + '_%'])
+    this.deleteFtsRowsForDocument(documentId)
     // Also remove vectors (they can't be soft-deleted in LanceDB)
     await this.vectorDb.deleteByFilter(COLLECTION, { document_id: documentId })
   }
@@ -313,9 +330,15 @@ export class DocumentStore {
   async hardDeleteDocument(documentId: string): Promise<void> {
     // Step 1: Delete vectors. If this throws, SQLite delete is never reached -- both stores remain consistent.
     await this.vectorDb.deleteByFilter(COLLECTION, { document_id: documentId })
+    this.deleteFtsRowsForDocument(documentId)
 
     // Step 2: Delete SQLite row permanently.
     this.db.run('DELETE FROM documents WHERE id = ? AND workspace_id = ?', [documentId, this.workspaceId])
+  }
+
+  private deleteFtsRowsForDocument(documentId: string): void {
+    const escapedId = documentId.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    this.db.run("DELETE FROM chunks_fts WHERE chunk_id LIKE ? ESCAPE '\\'", [escapedId + '_chunk_%'])
   }
 
   /**

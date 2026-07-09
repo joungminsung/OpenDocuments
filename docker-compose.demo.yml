@@ -1,0 +1,60 @@
+services:
+  opendocuments:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${OPENDOCUMENTS_PORT:-3333}:3000"
+    volumes:
+      - opendocuments-demo-data:/data
+      - ./docker/demo/opendocuments.config.ts:/app/opendocuments.config.ts:ro
+      - ./docker/demo/docs:/demo-docs:ro
+      - ./docker/demo/entrypoint.sh:/app/docker-entrypoint-demo.sh:ro
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      OPENDOCUMENTS_DATA_DIR: /data
+      OPENDOCUMENTS_DEMO_INDEX: "${OPENDOCUMENTS_DEMO_INDEX:-true}"
+      OPENDOCUMENTS_DEMO_REINDEX: "${OPENDOCUMENTS_DEMO_REINDEX:-false}"
+      OPENDOCUMENTS_MODEL_PROVIDER: "${OPENDOCUMENTS_MODEL_PROVIDER:-google}"
+      OPENDOCUMENTS_MODEL_LLM: "${OPENDOCUMENTS_MODEL_LLM:-gemini-3.5-flash}"
+      OPENDOCUMENTS_MODEL_EMBEDDING: "${OPENDOCUMENTS_MODEL_EMBEDDING:-gemini-embedding-001}"
+      OPENDOCUMENTS_MODEL_BASE_URL: "${OPENDOCUMENTS_MODEL_BASE_URL:-}"
+      OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS: "${OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS:-3072}"
+      OPENDOCUMENTS_MODEL_THINKING_BUDGET: "${OPENDOCUMENTS_MODEL_THINKING_BUDGET:-0}"
+      OPENDOCUMENTS_MODEL_API_KEY: "${OPENDOCUMENTS_MODEL_API_KEY:-}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENDOCUMENTS_RAG_PROFILE: "${OPENDOCUMENTS_RAG_PROFILE:-fast}"
+    command: ["sh", "/app/docker-entrypoint-demo.sh"]
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - opendocuments-demo-ollama:/root/.ollama
+    profiles:
+      - ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  opendocuments-demo-data:
+  opendocuments-demo-ollama:

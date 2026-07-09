@@ -1,4 +1,4 @@
-import type { QueryResult, Document, StatsResponse, AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse } from './types'
+import type { QueryResult, Document, StatsResponse, AdminStatsResponse, SearchQualityResponse, QueryLogsResponse, PluginHealthResponse, ConnectorStatusResponse, Conversation, ConversationMessage, WorkbenchResponse, Collection, Workspace } from './types'
 import { withStoredApiKey } from './auth'
 
 const BASE = '/api/v1'
@@ -63,6 +63,49 @@ export async function getStats(): Promise<StatsResponse> {
   return request('/stats')
 }
 
+export async function getWorkbench(): Promise<WorkbenchResponse> {
+  return request('/workbench')
+}
+
+export async function listWorkspaces(): Promise<{ workspaces: Workspace[] }> {
+  return request('/workspaces')
+}
+
+// Conversations
+export async function listConversations(opts?: { limit?: number; offset?: number }): Promise<{ conversations: Conversation[]; limit: number; offset: number }> {
+  const params = new URLSearchParams()
+  if (opts?.limit) params.set('limit', String(opts.limit))
+  if (opts?.offset) params.set('offset', String(opts.offset))
+  const query = params.toString()
+  return request(`/conversations${query ? `?${query}` : ''}`)
+}
+
+export async function createConversation(title?: string): Promise<Conversation> {
+  return request('/conversations', {
+    method: 'POST',
+    body: JSON.stringify(title ? { title } : {}),
+  })
+}
+
+export async function getConversationMessages(id: string): Promise<{ messages: ConversationMessage[] }> {
+  return request(`/conversations/${encodeURIComponent(id)}/messages`)
+}
+
+export async function updateConversation(id: string, input: { title?: string }): Promise<{ updated: true }> {
+  return request(`/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteConversation(id: string): Promise<{ deleted: true }> {
+  return request(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export async function shareConversation(id: string): Promise<{ shareUrl: string }> {
+  return request(`/conversations/${encodeURIComponent(id)}/share`, { method: 'POST' })
+}
+
 // Admin
 export async function getAdminStats(): Promise<AdminStatsResponse> {
   return request('/admin/stats')
@@ -80,12 +123,63 @@ export async function getQueryLogs(opts?: { limit?: number; offset?: number; int
   return request(`/admin/query-logs?${params}`)
 }
 
+// Collections
+export async function listCollections(): Promise<{ collections: Collection[] }> {
+  return request('/collections')
+}
+
+export async function createCollection(input: { name: string; description?: string }): Promise<Collection> {
+  return request('/collections', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteCollection(id: string): Promise<{ deleted: true }> {
+  return request(`/collections/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export async function getCollectionDocuments(id: string): Promise<{ collection: Collection; documents: Document[] }> {
+  return request(`/collections/${encodeURIComponent(id)}/documents`)
+}
+
+export async function addDocumentToCollection(collectionId: string, documentId: string): Promise<{ added: true }> {
+  return request(`/collections/${encodeURIComponent(collectionId)}/documents/${encodeURIComponent(documentId)}`, { method: 'POST' })
+}
+
+export async function removeDocumentFromCollection(collectionId: string, documentId: string): Promise<{ removed: true }> {
+  return request(`/collections/${encodeURIComponent(collectionId)}/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' })
+}
+
 export async function getPluginHealth(): Promise<PluginHealthResponse> {
   return request('/admin/plugins')
 }
 
 export async function getConnectorStatus(): Promise<ConnectorStatusResponse> {
   return request('/admin/connectors')
+}
+
+export async function connectGitHubConnector(input: {
+  repo: string
+  token?: string
+  branch?: string
+  paths?: string[]
+  syncInterval?: number
+}): Promise<{ connector: ConnectorStatusResponse['connectors'][number]; health: { healthy: boolean; message?: string } }> {
+  return request('/admin/connectors/github', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function syncGitHubConnector(): Promise<{ result: {
+  connectorName: string
+  documentsDiscovered: number
+  documentsIndexed: number
+  documentsSkipped: number
+  errors: string[]
+} }> {
+  return request('/admin/connectors/github/sync', { method: 'POST' })
 }
 
 export async function getModelBenchmarks(): Promise<{ benchmarks: Array<{

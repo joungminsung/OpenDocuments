@@ -1,11 +1,15 @@
 import { useState, useRef } from 'react'
 import { uploadDocument } from '../../lib/api'
+import { useAppStore } from '../../stores/appStore'
+import { translate as tr } from '../../lib/i18n'
 
 interface Props {
   onUploaded: () => void
 }
 
 export function UploadZone({ onUploaded }: Props) {
+  const { locale } = useAppStore()
+  const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
@@ -31,8 +35,8 @@ export function UploadZone({ onUploaded }: Props) {
     setUploading(false)
     setMessage(
       failed > 0
-        ? `${success} uploaded, ${failed} failed`
-        : `${success} file${success > 1 ? 's' : ''} uploaded`
+        ? t('upload.result', { success, failed })
+        : t('upload.success', { success, plural: success > 1 ? 's' : '' })
     )
     onUploaded()
   }
@@ -57,13 +61,13 @@ export function UploadZone({ onUploaded }: Props) {
         className="hidden"
       />
       {uploading ? (
-        <p className="text-sm text-primary-500">Uploading...</p>
+        <p className="text-sm text-primary-500">{t('upload.uploading')}</p>
       ) : (
         <>
           <p className="text-sm text-gray-500">
-            Drop files here or <span className="text-primary-500 font-medium">click to browse</span>
+            {t('upload.drop')} <span className="text-primary-500 font-medium">{t('upload.browse')}</span>
           </p>
-          <p className="text-xs text-gray-400 mt-1">Supports .md, .txt, .pdf, .docx, .pptx, .xlsx, .csv, .html, .ipynb, .eml</p>
+          <p className="text-xs text-gray-400 mt-1">{t('upload.supports')}</p>
         </>
       )}
       {message && <p className="text-xs text-green-500 mt-2">{message}</p>}

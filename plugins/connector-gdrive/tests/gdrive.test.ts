@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { generateKeyPairSync } from 'node:crypto'
 import { GDriveConnector } from '../src/index.js'
 
 describe('GDriveConnector', () => {
@@ -36,6 +37,72 @@ describe('GDriveConnector', () => {
     const status = await empty.healthCheck()
     expect(status.healthy).toBe(false)
     expect(status.message).toContain('No access token')
+  })
+
+  it('exchanges a service account key for an access token during setup', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'service-token', expires_in: 3600 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ files: [] }),
+      })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const serviceConnector = new GDriveConnector()
+    await serviceConnector.setup({
+      config: {
+        serviceAccountKey: JSON.stringify({
+          client_email: 'svc@example.iam.gserviceaccount.com',
+          private_key: privateKeyPem,
+          token_uri: 'https://oauth2.googleapis.com/token',
+        }),
+      },
+      dataDir: '/tmp',
+      log: console as any,
+    })
+    const status = await serviceConnector.healthCheck()
+
+    expect(status.healthy).toBe(true)
+    expect(mockFetch.mock.calls[0][0]).toBe('https://oauth2.googleapis.com/token')
+    expect(mockFetch.mock.calls[0][1].method).toBe('POST')
+    expect(String(mockFetch.mock.calls[0][1].body)).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer')
+    expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe('Bearer service-token')
+    vi.unstubAllGlobals()
+  })
+
+  it('refreshes a service account token after an authenticated request returns 401', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'service-token-1', expires_in: 3600 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'service-token-2', expires_in: 3600 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', mockFetch)
+
+    const serviceConnector = new GDriveConnector()
+    await serviceConnector.setup({
+      config: {
+        serviceAccountKey: {
+          client_email: 'svc@example.iam.gserviceaccount.com',
+          private_key: privateKeyPem,
+        },
+      },
+      dataDir: '/tmp',
+      log: console as any,
+    })
+
+    const status = await serviceConnector.healthCheck()
+
+    expect(status.healthy).toBe(true)
+    expect(mockFetch).toHaveBeenCalledTimes(4)
+    expect(mockFetch.mock.calls[3][1].headers.Authorization).toBe('Bearer service-token-2')
+    vi.unstubAllGlobals()
   })
 
   it('discover lists files from Google Drive folder', async () => {

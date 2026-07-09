@@ -62,14 +62,14 @@ export class APIKeyManager {
     const scopes = input.scopes || (input.role === 'admin' ? ['*'] : input.role === 'member' ? ['ask', 'search', 'document:read', 'document:write', 'connector:read'] : ['ask', 'search', 'document:read'])
 
     this.db.run(
-      `INSERT INTO api_keys (id, name, key_hash, key_prefix, workspace_id, user_id, role, scopes, rate_limit, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.name, keyHash, keyPrefix, input.workspaceId, input.userId, input.role, JSON.stringify(scopes), input.rateLimit || null, input.expiresAt || null, now]
+      `INSERT INTO api_keys (id, name, key_hash, key_prefix, workspace_id, user_id, role, scopes, rate_limit, allowed_ips, expires_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.name, keyHash, keyPrefix, input.workspaceId, input.userId, input.role, JSON.stringify(scopes), input.rateLimit || null, JSON.stringify(input.allowedIps || []), input.expiresAt || null, now]
     )
 
     return {
       rawKey,
-      record: { id, name: input.name, keyHash, keyPrefix, workspaceId: input.workspaceId, userId: input.userId, role: input.role, scopes, rateLimit: input.rateLimit, expiresAt: input.expiresAt, createdAt: now },
+      record: { id, name: input.name, keyHash, keyPrefix, workspaceId: input.workspaceId, userId: input.userId, role: input.role, scopes, rateLimit: input.rateLimit, allowedIps: input.allowedIps || [], expiresAt: input.expiresAt, createdAt: now },
     }
   }
 
@@ -105,6 +105,7 @@ export class APIKeyManager {
       role: row.role,
       scopes: JSON.parse(row.scopes),
       rateLimit: row.rate_limit,
+      allowedIps: row.allowed_ips ? JSON.parse(row.allowed_ips) : [],
       expiresAt: row.expires_at,
       lastUsedAt: row.last_used_at,
       createdAt: row.created_at,
@@ -133,6 +134,7 @@ export class APIKeyManager {
       role: row.role,
       scopes: JSON.parse(row.scopes),
       rateLimit: row.rate_limit,
+      allowedIps: row.allowed_ips ? JSON.parse(row.allowed_ips) : [],
       expiresAt: row.expires_at,
       lastUsedAt: row.last_used_at,
       createdAt: row.created_at,

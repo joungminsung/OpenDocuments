@@ -1,56 +1,273 @@
 import { useAppStore } from '../../stores/appStore'
+import { useChatStore } from '../../stores/chatStore'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { deleteConversation, getConversationMessages, listConversations } from '../../lib/api'
+import type { ChatMessage, Conversation, ConversationMessage, SearchResult } from '../../lib/types'
+import {
+  Clock3,
+  FileText,
+  Folder,
+  Link2,
+  MessageSquare,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
+import { translate as tr, type Locale } from '../../lib/i18n'
 
-const NAV_ITEMS: { id: 'dashboard' | 'chat' | 'documents' | 'connectors' | 'plugins' | 'workspaces' | 'settings' | 'health'; label: string; icon: ReactNode }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="13" y="3" width="8" height="7"/><rect x="13" y="13" width="8" height="8"/><rect x="3" y="13" width="7" height="8"/></svg> },
-  { id: 'chat', label: 'Chat', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-  { id: 'documents', label: 'Documents', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-  { id: 'connectors', label: 'Connectors', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
-  { id: 'plugins', label: 'Plugins', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> },
-  { id: 'workspaces', label: 'Workspaces', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-  { id: 'settings', label: 'Settings', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-  { id: 'health', label: 'Admin', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+type PageId = 'chat' | 'documents' | 'collections' | 'connectors' | 'health' | 'settings'
+
+const NAV_ITEMS: { id: PageId; labelKey: string; icon: ReactNode }[] = [
+  { id: 'chat', labelKey: 'nav.ask', icon: <Search size={19} strokeWidth={2} /> },
+  { id: 'documents', labelKey: 'nav.documents', icon: <FileText size={19} strokeWidth={1.9} /> },
+  { id: 'collections', labelKey: 'nav.collections', icon: <Folder size={19} strokeWidth={1.9} /> },
+  { id: 'connectors', labelKey: 'nav.connections', icon: <Link2 size={19} strokeWidth={1.9} /> },
+  { id: 'health', labelKey: 'nav.activity', icon: <Clock3 size={19} strokeWidth={1.9} /> },
 ]
 
-export function Sidebar() {
-  const { currentPage, setPage, theme, setTheme, sidebarOpen } = useAppStore()
+function NavButton({ item, active, locale, onClick }: { item: { id: PageId; labelKey: string; icon: ReactNode }; active: boolean; locale: Locale; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-11 w-full items-center gap-3 rounded-lg px-4 text-[14px] font-medium transition-colors ${
+        active
+          ? 'bg-blue-50 text-blue-600'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+      }`}
+    >
+      <span className={active ? 'text-blue-600' : 'text-slate-500'}>{item.icon}</span>
+      {tr(locale, item.labelKey)}
+    </button>
+  )
+}
 
-  if (!sidebarOpen) return null
+function LogoMark() {
+  return (
+    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-100 bg-white text-blue-600 shadow-sm">
+      <ShieldCheck size={22} strokeWidth={2.2} />
+    </div>
+  )
+}
+
+function getConversationTimestamp(conversation: Conversation, field: 'updated' | 'created') {
+  const value = field === 'updated'
+    ? conversation.updatedAt || conversation.updated_at || conversation.createdAt || conversation.created_at
+    : conversation.createdAt || conversation.created_at || conversation.updatedAt || conversation.updated_at
+  return value ? new Date(value).getTime() : 0
+}
+
+function formatConversationDate(conversation: Conversation, locale: Locale) {
+  const value = conversation.updatedAt || conversation.updated_at || conversation.createdAt || conversation.created_at
+  if (!value) return ''
+  return new Date(value).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' })
+}
+
+function parseSources(value: ConversationMessage['sources']): SearchResult[] | undefined {
+  if (!value) return undefined
+  if (Array.isArray(value)) return value
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed as SearchResult[]
+  } catch {}
+  return undefined
+}
+
+function toChatMessage(message: ConversationMessage): ChatMessage {
+  const confidenceScore = message.confidenceScore ?? message.confidence_score
+  const createdAt = message.createdAt || message.created_at
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    sources: parseSources(message.sources),
+    confidence: confidenceScore === null || confidenceScore === undefined
+      ? undefined
+      : { score: confidenceScore, level: confidenceScore >= 0.75 ? 'high' : confidenceScore >= 0.45 ? 'medium' : 'low', reason: 'Restored from saved conversation' },
+    profile: message.profileUsed || message.profile_used,
+    timestamp: createdAt ? new Date(createdAt).getTime() : Date.now(),
+  }
+}
+
+export function Sidebar() {
+  const { currentPage, setPage, locale } = useAppStore()
+  const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
+  const {
+    conversations,
+    conversationsLoading,
+    conversationId,
+    conversationSort,
+    clearMessages,
+    setActiveError,
+    setConversationId,
+    setConversationSort,
+    setConversations,
+    setConversationsLoading,
+    setMessages,
+  } = useChatStore()
+  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(null)
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null)
+
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      if (conversationSort === 'title') {
+        return (a.title || t('chat.untitled')).localeCompare(b.title || t('chat.untitled'))
+      }
+      return getConversationTimestamp(b, conversationSort) - getConversationTimestamp(a, conversationSort)
+    })
+  }, [conversationSort, conversations, locale])
+
+  const refreshConversations = async () => {
+    setConversationsLoading(true)
+    try {
+      const result = await listConversations({ limit: 80 })
+      setConversations(result.conversations)
+    } catch (error) {
+      setActiveError(error instanceof Error ? error.message : t('chat.errorSessions'))
+    } finally {
+      setConversationsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshConversations()
+  }, [])
+
+  const handleNewChat = () => {
+    clearMessages()
+    setPage('chat')
+  }
+
+  const handleOpenConversation = async (conversation: Conversation) => {
+    setLoadingConversationId(conversation.id)
+    setActiveError(null)
+    try {
+      const result = await getConversationMessages(conversation.id)
+      setMessages(result.messages.map(toChatMessage))
+      setConversationId(conversation.id)
+      setPage('chat')
+    } catch (error) {
+      setActiveError(error instanceof Error ? error.message : t('chat.errorSessions'))
+    } finally {
+      setLoadingConversationId(null)
+    }
+  }
+
+  const handleDeleteConversation = async (conversation: Conversation) => {
+    if (!confirm(`${t('common.delete')} "${conversation.title || t('chat.untitled')}"?`)) return
+    setDeletingConversationId(conversation.id)
+    setActiveError(null)
+    try {
+      await deleteConversation(conversation.id)
+      if (conversationId === conversation.id) clearMessages()
+      await refreshConversations()
+    } catch (error) {
+      setActiveError(error instanceof Error ? error.message : t('chat.errorSessions'))
+    } finally {
+      setDeletingConversationId(null)
+    }
+  }
 
   return (
-    <aside className="w-60 h-screen bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-        <h1 className="text-lg font-bold text-primary-600">OpenDocuments</h1>
-        <p className="text-xs text-gray-400">v0.1.0</p>
+    <aside className="flex h-screen w-[264px] shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="flex h-[72px] items-center gap-3 px-5">
+        <LogoMark />
+        <h1 className="text-[21px] font-semibold tracking-[-0.01em] text-slate-950">OpenDocuments</h1>
       </div>
 
-      <nav className="flex-1 p-2">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setPage(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              currentPage === item.id
-                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-medium'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
+      <nav className="px-2 pt-3">
+        <button
+          onClick={handleNewChat}
+          className="mb-2 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-[14px] font-medium text-white shadow-sm hover:bg-blue-700"
+        >
+          <Plus size={16} strokeWidth={2} />
+          {t('nav.newChat')}
+        </button>
+        <div className="space-y-1">
+          {NAV_ITEMS.map((item) => (
+            <NavButton
+              key={item.id}
+              item={item}
+              locale={locale}
+              active={currentPage === item.id}
+              onClick={() => setPage(item.id)}
+            />
+          ))}
+        </div>
       </nav>
 
-      <div className="p-3 border-t border-gray-200 dark:border-gray-800">
-        <select
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as any)}
-          className="w-full text-xs bg-transparent border border-gray-300 dark:border-gray-700 rounded px-2 py-1"
+      <div className="mt-8 min-h-0 flex-1 px-5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('nav.recent')}</p>
+          <select
+            value={conversationSort}
+            onChange={(event) => setConversationSort(event.target.value as 'updated' | 'created' | 'title')}
+            className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-500 outline-none"
+            aria-label={t('nav.recent')}
+          >
+            <option value="updated">{t('nav.sort.updated')}</option>
+            <option value="created">{t('nav.sort.created')}</option>
+            <option value="title">{t('nav.sort.title')}</option>
+          </select>
+        </div>
+        {conversationsLoading ? (
+          <p className="text-[13px] leading-5 text-slate-400">{t('nav.loadingConversations')}</p>
+        ) : sortedConversations.length > 0 ? (
+          <div className="max-h-[calc(100vh-430px)] space-y-1 overflow-auto pr-1">
+            {sortedConversations.map((conversation) => {
+              const active = conversation.id === conversationId
+              const busy = loadingConversationId === conversation.id || deletingConversationId === conversation.id
+              return (
+                <div
+                  key={conversation.id}
+                  className={`group flex items-center gap-2 rounded-md px-2 py-2 ${
+                    active ? 'bg-blue-50' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <button
+                    onClick={() => void handleOpenConversation(conversation)}
+                    disabled={busy}
+                    className="flex min-w-0 flex-1 items-start gap-2 text-left disabled:opacity-50"
+                  >
+                    <MessageSquare size={14} strokeWidth={1.9} className={`mt-0.5 shrink-0 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate text-[13px] font-medium ${active ? 'text-blue-700' : 'text-slate-700'}`}>
+                        {conversation.title || t('chat.untitled')}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                        {busy ? t('common.loading') : formatConversationDate(conversation, locale)}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteConversation(conversation)}
+                    disabled={busy}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-300 opacity-0 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-30"
+                    aria-label={`${t('common.delete')} ${conversation.title || t('chat.untitled')}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-[13px] leading-5 text-slate-400">{t('nav.noConversations')}</p>
+        )}
+      </div>
+
+      <div className="mt-auto px-5 pb-6">
+        <button
+          onClick={() => setPage('settings')}
+          className={`flex h-10 w-full items-center gap-3 text-left text-[15px] font-medium ${
+            currentPage === 'settings' ? 'text-blue-600' : 'text-slate-600 hover:text-slate-950'
+          }`}
         >
-          <option value="system">System theme</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
+          <Settings size={20} strokeWidth={1.9} />
+          {t('nav.settings')}
+        </button>
       </div>
     </aside>
   )

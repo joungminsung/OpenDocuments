@@ -1,4 +1,5 @@
 import { platform, arch } from 'node:os'
+import { fetchWithTimeout } from '../utils/fetch.js'
 
 export interface TelemetryEvent {
   event: string
@@ -9,9 +10,11 @@ export class TelemetryCollector {
   private enabled: boolean
   private queue: TelemetryEvent[] = []
   private sessionId: string
+  private endpoint?: string
 
-  constructor(config?: { enabled?: boolean }) {
-    this.enabled = config?.enabled ?? false
+  constructor(config?: { enabled?: boolean; endpoint?: string }) {
+    this.endpoint = config?.endpoint
+    this.enabled = Boolean(config?.enabled && this.endpoint)
     this.sessionId = Math.random().toString(36).substring(2)
   }
 
@@ -30,16 +33,19 @@ export class TelemetryCollector {
   }
 
   async flush(): Promise<void> {
-    if (!this.enabled || this.queue.length === 0) return
+    if (!this.enabled || !this.endpoint || this.queue.length === 0) return
 
-    // In a real implementation, this would send to a telemetry endpoint
-    // For now, just clear the queue (opt-in but no endpoint configured)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const events = [...this.queue]
-    this.queue = []
+    const res = await fetchWithTimeout(this.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events }),
+    }, 5000)
 
-    // TODO: Send to telemetry endpoint when configured
-    // try { await fetchWithTimeout('https://telemetry.opendocuments.dev/events', { method: 'POST', body: JSON.stringify(events) }) } catch {}
+    if (!res.ok) {
+      throw new Error(`Telemetry endpoint returned HTTP ${res.status}`)
+    }
+    this.queue = []
   }
 
   isEnabled(): boolean {

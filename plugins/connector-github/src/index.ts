@@ -19,12 +19,14 @@ export class GitHubConnector implements ConnectorPlugin {
   private repo = ''
   private branch = 'main'
   private baseUrl = 'https://api.github.com'
+  private paths: string[] = []
 
   async setup(ctx: PluginContext): Promise<void> {
     const config = ctx.config as unknown as GitHubConfig
     this.repo = config.repo || ''
     this.token = config.token || process.env.GITHUB_TOKEN || ''
     this.branch = config.branch || 'main'
+    this.paths = Array.isArray(config.paths) ? config.paths.filter(Boolean) : []
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -47,6 +49,7 @@ export class GitHubConnector implements ConnectorPlugin {
 
     for (const item of data.tree) {
       if (item.type !== 'blob') continue
+      if (this.paths.length > 0 && !this.paths.some(path => item.path === path || item.path.startsWith(path.endsWith('/') ? path : `${path}/`))) continue
       const ext = '.' + item.path.split('.').pop()?.toLowerCase()
       if (!SUPPORTED_EXTENSIONS.has(ext)) continue
 

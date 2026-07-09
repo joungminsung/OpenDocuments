@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildPrompt, type GenerateInput } from '../../src/rag/generator.js'
+import { buildPrompt, generateAnswer, type GenerateInput } from '../../src/rag/generator.js'
+import type { ModelPlugin, GenerateOpts } from '../../src/plugin/interfaces.js'
 
 describe('buildPrompt', () => {
   const baseInput: GenerateInput = {
@@ -45,5 +46,27 @@ describe('buildPrompt', () => {
   it('uses intent-specific system prompt', () => {
     const prompt = buildPrompt(baseInput)
     expect(prompt).toContain('configuration')
+  })
+
+  it('keeps answer generation token budget bounded for local models', async () => {
+    let seenOpts: GenerateOpts | undefined
+    const model: ModelPlugin = {
+      name: '@opendocuments/model-test',
+      type: 'model',
+      version: '0.0.0',
+      coreVersion: '^0.3.0',
+      capabilities: { llm: true },
+      setup: async () => {},
+      async *generate(_prompt: string, opts?: GenerateOpts) {
+        seenOpts = opts
+        yield 'ok'
+      },
+    }
+
+    for await (const _chunk of generateAnswer(model, baseInput)) {
+      // consume stream
+    }
+
+    expect(seenOpts?.maxTokens).toBeLessThanOrEqual(1024)
   })
 })

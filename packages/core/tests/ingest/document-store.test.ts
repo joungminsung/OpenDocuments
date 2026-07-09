@@ -114,6 +114,20 @@ describe('DocumentStore', () => {
     expect(deleted).toHaveLength(0)
   })
 
+  it('hard deletes FTS rows for the document', async () => {
+    const doc = store.createDocument({
+      title: 'test.md', sourceType: 'local', sourcePath: '/docs/test.md', fileType: '.md',
+    })
+    await store.storeChunks(doc.id, [
+      { content: 'Unique searchable phrase', embedding: [1, 0, 0], chunkType: 'semantic', position: 0, tokenCount: 3, headingHierarchy: [] },
+    ])
+
+    await store.hardDeleteDocument(doc.id)
+
+    const rows = db.all('SELECT chunk_id FROM chunks_fts WHERE chunk_id = ?', [`${doc.id}_chunk_0`])
+    expect(rows).toHaveLength(0)
+  })
+
   it('checks content hash for change detection', () => {
     const doc = store.createDocument({
       title: 'test.md', sourceType: 'local', sourcePath: '/docs/test.md', fileType: '.md',

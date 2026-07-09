@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
-const SUPPORTED_EXTENSIONS = new Set([
+export const SUPPORTED_EXTENSIONS = new Set([
   '.md', '.mdx', '.txt',          // built-in
   '.json', '.yaml', '.yml', '.toml', // structured data parsers
   '.zip',                          // archive parser

@@ -1,6 +1,7 @@
 import type { Context, Next } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import type { APIKeyScope, ValidatedKey } from 'opendocuments-core'
+import { getClientIp } from '../request-security.js'
 
 export interface PersonalModeAuth {
   mode: 'personal'
@@ -53,13 +54,18 @@ export function authMiddleware(appCtx: AppContext) {
       return c.json({ error: 'Invalid or expired API key' }, 401)
     }
 
-    // TODO: Check validated.record.allowedIps against client IP when ip_restrictions column is added
-    // if (validated.record.allowedIps && validated.record.allowedIps.length > 0) {
-    //   const clientIp = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || ''
-    //   if (!validated.record.allowedIps.includes(clientIp)) {
-    //     return c.json({ error: 'IP not allowed for this API key' }, 403)
-    //   }
-    // }
+    if (validated.record.allowedIps && validated.record.allowedIps.length > 0) {
+      const clientIp = getClientIp(c, appCtx.config.security.transport.proxy)
+      if (!clientIp || !validated.record.allowedIps.includes(clientIp)) {
+        appCtx.auditLogger?.log({
+          eventType: 'auth:failed',
+          userId: validated.record.userId,
+          workspaceId: validated.record.workspaceId,
+          details: { reason: 'ip not allowed', clientIp },
+        })
+        return c.json({ error: 'IP not allowed for this API key' }, 403)
+      }
+    }
 
     appCtx.auditLogger?.log({
       eventType: 'auth:login',

@@ -49,4 +49,46 @@ describe('Document Routes', () => {
     const res = await app.request('/api/v1/documents/nonexistent')
     expect(res.status).toBe(404)
   })
+
+  it('requires document:write scope to upload documents in team mode', async () => {
+    const teamDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
+    const teamCtx = await bootstrap({
+      dataDir: teamDir,
+      configOverrides: {
+        mode: 'team',
+        model: {
+          provider: 'stub',
+          llm: 'stub-llm',
+          embedding: 'stub-embedding',
+          apiKey: '',
+          baseUrl: '',
+          embeddingDimensions: 384,
+        } as any,
+      },
+    })
+    try {
+      const workspaceId = teamCtx.workspaceManager.list()[0].id
+      const { rawKey } = teamCtx.apiKeyManager.create({
+        name: 'reader',
+        workspaceId,
+        userId: 'user-1',
+        role: 'viewer',
+        scopes: ['document:read'],
+      })
+      const teamApp = createApp(teamCtx)
+      const formData = new FormData()
+      formData.append('file', new File(['# Secret'], 'secret.md', { type: 'text/markdown' }))
+
+      const res = await teamApp.request('/api/v1/documents/upload', {
+        method: 'POST',
+        headers: { 'X-API-Key': rawKey },
+        body: formData,
+      })
+
+      expect(res.status).toBe(403)
+    } finally {
+      await teamCtx.shutdown()
+      rmSync(teamDir, { recursive: true, force: true })
+    }
+  })
 })

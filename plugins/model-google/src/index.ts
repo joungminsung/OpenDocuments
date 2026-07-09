@@ -11,6 +11,7 @@ export interface GoogleConfig {
   apiKey?: string
   llmModel?: string
   embeddingModel?: string
+  thinkingBudget?: number
 }
 
 export class GoogleModelPlugin implements ModelPlugin {
@@ -23,7 +24,8 @@ export class GoogleModelPlugin implements ModelPlugin {
   private apiKey = ''
   private baseUrl = 'https://generativelanguage.googleapis.com/v1beta'
   private llmModel = 'gemini-2.5-flash'
-  private embeddingModel = 'text-embedding-004'
+  private embeddingModel = 'gemini-embedding-001'
+  private thinkingBudget = 0
 
   private redactUrl(url: string): string {
     return url.replace(/key=[^&]+/, 'key=[REDACTED]')
@@ -34,6 +36,15 @@ export class GoogleModelPlugin implements ModelPlugin {
     this.apiKey = config.apiKey || process.env.GOOGLE_API_KEY || ''
     if (config.llmModel) this.llmModel = config.llmModel
     if (config.embeddingModel) this.embeddingModel = config.embeddingModel
+    if (config.thinkingBudget !== undefined) {
+      this.thinkingBudget = config.thinkingBudget
+    } else {
+      const envThinkingBudget = process.env.OPENDOCUMENTS_MODEL_THINKING_BUDGET
+      if (envThinkingBudget !== undefined && envThinkingBudget.trim() !== '') {
+        const parsed = Number(envThinkingBudget)
+        if (Number.isFinite(parsed)) this.thinkingBudget = parsed
+      }
+    }
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -53,7 +64,7 @@ export class GoogleModelPlugin implements ModelPlugin {
       ? { parts: [{ text: opts.systemPrompt }] }
       : undefined
 
-    const url = `${this.baseUrl}/models/${this.llmModel}:streamGenerateContent?alt=sse&key=${this.apiKey}`
+    const url = `${this.baseUrl}/models/${this.llmModel}:generateContent?key=${this.apiKey}`
     const res = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,39 +75,18 @@ export class GoogleModelPlugin implements ModelPlugin {
           temperature: opts?.temperature ?? 0.3,
           maxOutputTokens: opts?.maxTokens,
           stopSequences: opts?.stop,
+          thinkingConfig: { thinkingBudget: this.thinkingBudget },
         },
       }),
     }, 120000)
 
     if (!res.ok) throw new Error(`Google AI error: ${res.status} at ${this.redactUrl(url)}`)
-    if (!res.body) throw new Error('No response body')
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6).trim()
-          try {
-            const parsed = JSON.parse(data)
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
-            if (text) yield text
-          } catch {
-            // skip malformed SSE data
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock()
-    }
+    const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || '')
+      .join('')
+      .trim()
+    if (text) yield text
   }
 
   async embed(texts: string[]): Promise<EmbeddingResult> {

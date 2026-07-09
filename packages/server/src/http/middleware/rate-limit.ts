@@ -1,19 +1,17 @@
 import type { Context, Next } from 'hono'
 import { createHash } from 'node:crypto'
+import { getClientIp } from '../request-security.js'
 
 interface RateLimitEntry {
   count: number
   resetAt: number
 }
 
-export function rateLimit(opts: { max: number; windowMs: number }) {
+export function rateLimit(opts: { max: number; windowMs: number; trustedProxy?: string }) {
   const store = new Map<string, RateLimitEntry>()
 
   return async (c: Context, next: Next) => {
-    // WARNING: x-forwarded-for can be spoofed. In production, use a reverse proxy (nginx/cloudflare) for rate limiting.
-    // This is a best-effort rate limiter for development and personal mode.
-    // Use API key or first IP from x-forwarded-for as identifier
-    const rawKey = c.req.header('x-api-key') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous'
+    const rawKey = c.req.header('x-api-key') || getClientIp(c, opts.trustedProxy) || 'anonymous'
     const key = createHash('sha256').update(rawKey).digest('hex').substring(0, 16) // short hash for memory efficiency
     const now = Date.now()
 

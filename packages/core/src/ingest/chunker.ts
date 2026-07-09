@@ -368,6 +368,41 @@ function extractHeadingMap(text: string, sentences: string[]): Map<number, strin
   return headingMap
 }
 
+function splitIntoSentences(text: string): string[] {
+  const sentences: string[] = []
+  let start = 0
+  const boundary = /[.!?。！？]/u
+
+  for (let i = 0; i < text.length; i++) {
+    if (!boundary.test(text[i])) continue
+    const char = text[i]
+    const prev = text[i - 1] || ''
+    const next = text[i + 1] || ''
+    const afterNextNonSpace = text.slice(i + 1).match(/\S/)?.[0] || ''
+
+    if (char === '.' && (
+      (!/\s/.test(next) && !/[\u3000-\u9fff\uac00-\ud7af]/.test(next)) ||
+      (/[A-Za-z0-9]/.test(prev) && /[a-z0-9]/.test(afterNextNonSpace))
+    )) {
+      continue
+    }
+
+    let end = i + 1
+    while (end < text.length && /["')\]}”’]/u.test(text[end])) end++
+
+    const sentence = text.slice(start, end).trim()
+    if (sentence) sentences.push(sentence)
+
+    start = end
+    while (start < text.length && /\s/u.test(text[start])) start++
+    i = start - 1
+  }
+
+  const tail = text.slice(start).trim()
+  if (tail) sentences.push(tail)
+  return sentences
+}
+
 export async function semanticChunkText(
   text: string,
   options: ChunkOptions = { maxTokens: 512, overlap: 50 },
@@ -379,10 +414,7 @@ export async function semanticChunkText(
   }
 
   // Split into sentences
-  const sentences = text
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
+  const sentences = splitIntoSentences(text)
 
   if (sentences.length === 0) return []
 

@@ -41,6 +41,7 @@ const DETECTED_VARS: ReadonlyArray<string> = [
   'OPENDOCUMENTS_UI_LOCALE',
   'OPENDOCUMENTS_UI_THEME',
   'OPENDOCUMENTS_TELEMETRY_ENABLED',
+  'OPENDOCUMENTS_TELEMETRY_ENDPOINT',
 ]
 
 /**
@@ -181,8 +182,11 @@ export function buildConfigFromEnv(): EnvConfig | null {
   }
 
   // ── Telemetry ────────────────────────────────────────────────────────────
-  if (env.OPENDOCUMENTS_TELEMETRY_ENABLED !== undefined) {
-    config.telemetry = { enabled: env.OPENDOCUMENTS_TELEMETRY_ENABLED === 'true' }
+  if (env.OPENDOCUMENTS_TELEMETRY_ENABLED !== undefined || env.OPENDOCUMENTS_TELEMETRY_ENDPOINT !== undefined) {
+    config.telemetry = {
+      ...(env.OPENDOCUMENTS_TELEMETRY_ENABLED !== undefined && { enabled: env.OPENDOCUMENTS_TELEMETRY_ENABLED === 'true' }),
+      ...(env.OPENDOCUMENTS_TELEMETRY_ENDPOINT !== undefined && { endpoint: env.OPENDOCUMENTS_TELEMETRY_ENDPOINT }),
+    }
   }
 
   return config

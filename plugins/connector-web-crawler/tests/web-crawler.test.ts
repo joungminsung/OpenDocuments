@@ -24,6 +24,33 @@ describe('WebCrawlerConnector', () => {
     expect(docs[0].sourcePath).toBe('https://example.com/docs')
   })
 
+  it('discovers same-origin links up to the configured depth', async () => {
+    connector = new WebCrawlerConnector()
+    await connector.setup({
+      config: { urls: ['https://example.com/docs'], depth: 1 } as any,
+      dataDir: '/tmp', log: console as any,
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => `
+        <html><body>
+          <a href="/docs/install#quickstart">Install</a>
+          <a href="https://other.example/private">Other site</a>
+        </body></html>
+      `,
+    }))
+
+    const docs: any[] = []
+    for await (const doc of connector.discover()) docs.push(doc)
+
+    expect(docs.map((doc) => doc.sourcePath)).toEqual([
+      'https://example.com/docs',
+      'https://example.com/docs/install',
+    ])
+    vi.unstubAllGlobals()
+  })
+
   it('fetches and extracts text from HTML', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

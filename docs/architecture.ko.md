@@ -4,6 +4,8 @@
 
 OpenDocuments는 GitHub, Notion, Google Drive, 로컬 파일 등 여러 소스에 흩어진 문서를 검색 가능한 지식 베이스로 만들고, 자연어 질문에 출처 기반 답변을 제공하는 자체 호스팅 RAG 플랫폼입니다.
 
+세부 실행 흐름은 [OpenDocuments 세부 파이프라인](pipeline.ko.md)을 참고하세요.
+
 설계의 중심 원칙은 세 가지입니다.
 
 - **Core-first 설계**: 비즈니스 로직은 `@opendocuments/core`에 두고 CLI, server, web, SDK는 이를 재사용합니다.
@@ -267,4 +269,3 @@ flowchart LR
 | Core-first monorepo | CLI, server, web, SDK, MCP가 동일한 business logic을 재사용하기 위해 선택 |
 | Hono server layer | core service를 감싸는 가벼운 TypeScript 친화 HTTP layer가 필요해 선택 |
 | Retrieval profiles | fast, balanced, precise 모드로 속도와 검색 품질을 조절하기 위해 선택 |
-

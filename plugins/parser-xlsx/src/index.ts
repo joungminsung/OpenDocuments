@@ -1,5 +1,13 @@
 import type { ParserPlugin, RawDocument, ParsedChunk, PluginContext, HealthStatus } from 'opendocuments-core'
 
+const MAX_TABLE_TOKENS = 700
+
+function estimateTableTokens(text: string): number {
+  const cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af]/g) || []).length
+  const nonCjk = text.length - cjk
+  return Math.ceil(nonCjk / 4 + cjk / 1.5)
+}
+
 export class XLSXParser implements ParserPlugin {
   name = '@opendocuments/parser-xlsx'
   type = 'parser' as const
@@ -29,24 +37,51 @@ export class XLSXParser implements ParserPlugin {
       const header = rows[0]
       const headerStr = header.join(' | ')
 
-      // Chunk rows in groups (max ~20 rows per chunk)
-      const ROWS_PER_CHUNK = 20
-      for (let i = 1; i < rows.length; i += ROWS_PER_CHUNK) {
-        const batch = rows.slice(i, i + ROWS_PER_CHUNK)
+      let batch: string[][] = []
+      let startRow = 1
+
+      const emit = function *(
+        currentBatch: string[][],
+        currentStartRow: number
+      ): Generator<ParsedChunk> {
+        if (currentBatch.length === 0) return
         const content = [
           `Sheet: ${sheetName}`,
           headerStr,
           '---',
-          ...batch.map(row => row.join(' | ')),
+          ...currentBatch.map(row => row.join(' | ')),
         ].join('\n')
 
         yield {
           content,
           chunkType: 'table',
           headingHierarchy: [sheetName],
-          metadata: { sheet: sheetName, startRow: i, endRow: Math.min(i + ROWS_PER_CHUNK, rows.length) },
+          metadata: {
+            sheet: sheetName,
+            startRow: currentStartRow,
+            endRow: currentStartRow + currentBatch.length - 1,
+          },
         }
       }
+
+      for (let i = 1; i < rows.length; i++) {
+        const candidate = [...batch, rows[i]]
+        const candidateContent = [
+          `Sheet: ${sheetName}`,
+          headerStr,
+          '---',
+          ...candidate.map(row => row.join(' | ')),
+        ].join('\n')
+
+        if (batch.length > 0 && estimateTableTokens(candidateContent) > MAX_TABLE_TOKENS) {
+          yield * emit(batch, startRow)
+          batch = []
+          startRow = i
+        }
+        batch.push(rows[i])
+      }
+
+      yield * emit(batch, startRow)
     }
   }
 }

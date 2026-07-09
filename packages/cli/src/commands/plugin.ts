@@ -3,7 +3,23 @@ import { log } from 'opendocuments-core'
 import chalk from 'chalk'
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
+
+function assertNpmPackageName(name: string): void {
+  if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/i.test(name)) {
+    throw new Error(`Invalid npm package name: ${name}`)
+  }
+}
+
+function runNpm(args: string[], options: { capture?: boolean } = {}): string | void {
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const result = execFileSync(npmCmd, args, {
+    stdio: options.capture ? ['ignore', 'pipe', 'ignore'] : 'inherit',
+    encoding: options.capture ? 'utf-8' : undefined,
+  })
+  return typeof result === 'string' ? result : undefined
+}
 
 export function pluginCommand() {
   const cmd = new Command('plugin')
@@ -95,7 +111,7 @@ export class MyParser implements ParserPlugin {
   type = 'parser' as const
   version = '0.1.0'
   coreVersion = '^0.3.0'
-  supportedTypes = ['.ext'] // TODO: set your file extensions
+  supportedTypes = ['.ext'] // Replace with the file extensions handled by this parser.
 
   async setup(_ctx: PluginContext): Promise<void> {}
   async healthCheck(): Promise<HealthStatus> { return { healthy: true } }
@@ -121,11 +137,11 @@ export class MyConnector implements ConnectorPlugin {
   async healthCheck(): Promise<HealthStatus> { return { healthy: true } }
 
   async *discover(): AsyncIterable<DiscoveredDocument> {
-    // TODO: yield discovered documents
+    // Yield discovered documents from your source system.
   }
 
   async fetch(ref: DocumentRef): Promise<RawDocument> {
-    // TODO: fetch document content
+    // Fetch document content from your source system.
     return { sourceId: ref.sourceId, title: ref.sourcePath, content: '' }
   }
 }
@@ -158,7 +174,7 @@ export class MyMiddleware implements MiddlewarePlugin {
     {
       stage: 'after:parse' as PipelineStage,
       handler: async (data: unknown) => {
-        // TODO: process data
+        // Transform or enrich parsed data here.
         return data
       },
     },
@@ -220,9 +236,8 @@ describe('${name}', () => {
   cmd.command('search <query>')
     .description('Search for OpenDocuments plugins on npm')
     .action(async (query) => {
-      const { execSync } = await import('node:child_process')
       try {
-        const result = execSync(`npm search opendocuments-plugin ${query} --json 2>/dev/null || echo "[]"`, { encoding: 'utf-8' })
+        const result = runNpm(['search', 'opendocuments-plugin', query, '--json'], { capture: true }) || '[]'
         const packages = JSON.parse(result)
         if (packages.length === 0) { log.info('No plugins found'); return }
         log.heading(`Search Results (${packages.length})`)
@@ -247,31 +262,30 @@ describe('${name}', () => {
     })
 
   cmd.command('add <name>').description('Install a plugin').action(async (name) => {
-    const { execSync } = await import('node:child_process')
     log.wait(`Installing ${name}...`)
     try {
-      execSync(`npm install ${name}`, { stdio: 'inherit' })
+      assertNpmPackageName(name)
+      runNpm(['install', name])
       log.ok(`${name} installed. Restart server to activate.`)
     } catch { log.fail(`Failed to install ${name}`) }
   })
 
   cmd.command('remove <name>').description('Remove a plugin').action(async (name) => {
-    const { execSync } = await import('node:child_process')
     log.wait(`Removing ${name}...`)
     try {
-      execSync(`npm uninstall ${name}`, { stdio: 'inherit' })
+      assertNpmPackageName(name)
+      runNpm(['uninstall', name])
       log.ok(`${name} removed. Restart server to apply.`)
     } catch { log.fail(`Failed to remove ${name}`) }
   })
 
   cmd.command('update [name]').description('Update plugins').action(async (name) => {
-    const { execSync } = await import('node:child_process')
     if (name) {
       log.wait(`Updating ${name}...`)
-      try { execSync(`npm update ${name}`, { stdio: 'inherit' }); log.ok('Updated') } catch { log.fail('Failed') }
+      try { assertNpmPackageName(name); runNpm(['update', name]); log.ok('Updated') } catch { log.fail('Failed') }
     } else {
       log.wait('Updating all plugins...')
-      try { execSync('npm update', { stdio: 'inherit' }); log.ok('All plugins updated') } catch { log.fail('Failed') }
+      try { runNpm(['update']); log.ok('All plugins updated') } catch { log.fail('Failed') }
     }
   })
 

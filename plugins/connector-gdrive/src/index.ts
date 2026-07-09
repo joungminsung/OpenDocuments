@@ -7,12 +7,20 @@ import type {
   HealthStatus,
 } from 'opendocuments-core'
 import { fetchWithTimeout } from 'opendocuments-core'
+import { createSign } from 'node:crypto'
 
 export interface GDriveConfig {
   accessToken?: string        // OAuth2 access token
-  serviceAccountKey?: string  // TODO: full service account JWT flow
+  serviceAccountKey?: string | ServiceAccountKey
   folderId?: string           // Google Drive folder ID to crawl
   syncInterval?: number       // seconds
+}
+
+interface ServiceAccountKey {
+  client_email: string
+  private_key: string
+  token_uri?: string
+  scopes?: string[]
 }
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
@@ -40,14 +48,20 @@ export class GDriveConnector implements ConnectorPlugin {
 
   private accessToken = ''
   private folderId = ''
+  private serviceAccountKey?: ServiceAccountKey
+  private accessTokenExpiresAt = Number.POSITIVE_INFINITY
+  private tokenRefreshPromise?: Promise<void>
 
   async setup(ctx: PluginContext): Promise<void> {
     const config = ctx.config as unknown as GDriveConfig
+    this.serviceAccountKey = undefined
+    this.accessTokenExpiresAt = Number.POSITIVE_INFINITY
     this.accessToken = config.accessToken || process.env.GDRIVE_ACCESS_TOKEN || ''
     this.folderId = config.folderId || process.env.GDRIVE_FOLDER_ID || ''
-    // TODO: if serviceAccountKey is provided, generate a JWT and exchange it for an
-    //       access token using https://oauth2.googleapis.com/token (OAuth2 service
-    //       account flow). For now, only Bearer token auth is supported.
+    if (!this.accessToken && config.serviceAccountKey) {
+      this.serviceAccountKey = this.parseServiceAccountKey(config.serviceAccountKey)
+      await this.refreshServiceAccountToken()
+    }
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -138,12 +152,95 @@ export class GDriveConnector implements ConnectorPlugin {
     }
   }
 
-  private gdriveFetch(url: string): Promise<Response> {
-    const headers: Record<string, string> = {}
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`
+  private async gdriveFetch(url: string): Promise<Response> {
+    await this.ensureFreshServiceAccountToken()
+
+    const request = () => fetchWithTimeout(url, {
+      headers: this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {},
+    })
+
+    let response = await request()
+    if (response.status === 401 && this.serviceAccountKey) {
+      await this.ensureFreshServiceAccountToken(true)
+      response = await request()
     }
-    return fetchWithTimeout(url, { headers })
+    return response
+  }
+
+  private parseServiceAccountKey(input: string | ServiceAccountKey): ServiceAccountKey {
+    const key = typeof input === 'string' ? JSON.parse(input) as ServiceAccountKey : input
+    if (!key.client_email || !key.private_key) {
+      throw new Error('Google service account key requires client_email and private_key')
+    }
+    return key
+  }
+
+  private async ensureFreshServiceAccountToken(force = false): Promise<void> {
+    if (!this.serviceAccountKey) return
+    const refreshBefore = this.accessTokenExpiresAt - 60_000
+    if (force || !this.accessToken || Date.now() >= refreshBefore) {
+      await this.refreshServiceAccountToken()
+    }
+  }
+
+  private async refreshServiceAccountToken(): Promise<void> {
+    if (!this.serviceAccountKey) return
+    if (this.tokenRefreshPromise) return this.tokenRefreshPromise
+
+    this.tokenRefreshPromise = this.exchangeServiceAccountKey(this.serviceAccountKey)
+    try {
+      await this.tokenRefreshPromise
+    } finally {
+      this.tokenRefreshPromise = undefined
+    }
+  }
+
+  private async exchangeServiceAccountKey(key: ServiceAccountKey): Promise<void> {
+    const tokenUri = key.token_uri || 'https://oauth2.googleapis.com/token'
+    const now = Math.floor(Date.now() / 1000)
+    const scope = (key.scopes || ['https://www.googleapis.com/auth/drive.readonly']).join(' ')
+    const assertion = this.signJwt(
+      { alg: 'RS256', typ: 'JWT' },
+      {
+        iss: key.client_email,
+        scope,
+        aud: tokenUri,
+        iat: now,
+        exp: now + 3600,
+      },
+      key.private_key
+    )
+    const body = new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    })
+    const res = await fetchWithTimeout(tokenUri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    if (!res.ok) throw new Error(`Google service account token error: ${res.status}`)
+    const data = await res.json() as { access_token?: string; expires_in?: number }
+    if (!data.access_token) throw new Error('Google service account token response missing access_token')
+    const expiresInSeconds = Number.isFinite(data.expires_in) && (data.expires_in as number) > 0
+      ? data.expires_in as number
+      : 3600
+    this.accessToken = data.access_token
+    this.accessTokenExpiresAt = Date.now() + expiresInSeconds * 1000
+  }
+
+  private signJwt(header: Record<string, unknown>, payload: Record<string, unknown>, privateKey: string): string {
+    const encodedHeader = this.base64Url(JSON.stringify(header))
+    const encodedPayload = this.base64Url(JSON.stringify(payload))
+    const signingInput = `${encodedHeader}.${encodedPayload}`
+    const signer = createSign('RSA-SHA256')
+    signer.update(signingInput)
+    signer.end()
+    return `${signingInput}.${signer.sign(privateKey, 'base64url')}`
+  }
+
+  private base64Url(value: string): string {
+    return Buffer.from(value).toString('base64url')
   }
 }
 

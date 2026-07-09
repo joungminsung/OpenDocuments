@@ -105,13 +105,15 @@ export function startCommand() {
         }
         log.dim('Press Ctrl+C to stop')
       })
-      process.on('SIGINT', async () => {
+      const shutdown = async () => {
         log.blank()
         log.wait('Shutting down...')
         try { unlinkSync(pidFile) } catch {}
         await ctx.shutdown()
         log.ok('Goodbye')
         process.exit(0)
-      })
+      }
+      process.on('SIGINT', shutdown)
+      process.on('SIGTERM', shutdown)
     })
 }

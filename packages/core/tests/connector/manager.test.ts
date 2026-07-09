@@ -94,6 +94,60 @@ describe('ConnectorManager', () => {
     expect(list[0].name).toBe('@opendocuments/connector-mock')
   })
 
+  it('stores connector config and updates existing named connector', () => {
+    const connector = createMockConnector([])
+    const firstId = manager.registerConnector(connector, {
+      name: 'github',
+      config: { type: 'github', repo: 'owner/first', branch: 'main', token: 'secret-token' },
+    })
+    const secondId = manager.registerConnector(connector, {
+      name: 'github',
+      config: { type: 'github', repo: 'owner/second', branch: 'develop', token: 'secret-token' },
+    })
+
+    expect(secondId).toBe(firstId)
+
+    const rows = db.all<any>('SELECT * FROM connectors WHERE name = ?', ['github'])
+    expect(rows).toHaveLength(1)
+    expect(JSON.parse(rows[0].config)).toMatchObject({
+      type: 'github',
+      repo: 'owner/second',
+      branch: 'develop',
+      token: 'secret-token',
+    })
+
+    const list = manager.listConnectors()
+    expect(list[0]).toMatchObject({
+      name: 'github',
+      type: '@opendocuments/connector-mock',
+      repo: 'owner/second',
+    })
+  })
+
+  it('starts periodic sync when registered with autoSync enabled', async () => {
+    vi.useFakeTimers()
+    try {
+      const connector = createMockConnector([])
+      const syncSpy = vi.spyOn(manager, 'syncConnector').mockResolvedValue({
+        connectorName: '@opendocuments/connector-mock',
+        documentsDiscovered: 0,
+        documentsIndexed: 0,
+        documentsSkipped: 0,
+        errors: [],
+      })
+
+      manager.registerConnector(connector, {
+        syncIntervalSeconds: 60,
+        autoSync: true,
+      })
+
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(syncSpy).toHaveBeenCalledWith('@opendocuments/connector-mock')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('syncs a connector and indexes discovered documents', { timeout: 15000 }, async () => {
     const connector = createMockConnector([
       { id: '1', title: 'readme.md', path: '/repo/README.md', content: '# Hello\n\nWorld' },

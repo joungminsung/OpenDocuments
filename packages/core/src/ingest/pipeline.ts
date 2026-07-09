@@ -91,30 +91,37 @@ export class IngestPipeline {
 
   async ingest(
     input: IngestInput,
-    options: { contextualRetrieval?: boolean; chunkAugmentation?: boolean } = {}
+    options: { contextualRetrieval?: boolean; chunkAugmentation?: boolean; force?: boolean } = {}
   ): Promise<IngestResult> {
     const { store, registry, eventBus, middleware } = this.opts
     const contentHash = sha256(input.content)
+    const fileType = input.fileType ?? extname(input.sourcePath)
+    let documentId: string
 
     // Check for existing document by sourcePath
     const existing = store.getDocumentBySourcePath(input.sourcePath)
     if (existing) {
-      if (!store.hasContentChanged(existing.id, contentHash)) {
+      if (!options.force && !store.hasContentChanged(existing.id, contentHash)) {
         return { documentId: existing.id, chunks: existing.chunk_count ?? 0, status: 'skipped' }
       }
-      // Content changed -- delete old document first
-      await store.hardDeleteDocument(existing.id)
+      documentId = existing.id
+      store.updateDocumentForReindex(documentId, {
+        title: input.title,
+        sourceType: input.sourceType,
+        sourcePath: input.sourcePath,
+        fileType,
+        connectorId: input.connectorId,
+      })
+    } else {
+      const created = store.createDocument({
+        title: input.title,
+        sourceType: input.sourceType,
+        sourcePath: input.sourcePath,
+        fileType,
+        connectorId: input.connectorId,
+      })
+      documentId = created.id
     }
-
-    // Create new document record
-    const fileType = input.fileType ?? extname(input.sourcePath)
-    const { id: documentId } = store.createDocument({
-      title: input.title,
-      sourceType: input.sourceType,
-      sourcePath: input.sourcePath,
-      fileType,
-      connectorId: input.connectorId,
-    })
 
     try {
       // Build RawDocument for parser

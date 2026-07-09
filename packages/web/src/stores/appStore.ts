@@ -1,17 +1,20 @@
 import { create } from 'zustand'
 import type { RAGProfile } from '../lib/types'
+import { detectLocale, normalizeLocale, type Locale } from '../lib/i18n'
 
-type Theme = 'light' | 'dark' | 'system'
-type Page = 'dashboard' | 'chat' | 'documents' | 'settings' | 'health' | 'connectors' | 'plugins' | 'workspaces'
+export type Theme = 'light' | 'dark' | 'system'
+export type Page = 'dashboard' | 'chat' | 'documents' | 'collections' | 'settings' | 'health' | 'connectors' | 'plugins' | 'workspaces'
 
 interface AppState {
   theme: Theme
   effectiveTheme: 'light' | 'dark'
+  locale: Locale
   profile: RAGProfile
   currentPage: Page
   sidebarOpen: boolean
 
   setTheme: (theme: Theme) => void
+  setLocale: (locale: Locale) => void
   setProfile: (profile: RAGProfile) => void
   setPage: (page: Page) => void
   toggleSidebar: () => void
@@ -29,7 +32,10 @@ export const useAppStore = create<AppState>((set) => ({
   effectiveTheme: getEffectiveTheme(
     (localStorage.getItem('opendocuments-theme') as Theme) || 'system'
   ),
-  profile: (localStorage.getItem('opendocuments-profile') as RAGProfile) || 'balanced',
+  locale: localStorage.getItem('opendocuments-locale')
+    ? normalizeLocale(localStorage.getItem('opendocuments-locale'))
+    : detectLocale(),
+  profile: (localStorage.getItem('opendocuments-profile') as RAGProfile) || 'fast',
   currentPage: 'chat',
   sidebarOpen: true,
 
@@ -38,6 +44,12 @@ export const useAppStore = create<AppState>((set) => ({
     const effective = getEffectiveTheme(theme)
     document.documentElement.classList.toggle('dark', effective === 'dark')
     set({ theme, effectiveTheme: effective })
+  },
+
+  setLocale: (locale) => {
+    localStorage.setItem('opendocuments-locale', locale)
+    document.documentElement.lang = locale
+    set({ locale })
   },
 
   setProfile: (profile) => {

@@ -61,9 +61,12 @@ export function healthRoutes(ctx: AppContext) {
       if (typeof model.healthCheck === 'function') {
         try {
           const result = await model.healthCheck()
-          checks[`model:${model.name}`] = result.healthy
-            ? { status: 'ok', message: result.message }
-            : { status: 'warning', message: result.message }
+          if (result.healthy) {
+            checks[`model:${model.name}`] = { status: 'ok', message: result.message }
+          } else {
+            checks[`model:${model.name}`] = { status: 'error', message: result.message }
+            allOk = false
+          }
         } catch (err) {
           checks[`model:${model.name}`] = { status: 'error', message: (err as Error).message }
           allOk = false

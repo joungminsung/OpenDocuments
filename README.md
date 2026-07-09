@@ -312,9 +312,6 @@ parserFallbacks: {
 | **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5 | -- (use separate provider) | Long context (1M), coding, analysis |
 | **Google** | Gemini 3.1 Pro, Gemini 3.1 Flash Lite, Gemini 3.0 Deep Think | text-embedding-005 | Multimodal, multilingual |
 | **xAI** | Grok 4, Grok 4 Heavy, Grok 4.1 Fast | Grok embedding | Real-time knowledge, code |
-| **DeepSeek** | DeepSeek-V3.2, DeepSeek-R1, DeepSeek-V4 (upcoming) | -- (use separate provider) | Cost-efficient reasoning, 164K context |
-| **Mistral** | Mistral Small 4 (MoE), Large 2.1, Codestral, Pixtral | mistral-embed (1024) | European data residency, coding, vision |
-| **OpenAI-compatible** | Any OpenAI-compatible endpoint | Depends on endpoint | vLLM, LM Studio, Together, Fireworks, Groq, DeepInfra, SiliconFlow, OpenRouter |
 
 ### Local Models (via Ollama)
 
@@ -326,7 +323,6 @@ parserFallbacks: {
 | **Llama 4 Scout** | 17B (MoE) | 109B | Yes | Good | 10M context window |
 | **Llama 4 Maverick** | 17B (MoE) | 400B | Yes | Good | Top open-source quality |
 | **DeepSeek V3.2** | 37B (MoE) | 671B | No | Good | Coding, reasoning |
-| **Gemma 4** | 27B / 12B / 4B / 1B | dense | Yes | Good | Latest Google open model, 128K context, 140+ languages |
 | **Gemma 3 27B** | 27B | 27B | Yes | Good | Lightweight, 140+ languages |
 | **Gemma 3 4B** | 4B | 4B | Yes | Good | Low-spec machines (8GB RAM) |
 | **K-EXAONE** | 23B (MoE) | 236B | No | Best | Korean-specialized |
@@ -365,8 +361,11 @@ Full-featured dashboard at `http://localhost:3000`:
 |------|-----------------|
 | **Chat** | Ask questions with streaming answers, source citations, confidence scores, feedback buttons. Switch between fast/balanced/precise profiles. |
 | **Documents** | Browse indexed documents, drag-and-drop upload, view document details, soft-delete with trash/restore. |
+| **Collections** | Group documents into focused knowledge sets and manage collection membership. |
 | **Connectors** | See connector sync status and last sync times. |
+| **Activity** | Inspect runtime health, model readiness, and indexing activity. |
 | **Plugins** | View installed plugins with health indicators. |
+| **Workspaces** | Review workspace isolation and team-mode configuration. |
 | **Settings** | Toggle dark/light theme, change RAG profile, view server version. |
 | **Admin** | Stats dashboard, search quality metrics, paginated query logs, plugin health, connector status, audit logs. |
 
@@ -374,7 +373,7 @@ Full-featured dashboard at `http://localhost:3000`:
 
 ### 2. CLI
 
-17 commands for power users and automation:
+19 commands for power users and automation:
 
 ```bash
 # Ask questions
@@ -396,17 +395,9 @@ cat README.md | opendocuments ask "Summarize this" --stdin
 opendocuments ask "List endpoints" --json | jq '.sources[].sourcePath'
 
 # Administration
-opendocuments doctor                  # Health check (per-provider API ping)
+opendocuments doctor                  # Health check
 opendocuments auth create-key --name "ci-bot" --role member
 opendocuments export --output ./backup
-
-# Model management
-opendocuments model list --suggestions          # Show installed + curated models
-opendocuments model install-ollama              # One-shot Ollama install (macOS/Linux)
-opendocuments model pull gemma3:27b bge-m3      # Batch pull with disk-space check
-opendocuments model set-key deepseek            # Prompt + save API key to .env
-opendocuments model test                        # Round-trip test against configured LLM
-opendocuments model switch                      # Change provider without editing config
 ```
 
 ### 3. MCP Server
@@ -610,7 +601,7 @@ Add a chat widget to your internal tools:
 git clone https://github.com/joungminsung/OpenDocuments.git
 cd OpenDocuments
 npm run setup    # Install + build (one command)
-npm run test     # 51 test suites, ~300 tests
+npm run test     # 51 test tasks, 600+ tests
 npm run dev      # Watch mode
 ```
 
@@ -618,14 +609,14 @@ npm run dev      # Watch mode
 
 | Package | Role | Tests |
 |---------|------|-------|
-| `@opendocuments/core` | Plugin system, RAG engine, ingest pipeline, storage, auth, security | 159 |
-| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 27 |
-| `@opendocuments/cli` | 17 CLI commands (Commander.js) | 3 |
-| `@opendocuments/web` | React SPA with 7 pages (Vite + Tailwind) | -- |
-| `@opendocuments/client` | TypeScript SDK | 3 |
-| 8 model plugins | Ollama, OpenAI, Anthropic, Google, Grok, DeepSeek, Mistral, OpenAI-compatible | 41 |
+| `@opendocuments/core` | Plugin system, RAG engine, ingest pipeline, storage, auth, security | 424 |
+| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 63 |
+| `@opendocuments/cli` | 19 CLI commands (Commander.js) | 3 |
+| `@opendocuments/web` | React SPA with 9 pages (Vite + Tailwind) | -- |
+| `@opendocuments/client` | TypeScript SDK | 5 |
+| 5 model plugins | Ollama, OpenAI, Anthropic, Google, Grok | 42 |
 | 9 parser plugins | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured | 37 |
-| 8 connector plugins | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 38 |
+| 8 connector plugins | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 42 |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, test patterns, and plugin development guide.
 

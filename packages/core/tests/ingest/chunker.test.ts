@@ -167,6 +167,44 @@ describe('semanticChunkText', () => {
     }
   })
 
+  it('recognizes Korean sentence endings as semantic boundaries', async () => {
+    const text = '첫 번째 주제입니다.같은 주제의 보충 설명입니다.완전히 다른 결제 정책입니다.환불 규정도 여기에 포함됩니다.'
+    const embed = mockEmbedder([
+      [1, 0],
+      [0.95, 0.05],
+      [0, 1],
+      [0.05, 0.95],
+    ])
+
+    const chunks = await semanticChunkText(text, defaultOpts, embed, 0.5)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[0].content).toContain('첫 번째 주제입니다.')
+    expect(chunks[0].content).toContain('같은 주제의 보충 설명입니다.')
+    expect(chunks[1].content).toContain('완전히 다른 결제 정책입니다.')
+    expect(chunks[1].content).toContain('환불 규정도 여기에 포함됩니다.')
+  })
+
+  it('does not split inside common ASCII dotted terms', async () => {
+    const embeddedTexts: string[] = []
+    const embed = async (texts: string[]): Promise<EmbeddingResult> => {
+      embeddedTexts.push(...texts)
+      return { dense: texts.map(() => [1, 0]) }
+    }
+
+    await semanticChunkText(
+      'Node.js v20.1.0 is required for README.md parsing. Next sentence mentions e.g. examples.',
+      defaultOpts,
+      embed,
+      0.5,
+    )
+
+    expect(embeddedTexts).toEqual([
+      'Node.js v20.1.0 is required for README.md parsing.',
+      'Next sentence mentions e.g. examples.',
+    ])
+  })
+
   it('keeps semantically similar sentences together and splits on dissimilar ones', async () => {
     const text = 'Dogs are great pets. Cats are also wonderful animals. The stock market crashed today. Investors are worried about recession.'
     // First two sentences: similar direction, last two: different direction

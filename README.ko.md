@@ -308,32 +308,28 @@ parserFallbacks: {
 
 ### 클라우드 제공자
 
-| 제공자                | 모델                                                         | 임베딩                       | 적합한 용도                                                                    |
-| --------------------- | ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------ |
-| **OpenAI**            | GPT-5.4, GPT-5.4-mini, GPT-4.1, o3, o4-mini                  | text-embedding-3-small/large | 범용, 비전, 추론                                                               |
-| **Anthropic**         | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5         | -- (별도 제공자 사용)        | 긴 컨텍스트(1M), 코딩, 분석                                                    |
-| **Google**            | Gemini 3.1 Pro, Gemini 3.1 Flash Lite, Gemini 3.0 Deep Think | text-embedding-005           | 멀티모달, 다국어                                                               |
-| **xAI**               | Grok 4, Grok 4 Heavy, Grok 4.1 Fast                          | Grok embedding               | 실시간 지식, 코드                                                              |
-| **DeepSeek**          | DeepSeek-V3.2, DeepSeek-R1, DeepSeek-V4 (upcoming)           | -- (별도 제공자 사용)        | 비용 효율적 추론, 164K 컨텍스트                                                |
-| **Mistral**           | Mistral Small 4 (MoE), Large 2.1, Codestral, Pixtral         | mistral-embed (1024)         | 유럽 데이터 레지던시, 코딩, 비전                                               |
-| **OpenAI-compatible** | 모든 OpenAI 호환 엔드포인트                                  | 엔드포인트에 따라 다름       | vLLM, LM Studio, Together, Fireworks, Groq, DeepInfra, SiliconFlow, OpenRouter |
+| 제공자        | 모델                                                         | 임베딩                       | 적합한 용도                 |
+| ------------- | ------------------------------------------------------------ | ---------------------------- | --------------------------- |
+| **OpenAI**    | GPT-5.4, GPT-5.4-mini, GPT-4.1, o3, o4-mini                  | text-embedding-3-small/large | 범용, 비전, 추론            |
+| **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5         | -- (별도 제공자 사용)        | 긴 컨텍스트(1M), 코딩, 분석 |
+| **Google**    | Gemini 3.1 Pro, Gemini 3.1 Flash Lite, Gemini 3.0 Deep Think | text-embedding-005           | 멀티모달, 다국어            |
+| **xAI**       | Grok 4, Grok 4 Heavy, Grok 4.1 Fast                          | Grok embedding               | 실시간 지식, 코드           |
 
 ### 로컬 모델(Ollama)
 
-| 모델                       | 활성 파라미터       | 전체 파라미터 | 비전 | 한국어    | 적합한 용도                                     |
-| -------------------------- | ------------------- | ------------- | ---- | --------- | ----------------------------------------------- |
-| **Qwen 3.5 27B**           | 27B (dense)         | 27B           | Yes  | Excellent | 범용(32GB+ RAM)                                 |
-| **Qwen 3.5 9B**            | 9B (dense)          | 9B            | Yes  | Excellent | 중급 사양(16GB RAM)                             |
-| **Qwen 3.5-122B-A10B**     | 10B (MoE)           | 122B          | Yes  | Excellent | 고품질, 효율적                                  |
-| **Llama 4 Scout**          | 17B (MoE)           | 109B          | Yes  | Good      | 10M 컨텍스트 윈도우                             |
-| **Llama 4 Maverick**       | 17B (MoE)           | 400B          | Yes  | Good      | 최고 수준 오픈소스 품질                         |
-| **DeepSeek V3.2**          | 37B (MoE)           | 671B          | No   | Good      | 코딩, 추론                                      |
-| **Gemma 4**                | 27B / 12B / 4B / 1B | dense         | Yes  | Good      | 최신 Google 오픈 모델, 128K 컨텍스트, 140+ 언어 |
-| **Gemma 3 27B**            | 27B                 | 27B           | Yes  | Good      | 경량, 140+ 언어                                 |
-| **Gemma 3 4B**             | 4B                  | 4B            | Yes  | Good      | 저사양 머신(8GB RAM)                            |
-| **K-EXAONE**               | 23B (MoE)           | 236B          | No   | Best      | 한국어 특화                                     |
-| **EXAONE Deep 32B**        | 32B                 | 32B           | No   | Best      | 한국어 추론                                     |
-| **Phi-4 Reasoning Vision** | 15B                 | 15B           | Yes  | Fair      | 컴팩트 멀티모달                                 |
+| 모델                       | 활성 파라미터 | 전체 파라미터 | 비전 | 한국어    | 적합한 용도             |
+| -------------------------- | ------------- | ------------- | ---- | --------- | ----------------------- |
+| **Qwen 3.5 27B**           | 27B (dense)   | 27B           | Yes  | Excellent | 범용(32GB+ RAM)         |
+| **Qwen 3.5 9B**            | 9B (dense)    | 9B            | Yes  | Excellent | 중급 사양(16GB RAM)     |
+| **Qwen 3.5-122B-A10B**     | 10B (MoE)     | 122B          | Yes  | Excellent | 고품질, 효율적          |
+| **Llama 4 Scout**          | 17B (MoE)     | 109B          | Yes  | Good      | 10M 컨텍스트 윈도우     |
+| **Llama 4 Maverick**       | 17B (MoE)     | 400B          | Yes  | Good      | 최고 수준 오픈소스 품질 |
+| **DeepSeek V3.2**          | 37B (MoE)     | 671B          | No   | Good      | 코딩, 추론              |
+| **Gemma 3 27B**            | 27B           | 27B           | Yes  | Good      | 경량, 140+ 언어         |
+| **Gemma 3 4B**             | 4B            | 4B            | Yes  | Good      | 저사양 머신(8GB RAM)    |
+| **K-EXAONE**               | 23B (MoE)     | 236B          | No   | Best      | 한국어 특화             |
+| **EXAONE Deep 32B**        | 32B           | 32B           | No   | Best      | 한국어 추론             |
+| **Phi-4 Reasoning Vision** | 15B           | 15B           | Yes  | Fair      | 컴팩트 멀티모달         |
 
 ### 임베딩 모델
 
@@ -367,8 +363,11 @@ parserFallbacks: {
 | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **Chat**       | 스트리밍 답변, 출처 인용, 신뢰도 점수, 피드백 버튼과 함께 질문합니다. fast/balanced/precise 프로필을 전환할 수 있습니다. |
 | **Documents**  | 인덱싱된 문서 탐색, 드래그 앤 드롭 업로드, 문서 상세 보기, 휴지통/복원 방식의 soft-delete.                               |
+| **Collections** | 문서를 목적별 지식 모음으로 구성하고 컬렉션 멤버십을 관리합니다.                                                       |
 | **Connectors** | 커넥터 동기화 상태와 마지막 동기화 시간 확인.                                                                            |
+| **Activity**   | 런타임 상태, 모델 준비 상태, 인덱싱 활동을 확인합니다.                                                                    |
 | **Plugins**    | health indicator와 함께 설치된 플러그인 확인.                                                                            |
+| **Workspaces** | 워크스페이스 격리와 팀 모드 설정을 확인합니다.                                                                            |
 | **Settings**   | 다크/라이트 테마 전환, RAG 프로필 변경, 서버 버전 확인.                                                                  |
 | **Admin**      | 통계 대시보드, 검색 품질 메트릭, 페이지네이션된 쿼리 로그, 플러그인 상태, 커넥터 상태, 감사 로그.                        |
 
@@ -376,7 +375,7 @@ parserFallbacks: {
 
 ### 2. CLI
 
-파워 유저와 자동화를 위한 17개 명령어를 제공합니다.
+파워 유저와 자동화를 위한 19개 명령어를 제공합니다.
 
 ```bash
 # 질문하기
@@ -398,17 +397,9 @@ cat README.md | opendocuments ask "Summarize this" --stdin
 opendocuments ask "List endpoints" --json | jq '.sources[].sourcePath'
 
 # 관리
-opendocuments doctor                  # Health check (provider별 API ping)
+opendocuments doctor                  # Health check
 opendocuments auth create-key --name "ci-bot" --role member
 opendocuments export --output ./backup
-
-# 모델 관리
-opendocuments model list --suggestions          # 설치된 모델 + 추천 모델 표시
-opendocuments model install-ollama              # Ollama 원샷 설치(macOS/Linux)
-opendocuments model pull gemma3:27b bge-m3      # 디스크 공간 확인 후 batch pull
-opendocuments model set-key deepseek            # API 키 입력 + .env 저장
-opendocuments model test                        # 설정된 LLM에 round-trip test
-opendocuments model switch                      # 설정 파일 수정 없이 provider 변경
 ```
 
 ### 3. MCP 서버
@@ -616,22 +607,22 @@ console.log(result.confidence); // { level: 'high', score: 0.87 }
 git clone https://github.com/joungminsung/OpenDocuments.git
 cd OpenDocuments
 npm run setup    # Install + build (one command)
-npm run test     # 51 test suites, ~300 tests
+npm run test     # 51개 테스트 작업, 600개 이상 테스트
 npm run dev      # Watch mode
 ```
 
 ### 아키텍처
 
-| 패키지                  | 역할                                                                          | 테스트 |
-| ----------------------- | ----------------------------------------------------------------------------- | ------ |
-| `@opendocuments/core`   | 플러그인 시스템, RAG 엔진, ingest pipeline, storage, auth, security           | 159    |
-| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                             | 27     |
-| `@opendocuments/cli`    | 17개 CLI 명령어(Commander.js)                                                 | 3      |
-| `@opendocuments/web`    | 7개 페이지 React SPA(Vite + Tailwind)                                         | --     |
-| `@opendocuments/client` | TypeScript SDK                                                                | 3      |
-| 8개 모델 플러그인       | Ollama, OpenAI, Anthropic, Google, Grok, DeepSeek, Mistral, OpenAI-compatible | 41     |
-| 9개 파서 플러그인       | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured                 | 37     |
-| 8개 커넥터 플러그인     | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch        | 38     |
+| 패키지                  | 역할                                                                   | 테스트 |
+| ----------------------- | ---------------------------------------------------------------------- | ------ |
+| `@opendocuments/core`   | 플러그인 시스템, RAG 엔진, ingest pipeline, storage, auth, security    | 424    |
+| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                      | 63     |
+| `@opendocuments/cli`    | 19개 CLI 명령어(Commander.js)                                          | 3      |
+| `@opendocuments/web`    | 9개 페이지 React SPA(Vite + Tailwind)                                  | --     |
+| `@opendocuments/client` | TypeScript SDK                                                         | 5      |
+| 5개 모델 플러그인       | Ollama, OpenAI, Anthropic, Google, Grok                                | 42     |
+| 9개 파서 플러그인       | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured          | 37     |
+| 8개 커넥터 플러그인     | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 42     |
 
 규칙, 테스트 패턴, 플러그인 개발 가이드는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
@@ -642,7 +633,7 @@ npm run dev      # Watch mode
 | 가이드                                                       | 설명                                  |
 | ------------------------------------------------------------ | ------------------------------------- |
 | [빠른 시작](#빠른-시작)                                      | 5분 안에 설치 및 실행                 |
-| [아키텍처](docs/architecture.ko.md)                  | 패키지 구조, 데이터 흐름, 설계 결정   |
+| [아키텍처](docs/architecture.ko.md)                          | 패키지 구조, 데이터 흐름, 설계 결정   |
 | [Plugin API: Parsers](docs-site/plugins/parser-api.md)       | 커스텀 문서 파서 만들기               |
 | [Plugin API: Connectors](docs-site/plugins/connector-api.md) | 외부 데이터 소스 연결                 |
 | [Plugin API: Models](docs-site/plugins/model-api.md)         | 커스텀 AI 제공자 추가                 |

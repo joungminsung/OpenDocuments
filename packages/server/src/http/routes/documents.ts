@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { getWorkspaceServices } from '../workspace.js'
+import { requireScope } from '../middleware/auth.js'
 
 export function documentRoutes(ctx: AppContext) {
   const app = new Hono()
@@ -18,9 +19,10 @@ export function documentRoutes(ctx: AppContext) {
   })
 
   // Restore a deleted document
-  app.post('/api/v1/documents/:id/restore', (c) => {
+  app.post('/api/v1/documents/:id/restore', requireScope('document:write'), (c) => {
     const { store } = getWorkspaceServices(c, ctx)
     const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Document id required' }, 400)
     store.restoreDocument(id)
     return c.json({ restored: true })
   })
@@ -32,15 +34,17 @@ export function documentRoutes(ctx: AppContext) {
     return c.json(doc)
   })
 
-  app.delete('/api/v1/documents/:id', async (c) => {
+  app.delete('/api/v1/documents/:id', requireScope('document:write'), async (c) => {
     const { store } = getWorkspaceServices(c, ctx)
-    const doc = store.getDocument(c.req.param('id'))
+    const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Document id required' }, 400)
+    const doc = store.getDocument(id)
     if (!doc) return c.json({ error: 'Document not found' }, 404)
-    await store.softDeleteDocument(c.req.param('id'))
+    await store.softDeleteDocument(id)
     return c.json({ deleted: true })
   })
 
-  app.post('/api/v1/documents/upload', async (c) => {
+  app.post('/api/v1/documents/upload', requireScope('document:write'), async (c) => {
     const body = await c.req.parseBody()
     const file = body['file']
     if (!file || !(file instanceof File)) {

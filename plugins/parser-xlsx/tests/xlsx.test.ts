@@ -71,6 +71,27 @@ describe('XLSXParser', () => {
     expect(chunks).toHaveLength(2)
   })
 
+  it('uses token-aware row groups for wide spreadsheets', async () => {
+    const XLSX = await import('xlsx')
+    ;(XLSX.read as any).mockReturnValue({
+      SheetNames: ['Wide'],
+      Sheets: { Wide: {} },
+    })
+    ;(XLSX.utils.sheet_to_json as any).mockReturnValue([
+      ['ID', 'Description'],
+      ...Array.from({ length: 12 }, (_, i) => [`row-${i}`, 'wide value '.repeat(120)]),
+    ])
+
+    const chunks: any[] = []
+    for await (const chunk of parser.parse({ sourceId: 'test', title: 'wide.xlsx', content: Buffer.from('fake') })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.every(chunk => chunk.content.includes('ID | Description'))).toBe(true)
+    expect(chunks.every(chunk => chunk.metadata.sheet === 'Wide')).toBe(true)
+  })
+
   it('reports healthy', async () => {
     expect((await parser.healthCheck()).healthy).toBe(true)
   })

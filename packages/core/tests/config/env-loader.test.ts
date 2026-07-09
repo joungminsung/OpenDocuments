@@ -294,6 +294,12 @@ describe('buildConfigFromEnv', () => {
       expect(result?.telemetry?.enabled).toBe(true)
     })
 
+    it('maps OPENDOCUMENTS_TELEMETRY_ENDPOINT', () => {
+      setEnv({ OPENDOCUMENTS_TELEMETRY_ENDPOINT: 'https://telemetry.example/events' })
+      const result = buildConfigFromEnv()
+      expect(result?.telemetry?.endpoint).toBe('https://telemetry.example/events')
+    })
+
     it('maps OPENDOCUMENTS_TELEMETRY_ENABLED = false', () => {
       setEnv({ OPENDOCUMENTS_TELEMETRY_ENABLED: 'false' })
       const result = buildConfigFromEnv()
@@ -312,6 +318,7 @@ describe('buildConfigFromEnv', () => {
         OPENDOCUMENTS_RAG_PROFILE: 'precise',
         OPENDOCUMENTS_STORAGE_DB: 'postgres',
         OPENDOCUMENTS_TELEMETRY_ENABLED: 'true',
+        OPENDOCUMENTS_TELEMETRY_ENDPOINT: 'https://telemetry.example/events',
       })
       const result = buildConfigFromEnv()
       expect(result).not.toBeNull()
@@ -323,6 +330,7 @@ describe('buildConfigFromEnv', () => {
       expect(result?.rag?.profile).toBe('precise')
       expect(result?.storage?.db).toBe('postgres')
       expect(result?.telemetry?.enabled).toBe(true)
+      expect(result?.telemetry?.endpoint).toBe('https://telemetry.example/events')
     })
   })
 })

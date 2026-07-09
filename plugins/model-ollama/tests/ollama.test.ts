@@ -131,6 +131,8 @@ describe('OllamaModelPlugin', () => {
       tokens.push(token)
     }
     expect(tokens).toEqual(['Hello ', 'world'])
+    const request = vi.mocked(fetch).mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(request.body))).toMatchObject({ think: false })
   })
 
   it('generate uses chat endpoint when systemPrompt is provided', async () => {
@@ -157,6 +159,8 @@ describe('OllamaModelPlugin', () => {
       'http://localhost:11434/api/chat',
       expect.objectContaining({ method: 'POST' }),
     )
+    const request = mockFetch.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(request.body))).toMatchObject({ think: false })
   })
 
   it('generate throws on HTTP error', async () => {

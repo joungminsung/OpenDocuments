@@ -39,46 +39,60 @@ export async function streamChat(
   let buffer = ''
 
   try {
+    const handleBlock = (block: string) => {
+      let eventType = ''
+      const dataLines: string[] = []
+
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          dataLines.push(line.slice(6))
+        }
+      }
+
+      if (!eventType || dataLines.length === 0) return
+
+      const data = dataLines.join('\n').trim()
+      try {
+        const parsed = JSON.parse(data)
+        switch (eventType) {
+          case 'chunk':
+            callbacks.onChunk(parsed as string)
+            break
+          case 'sources':
+            callbacks.onSources(parsed as SearchResult[])
+            break
+          case 'confidence':
+            callbacks.onConfidence?.(parsed as ConfidenceResult)
+            break
+          case 'done':
+            callbacks.onDone(parsed)
+            break
+          case 'error':
+            callbacks.onError(typeof parsed === 'object' && parsed.error ? parsed.error : 'Unknown streaming error')
+            break
+        }
+      } catch (e) {
+        console.warn('[SSE] Failed to parse data:', data?.substring(0, 100))
+      }
+    }
+
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      let eventType = ''
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim()
-        } else if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim()
-          try {
-            const parsed = JSON.parse(data)
-            switch (eventType) {
-              case 'chunk':
-                callbacks.onChunk(parsed as string)
-                break
-              case 'sources':
-                callbacks.onSources(parsed as SearchResult[])
-                break
-              case 'confidence':
-                callbacks.onConfidence?.(parsed as ConfidenceResult)
-                break
-              case 'done':
-                callbacks.onDone(parsed)
-                break
-              case 'error':
-                callbacks.onError(typeof parsed === 'object' && parsed.error ? parsed.error : 'Unknown streaming error')
-                break
-            }
-          } catch (e) {
-            console.warn('[SSE] Failed to parse data:', data?.substring(0, 100))
-          }
-          eventType = ''
-        }
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        handleBlock(block)
+        boundary = buffer.indexOf('\n\n')
       }
     }
+
+    if (buffer.trim()) handleBlock(buffer)
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       callbacks.onError((err as Error).message)

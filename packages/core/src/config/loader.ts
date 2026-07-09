@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { createJiti } from 'jiti'
+import createJiti from 'jiti'
 import { configSchema, type OpenDocumentsConfig } from './schema.js'
 import { DEFAULT_CONFIG } from './defaults.js'
 import { buildConfigFromEnv } from './env-loader.js'

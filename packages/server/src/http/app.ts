@@ -13,9 +13,11 @@ import { tagRoutes } from './routes/tags.js'
 import { collectionRoutes } from './routes/collections.js'
 import { pluginRoutes } from './routes/plugins.js'
 import { authRoutes } from './routes/auth-routes.js'
+import { workbenchRoutes } from './routes/workbench.js'
 import { getSharedConversationHandler } from './routes/conversations.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimit } from './middleware/rate-limit.js'
+import { isSecureRequest } from './request-security.js'
 import type { AppContext } from '../bootstrap.js'
 import { generateWidgetScript } from '../widget/widget.js'
 
@@ -26,18 +28,21 @@ export interface AppOptions {
 export function createApp(ctx: AppContext, opts?: AppOptions) {
   const app = new Hono()
 
-  // CORS: Allows localhost origins by default for personal mode development.
-  // In production team mode, configure allowed origins in opendocuments.config.ts:
-  //   security: { access: { allowedOrigins: ['https://your-domain.com'] } }
-  // For now, reverse proxy (nginx) CORS headers are recommended for production.
+  // Public liveness probe. It intentionally exposes no configuration or
+  // dependency state and must remain available in authenticated team mode.
+  app.get('/healthz', (c) => c.json({ status: 'ok' }))
+
+  // CORS: localhost is allowed for local web development; production origins
+  // are configured in security.transport.allowedOrigins.
   app.use('*', cors({
     origin: (origin) => {
-      // Allow localhost on any port
       if (!origin) return '*'  // same-origin requests
       if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
         return origin
       }
-      // TODO: Read additional origins from config
+      if (ctx.config.security.transport.allowedOrigins.includes(origin)) {
+        return origin
+      }
       return null  // reject other origins
     },
   }))
@@ -48,11 +53,30 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   app.get('/shared/:token', sharedConversationHandler)
   app.get('/api/v1/shared/:token', sharedConversationHandler)
 
+  app.use('/api/*', async (c, next) => {
+    const transport = ctx.config.security.transport
+    if (ctx.config.mode !== 'team' || !transport.enforceHTTPS) {
+      await next()
+      return
+    }
+
+    if (isSecureRequest(c, transport.proxy)) {
+      await next()
+      return
+    }
+
+    return c.json({ error: 'HTTPS required' }, 426)
+  })
+
   // Auth middleware: personal mode passes through, team mode requires X-API-Key
   app.use('/api/*', authMiddleware(ctx))
 
   // Rate limiting: 60 requests per minute per API key / IP
-  app.use('/api/*', rateLimit({ max: 60, windowMs: 60000 }))
+  app.use('/api/*', rateLimit({
+    max: 60,
+    windowMs: 60000,
+    trustedProxy: ctx.config.security.transport.proxy,
+  }))
 
   // Body size limit (50MB)
   const MAX_BODY_SIZE = 50 * 1024 * 1024
@@ -65,13 +89,12 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   })
 
   app.get('/widget.js', (c) => {
-    // Check Referer against config.security.access.widgetAllowedDomains
     const referer = c.req.header('referer')
-    const allowedDomains = (ctx.config as any)?.security?.access?.widgetAllowedDomains as string[] | undefined
+    const allowedDomains = ctx.config.security.transport.widgetAllowedDomains
     if (allowedDomains && allowedDomains.length > 0 && referer) {
       try {
         const refOrigin = new URL(referer).origin
-        if (!allowedDomains.some(d => refOrigin === d || refOrigin === `https://${d}` || refOrigin === `http://${d}`)) {
+        if (!allowedDomains.some((domain) => originMatchesDomain(refOrigin, domain))) {
           return c.text('Forbidden', 403)
         }
       } catch {}
@@ -87,6 +110,7 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
   app.route('/', tagRoutes(ctx))
   app.route('/', collectionRoutes(ctx))
   app.route('/', pluginRoutes(ctx))
+  app.route('/', workbenchRoutes(ctx))
 
   app.onError((err, c) => {
     console.error('Unhandled error:', err.message)
@@ -149,8 +173,9 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
     })
   }
 
-  // TODO(Phase 2): Add WebSocket endpoint at /api/v1/ws/chat
-  // Currently covered by SSE streaming at POST /api/v1/chat/stream
-
   return app
+}
+
+function originMatchesDomain(origin: string, domain: string): boolean {
+  return origin === domain || origin === `https://${domain}` || origin === `http://${domain}`
 }

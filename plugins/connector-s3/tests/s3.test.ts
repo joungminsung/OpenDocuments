@@ -92,6 +92,38 @@ describe('S3Connector', () => {
     vi.unstubAllGlobals()
   })
 
+  it('signs private S3 requests with AWS Signature V4 credentials', async () => {
+    const privateConnector = new S3Connector()
+    await privateConnector.setup({
+      config: {
+        provider: 's3',
+        bucket: 'private-docs',
+        region: 'us-west-2',
+        accessKeyId: 'AKIA_TEST',
+        secretAccessKey: 'secret',
+      },
+      dataDir: '/tmp',
+      log: console as any,
+    })
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => 'private document',
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await privateConnector.fetch({
+      sourceId: 'docs/private.md',
+      sourcePath: 's3://private-docs/docs/private.md',
+    })
+
+    const headers = mockFetch.mock.calls[0][1].headers
+    expect(headers.Authorization).toContain('AWS4-HMAC-SHA256')
+    expect(headers.Authorization).toContain('Credential=AKIA_TEST/')
+    expect(headers.Authorization).toContain('SignedHeaders=')
+    expect(headers['x-amz-date']).toMatch(/^\d{8}T\d{6}Z$/)
+    vi.unstubAllGlobals()
+  })
+
   it('handles GCS provider with JSON list API', async () => {
     const gcsConnector = new S3Connector()
     await gcsConnector.setup({

@@ -61,6 +61,7 @@ export class OllamaModelPlugin implements ModelPlugin {
       model: this.llmModel,
       prompt,
       stream: true,
+      think: false,
       options,
     }
 
@@ -110,6 +111,7 @@ export class OllamaModelPlugin implements ModelPlugin {
         { role: 'user', content: prompt },
       ],
       stream: true,
+      think: false,
       options,
     }
 

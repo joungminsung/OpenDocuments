@@ -23,7 +23,8 @@ export class ConnectorManager {
     private store: DocumentStore,
     private eventBus: EventBus,
     private db: DB,
-    private workspaceId: string = 'default'
+    private workspaceId: string = 'default',
+    private syncConcurrency: number = 4
   ) {}
 
   /**
@@ -32,18 +33,39 @@ export class ConnectorManager {
   registerConnector(plugin: ConnectorPlugin, config: {
     name?: string
     syncIntervalSeconds?: number
+    autoSync?: boolean
+    config?: Record<string, unknown>
   } = {}): string {
-    const connectorId = randomUUID()
     const name = config.name || plugin.name
-
-    // Save connector record to DB
-    this.db.run(
-      `INSERT INTO connectors (id, workspace_id, name, type, config, sync_interval_seconds, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
-      [connectorId, this.workspaceId, name, plugin.name, '{}', config.syncIntervalSeconds || 300, new Date().toISOString()]
+    const serializedConfig = JSON.stringify(config.config || {})
+    const existing = this.db.get<{ id: string }>(
+      `SELECT id FROM connectors
+       WHERE workspace_id = ? AND name = ? AND type = ? AND deleted_at IS NULL
+       ORDER BY created_at DESC LIMIT 1`,
+      [this.workspaceId, name, plugin.name]
     )
 
+    const connectorId = existing?.id || randomUUID()
+
+    if (existing) {
+      this.db.run(
+        `UPDATE connectors
+         SET config = ?, sync_interval_seconds = ?, status = 'active', error_message = NULL
+         WHERE id = ?`,
+        [serializedConfig, config.syncIntervalSeconds || 300, connectorId]
+      )
+    } else {
+      this.db.run(
+        `INSERT INTO connectors (id, workspace_id, name, type, config, sync_interval_seconds, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+        [connectorId, this.workspaceId, name, plugin.name, serializedConfig, config.syncIntervalSeconds || 300, new Date().toISOString()]
+      )
+    }
+
     this.connectors.set(plugin.name, { plugin, connectorId })
+    if (config.autoSync) {
+      this.startPeriodicSync(plugin.name, config.syncIntervalSeconds || 300)
+    }
     return connectorId
   }
 
@@ -66,7 +88,9 @@ export class ConnectorManager {
     this.eventBus.emit('connector:sync:started', { connectorId })
 
     try {
-      for await (const discovered of plugin.discover()) {
+      const concurrency = Math.max(1, this.syncConcurrency)
+      const inFlight = new Set<Promise<void>>()
+      const syncOne = async (discovered: DiscoveredDocument): Promise<void> => {
         result.documentsDiscovered++
         this.eventBus.emit('document:discovered', { documentId: discovered.sourceId, source: plugin.name })
 
@@ -75,7 +99,7 @@ export class ConnectorManager {
           const existing = this.store.getDocumentBySourcePath(discovered.sourcePath)
           if (existing && discovered.contentHash && !this.store.hasContentChanged(existing.id, discovered.contentHash)) {
             result.documentsSkipped++
-            continue
+            return
           }
 
           // Fetch full content
@@ -101,6 +125,17 @@ export class ConnectorManager {
           result.errors.push(`${discovered.title}: ${(err as Error).message}`)
         }
       }
+
+      for await (const discovered of plugin.discover()) {
+        const task = syncOne(discovered).finally(() => {
+          inFlight.delete(task)
+        })
+        inFlight.add(task)
+        if (inFlight.size >= concurrency) {
+          await Promise.race(inFlight)
+        }
+      }
+      await Promise.all(inFlight)
     } catch (err) {
       result.errors.push(`Discovery failed: ${(err as Error).message}`)
     }
@@ -164,14 +199,22 @@ export class ConnectorManager {
   /**
    * List registered connectors with their DB status.
    */
-  listConnectors(): { name: string; connectorId: string; status: string; lastSyncedAt: string | null }[] {
+  listConnectors(): { name: string; connectorId: string; type: string; status: string; lastSyncedAt: string | null; syncIntervalSeconds: number | null; repo?: string }[] {
     return Array.from(this.connectors.entries()).map(([name, entry]) => {
-      const row = this.db.get<any>('SELECT status, last_synced_at FROM connectors WHERE id = ?', [entry.connectorId])
+      const row = this.db.get<any>('SELECT name, type, config, status, last_synced_at, sync_interval_seconds FROM connectors WHERE id = ?', [entry.connectorId])
+      let repo: string | undefined
+      try {
+        const parsed = JSON.parse(row?.config || '{}') as { repo?: unknown }
+        if (typeof parsed.repo === 'string') repo = parsed.repo
+      } catch {}
       return {
-        name,
+        name: row?.name || name,
         connectorId: entry.connectorId,
+        type: row?.type || name,
         status: row?.status || 'unknown',
         lastSyncedAt: row?.last_synced_at || null,
+        syncIntervalSeconds: row?.sync_interval_seconds || null,
+        repo,
       }
     })
   }

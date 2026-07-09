@@ -21,6 +21,7 @@ describe('IngestPipeline', () => {
   let vectorDb: VectorDB
   let tempDir: string
   let pipeline: IngestPipeline
+  let store: DocumentStore
 
   beforeEach(async () => {
     db = createSQLiteDB(':memory:')
@@ -36,7 +37,7 @@ describe('IngestPipeline', () => {
     await registry.register(createMockEmbedder(), ctx)
     await registry.register(new MarkdownParser(), ctx)
 
-    const store = new DocumentStore(db, vectorDb, 'ws-1')
+    store = new DocumentStore(db, vectorDb, 'ws-1')
     await store.initialize(3)
 
     pipeline = new IngestPipeline({ store, registry, eventBus, middleware, embeddingDimensions: 3 })
@@ -103,6 +104,82 @@ describe('IngestPipeline', () => {
       title: 'test.md', content, sourceType: 'local', sourcePath: '/docs/test.md', fileType: '.md',
     })
     expect(second.status).toBe('skipped')
+  })
+
+  it('reindexes changed documents without replacing the document row', async () => {
+    const first = await pipeline.ingest({
+      title: 'test.md',
+      content: '# Test\n\nOriginal content.',
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.md',
+    })
+    expect(first.status).toBe('indexed')
+
+    db.run("INSERT INTO tags (id, workspace_id, name) VALUES ('tag-1', 'ws-1', 'important')")
+    db.run('INSERT INTO document_tags (document_id, tag_id) VALUES (?, ?)', [first.documentId, 'tag-1'])
+
+    const second = await pipeline.ingest({
+      title: 'renamed.md',
+      content: '# Test\n\nUpdated content.',
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.md',
+    })
+
+    expect(second.status).toBe('indexed')
+    expect(second.documentId).toBe(first.documentId)
+    const docs = db.all('SELECT id, title FROM documents WHERE source_path = ? AND deleted_at IS NULL', ['/docs/test.md'])
+    expect(docs).toHaveLength(1)
+    expect(docs[0].title).toBe('renamed.md')
+    const tagRows = db.all('SELECT * FROM document_tags WHERE document_id = ?', [first.documentId])
+    expect(tagRows).toHaveLength(1)
+  })
+
+  it('does not return stale chunks after a failed reindex', async () => {
+    const first = await pipeline.ingest({
+      title: 'test.md',
+      content: '# Test\n\nOriginal searchable content.',
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.md',
+    })
+    expect(first.status).toBe('indexed')
+
+    const failed = await pipeline.ingest({
+      title: 'test.unsupported',
+      content: 'Changed content that cannot be parsed.',
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.unsupported',
+    })
+    expect(failed.status).toBe('error')
+    expect(store.getDocument(first.documentId)?.status).toBe('error')
+
+    await expect(store.searchFTS('Original', 10)).resolves.toEqual([])
+    await expect(store.searchChunks([0.1, 0.2, 0.3], 10)).resolves.toEqual([])
+  })
+
+  it('force reindexes unchanged documents without replacing the document row', async () => {
+    const content = '# Test\n\nSame content.'
+    const first = await pipeline.ingest({
+      title: 'test.md',
+      content,
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.md',
+    })
+
+    const second = await pipeline.ingest({
+      title: 'test.md',
+      content,
+      sourceType: 'local',
+      sourcePath: '/docs/test.md',
+      fileType: '.md',
+    }, { force: true })
+
+    expect(second.status).toBe('indexed')
+    expect(second.documentId).toBe(first.documentId)
   })
 
   it('uses semanticChunkText when an embedding model is registered', async () => {

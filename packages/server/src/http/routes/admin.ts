@@ -2,6 +2,62 @@ import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { requireRole, requireScope } from '../middleware/auth.js'
 import { resolveRequestWorkspaceId } from '../workspace.js'
+import type { ConnectorPlugin, PluginContext } from 'opendocuments-core'
+
+const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
+const GITHUB_BRANCH_PATTERN = /^[A-Za-z0-9._/-]+$/
+
+interface GitHubConnectorRequest {
+  repo?: string
+  token?: string
+  branch?: string
+  paths?: string[]
+  syncInterval?: number
+}
+
+interface GitHubConnectorConfig {
+  type: 'github'
+  repo: string
+  token?: string
+  branch: string
+  paths?: string[]
+  syncInterval?: number
+}
+
+function sanitizeConnector(connector: {
+  name: string
+  connectorId: string
+  type: string
+  status: string
+  lastSyncedAt: string | null
+  syncIntervalSeconds?: number | null
+  repo?: string
+}) {
+  return connector
+}
+
+async function createGitHubConnector(config: GitHubConnectorConfig, dataDir: string): Promise<ConnectorPlugin> {
+  const packageName = '@opendocuments/connector-github'
+  const mod = await import(/* @vite-ignore */ packageName)
+  const ConnectorClass = mod.default
+  if (typeof ConnectorClass !== 'function') {
+    throw new Error('GitHub connector package does not export a connector class')
+  }
+
+  const connector = new ConnectorClass() as ConnectorPlugin
+  const connectorCtx: PluginContext = {
+    config: config as unknown as Record<string, unknown>,
+    dataDir,
+    log: {
+      ok: (msg: string) => console.log(`[ok] ${msg}`),
+      fail: (msg: string) => console.error(`[fail] ${msg}`),
+      info: (msg: string) => console.log(`[info] ${msg}`),
+      wait: (msg: string) => console.log(`[wait] ${msg}`),
+    },
+  }
+  await connector.setup(connectorCtx)
+  return connector
+}
 
 export function adminRoutes(ctx: AppContext) {
   const app = new Hono()
@@ -238,6 +294,77 @@ export function adminRoutes(ctx: AppContext) {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const connectors = ctx.forWorkspace(workspaceId).connectorManager.listConnectors()
     return c.json({ connectors })
+  })
+
+  app.post('/api/v1/admin/connectors/github', requireRole('admin'), requireScope('admin'), async (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const body = (await c.req.json<GitHubConnectorRequest>().catch(() => ({}))) as GitHubConnectorRequest
+    const repo = body.repo?.trim()
+    const branch = body.branch?.trim() || 'main'
+    const token = body.token?.trim() || undefined
+    const paths = Array.isArray(body.paths)
+      ? body.paths.map(p => p.trim()).filter(Boolean)
+      : undefined
+    const syncInterval = body.syncInterval && Number.isFinite(body.syncInterval)
+      ? Math.max(60, Math.floor(body.syncInterval))
+      : 300
+
+    if (!repo || !GITHUB_REPO_PATTERN.test(repo)) {
+      return c.json({ error: 'GitHub repo must be in owner/repo format.' }, 400)
+    }
+    if (!GITHUB_BRANCH_PATTERN.test(branch)) {
+      return c.json({ error: 'GitHub branch contains invalid characters.' }, 400)
+    }
+
+    const config: GitHubConnectorConfig = {
+      type: 'github',
+      repo,
+      branch,
+      ...(token ? { token } : {}),
+      ...(paths && paths.length > 0 ? { paths } : {}),
+      syncInterval,
+    }
+
+    try {
+      const connector = await createGitHubConnector(config, ctx.config.storage.dataDir)
+      const health = await connector.healthCheck?.()
+      if (health && !health.healthy) {
+        return c.json({ error: `GitHub connection failed: ${health.message || 'unhealthy'}` }, 400)
+      }
+
+      const manager = ctx.forWorkspace(workspaceId).connectorManager
+      const connectorId = manager.registerConnector(connector, {
+        name: 'github',
+        syncIntervalSeconds: syncInterval,
+        autoSync: true,
+        config: config as unknown as Record<string, unknown>,
+      })
+      const registered = manager.listConnectors().find(conn => conn.connectorId === connectorId)
+
+      return c.json({
+        connector: registered ? sanitizeConnector(registered) : {
+          name: 'github',
+          connectorId,
+          type: connector.name,
+          status: 'active',
+          lastSyncedAt: null,
+          repo,
+        },
+        health: health || { healthy: true },
+      }, 201)
+    } catch (err) {
+      return c.json({ error: `Failed to configure GitHub connector: ${(err as Error).message}` }, 500)
+    }
+  })
+
+  app.post('/api/v1/admin/connectors/github/sync', requireRole('admin'), requireScope('admin'), async (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    try {
+      const result = await ctx.forWorkspace(workspaceId).connectorManager.syncConnector('@opendocuments/connector-github')
+      return c.json({ result })
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 404)
+    }
   })
 
   return app

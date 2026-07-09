@@ -1,8 +1,36 @@
 import { Command } from 'commander'
-import { log, discoverFiles, FileWatcher } from 'opendocuments-core'
+import { log, discoverFiles, FileWatcher, type FileChange } from 'opendocuments-core'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 import { readFileSync } from 'node:fs'
 import { extname, basename, resolve } from 'node:path'
+
+type FileWatcherCtor = new (
+  dir: string,
+  extensions: Set<string>,
+  onChange: (changes: FileChange[]) => void | Promise<void>,
+  options?: number | { pollIntervalMs?: number; ignoreInitial?: boolean; stableMs?: number }
+) => FileWatcher
+
+interface ForceIngestPipeline {
+  ingest(
+    input: {
+      title: string
+      content: string | Buffer
+      sourceType: string
+      sourcePath: string
+      fileType?: string
+    },
+    options?: { force?: boolean }
+  ): Promise<{ documentId: string; chunks: number; status: 'indexed' | 'skipped' | 'error' }>
+}
+
+const WATCH_EXTENSIONS = new Set([
+  '.md', '.mdx', '.txt',
+  '.json', '.yaml', '.yml', '.toml',
+  '.zip', '.pdf', '.docx', '.pptx',
+  '.xlsx', '.xls', '.csv',
+  '.html', '.htm', '.ipynb', '.eml',
+])
 
 export function indexCommand() {
   return new Command('index')
@@ -14,6 +42,8 @@ export function indexCommand() {
       const ctx = await getContext()
       const absPath = resolve(inputPath)
       const textExtensions = new Set(['.md', '.mdx', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv', '.html', '.htm', '.ipynb'])
+      const readContent = (file: string): string | Buffer =>
+        textExtensions.has(extname(file)) ? readFileSync(file, 'utf-8') : readFileSync(file)
       try {
         log.heading('Indexing')
         let files: string[]
@@ -32,21 +62,14 @@ export function indexCommand() {
         }
         if (files.length === 0) { log.fail('No supported files found'); return }
         log.info(`Found ${files.length} file(s)`)
+        const pipeline = ctx.pipeline as unknown as ForceIngestPipeline
         for (const file of files) {
-          if (opts.reindex) {
-            // Delete existing document to force reindex (bypass content hash check)
-            const docs = ctx.store.listDocuments()
-            const existing = docs.find(d => d.source_path === file)
-            if (existing) {
-              await ctx.store.hardDeleteDocument(existing.id)
-            }
-          }
           const ext = extname(file)
-          const content = textExtensions.has(ext) ? readFileSync(file, 'utf-8') : readFileSync(file)
-          const result = await ctx.pipeline.ingest({
+          const content = readContent(file)
+          const result = await pipeline.ingest({
             title: basename(file), content, sourceType: 'local',
             sourcePath: file, fileType: extname(file),
-          })
+          }, { force: Boolean(opts.reindex) })
           if (result.status === 'indexed') log.ok(`${basename(file)} (${result.chunks} chunks)`)
           else if (result.status === 'skipped') log.info(`${basename(file)} (unchanged)`)
           else log.fail(`${basename(file)} (error)`)
@@ -55,23 +78,33 @@ export function indexCommand() {
         // After the normal indexing loop, if --watch:
         if (opts.watch) {
           log.info('Watching for changes... (Ctrl+C to stop)')
-          const watcher = new FileWatcher(
+          const Watcher = FileWatcher as FileWatcherCtor
+          const watcher = new Watcher(
             absPath,
-            new Set(['.md', '.mdx', '.txt', '.pdf', '.docx', '.xlsx', '.html', '.ipynb', '.eml']),
+            WATCH_EXTENSIONS,
             async (changes) => {
               for (const change of changes) {
                 if (change.type === 'deleted') {
-                  log.info(`Deleted: ${change.path}`)
+                  const existing = ctx.store.getDocumentBySourcePath(change.path)
+                  if (existing) {
+                    await ctx.store.hardDeleteDocument(existing.id)
+                    log.ok(`deleted: ${basename(change.path)}`)
+                  } else {
+                    log.info(`deleted: ${basename(change.path)} (not indexed)`)
+                  }
                 } else {
-                  const content = readFileSync(change.path, textExtensions.has(extname(change.path)) ? 'utf-8' : undefined as any)
+                  const content = readContent(change.path)
                   const result = await ctx.pipeline.ingest({
                     title: basename(change.path), content, sourceType: 'local',
                     sourcePath: change.path, fileType: extname(change.path),
                   })
-                  log.ok(`${change.type}: ${basename(change.path)} (${result.chunks} chunks)`)
+                  if (result.status === 'indexed') log.ok(`${change.type}: ${basename(change.path)} (${result.chunks} chunks)`)
+                  else if (result.status === 'skipped') log.info(`${change.type}: ${basename(change.path)} (unchanged)`)
+                  else log.fail(`${change.type}: ${basename(change.path)} (error)`)
                 }
               }
-            }
+            },
+            { ignoreInitial: true }
           )
           watcher.start()
           // Keep process alive

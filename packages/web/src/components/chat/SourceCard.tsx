@@ -1,24 +1,37 @@
 import type { SearchResult } from '../../lib/types'
+import { ExternalLink, FileText } from 'lucide-react'
 
 interface Props {
   source: SearchResult
+  onOpen: (source: SearchResult) => void
+  openLabel: string
 }
 
-export function SourceCard({ source }: Props) {
+export function SourceCard({ source, onOpen, openLabel }: Props) {
   const filename = source.sourcePath.split('/').pop() || source.sourcePath
+  const sourceHost = source.sourcePath.includes('://')
+    ? source.sourcePath.split('://')[1]?.split('/')[0]
+    : source.sourceType || 'indexed source'
+  const score = Math.max(0, Math.min(100, Math.round(source.score * 100)))
 
   return (
-    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
-      <span className="text-primary-500">&#x1F4CE;</span>
-      <span className="font-medium truncate">{filename}</span>
-      <span className="text-gray-300 dark:text-gray-600">|</span>
-      <span>{(source.score * 100).toFixed(0)}% match</span>
-      {source.headingHierarchy.length > 0 && (
-        <>
-          <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className="truncate">{source.headingHierarchy[source.headingHierarchy.length - 1]}</span>
-        </>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => onOpen(source)}
+      className="flex min-w-0 items-center gap-2.5 rounded-md border border-transparent p-2 text-left transition-colors hover:border-blue-100 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+      title={`${openLabel}: ${source.sourcePath}`}
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-blue-100 bg-white text-blue-600">
+        <FileText size={17} strokeWidth={2} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-semibold text-slate-900">{filename}</p>
+        <p className="truncate text-[11px] text-slate-500">{sourceHost}</p>
+      </div>
+      <span className="flex h-5 min-w-[36px] shrink-0 items-center justify-center rounded bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-500">
+        {score}%
+      </span>
+      <ExternalLink size={13} className="shrink-0 text-slate-300" />
+    </button>
   )
 }

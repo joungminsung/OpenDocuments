@@ -21,8 +21,12 @@ export const securitySchema = z.object({
   }).default({}),
   transport: z.object({
     enforceHTTPS: z.boolean().default(true),
+    // Comma-separated reverse-proxy IPs or CIDR ranges. Forwarded headers are
+    // ignored unless the direct TCP peer matches this allowlist.
     proxy: z.string().optional(),
     allowedEndpoints: z.array(z.string()).default([]),
+    allowedOrigins: z.array(z.string()).default([]),
+    widgetAllowedDomains: z.array(z.string()).default([]),
   }).default({}),
   storage: z.object({
     encryptAtRest: z.boolean().default(false),
@@ -78,6 +82,7 @@ export const configSchema = z.object({
   }).default({}),
   telemetry: z.object({
     enabled: z.boolean().default(false),
+    endpoint: z.string().url().optional(),
   }).default({}),
   storage: z.object({
     db: z.enum(['sqlite', 'postgres']).default('sqlite'),
