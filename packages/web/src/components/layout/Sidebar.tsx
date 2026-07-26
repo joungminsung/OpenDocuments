@@ -29,17 +29,20 @@ const NAV_ITEMS: { id: PageId; labelKey: string; icon: ReactNode }[] = [
 ]
 
 function NavButton({ item, active, locale, onClick }: { item: { id: PageId; labelKey: string; icon: ReactNode }; active: boolean; locale: Locale; onClick: () => void }) {
+  const label = tr(locale, item.labelKey)
   return (
     <button
       onClick={onClick}
-      className={`flex h-11 w-full items-center gap-3 rounded-lg px-4 text-[14px] font-medium transition-colors ${
+      className={`flex h-11 w-full items-center justify-center gap-3 rounded-lg px-0 text-[14px] font-medium transition-colors lg:justify-start lg:px-4 ${
         active
           ? 'bg-blue-50 text-blue-600'
           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
       }`}
+      aria-label={label}
+      title={label}
     >
       <span className={active ? 'text-blue-600' : 'text-slate-500'}>{item.icon}</span>
-      {tr(locale, item.labelKey)}
+      <span className="hidden lg:inline">{label}</span>
     </button>
   )
 }
@@ -171,19 +174,21 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-[264px] shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="flex h-[72px] items-center gap-3 px-5">
+    <aside className="flex h-screen w-[72px] shrink-0 flex-col border-r border-slate-200 bg-white lg:w-[264px]">
+      <div className="flex h-[72px] items-center justify-center gap-3 px-2 lg:justify-start lg:px-5">
         <LogoMark />
-        <h1 className="text-[21px] font-semibold tracking-[-0.01em] text-slate-950">OpenDocuments</h1>
+        <h1 className="hidden text-[21px] font-semibold tracking-[-0.01em] text-slate-950 lg:block">OpenDocuments</h1>
       </div>
 
       <nav className="px-2 pt-3">
         <button
           onClick={handleNewChat}
-          className="mb-2 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-[14px] font-medium text-white shadow-sm hover:bg-blue-700"
+          className="mb-2 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-0 text-[14px] font-medium text-white shadow-sm hover:bg-blue-700 lg:px-4"
+          aria-label={t('nav.newChat')}
+          title={t('nav.newChat')}
         >
           <Plus size={16} strokeWidth={2} />
-          {t('nav.newChat')}
+          <span className="hidden lg:inline">{t('nav.newChat')}</span>
         </button>
         <div className="space-y-1">
           {NAV_ITEMS.map((item) => (
@@ -198,7 +203,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="mt-8 min-h-0 flex-1 px-5">
+      <div className="mt-8 hidden min-h-0 flex-1 px-5 lg:block">
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('nav.recent')}</p>
           <select
@@ -258,15 +263,17 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="mt-auto px-5 pb-6">
+      <div className="mt-auto px-2 pb-6 lg:px-5">
         <button
           onClick={() => setPage('settings')}
-          className={`flex h-10 w-full items-center gap-3 text-left text-[15px] font-medium ${
+          className={`flex h-10 w-full items-center justify-center gap-3 text-left text-[15px] font-medium lg:justify-start ${
             currentPage === 'settings' ? 'text-blue-600' : 'text-slate-600 hover:text-slate-950'
           }`}
+          aria-label={t('nav.settings')}
+          title={t('nav.settings')}
         >
           <Settings size={20} strokeWidth={1.9} />
-          {t('nav.settings')}
+          <span className="hidden lg:inline">{t('nav.settings')}</span>
         </button>
       </div>
     </aside>

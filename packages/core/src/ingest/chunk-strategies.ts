@@ -12,7 +12,7 @@ const CODE_EXT = new Set([
   '.swift', '.kt', '.scala', '.sh', '.bash', '.zsh',
 ])
 const DATA_EXT = new Set(['.json', '.yaml', '.yml', '.toml', '.xml'])
-const TABLE_EXT = new Set(['.csv', '.tsv', '.xlsx', '.xls'])
+const TABLE_EXT = new Set(['.csv', '.tsv', '.xlsx'])
 
 /**
  * Select a chunking strategy based on file extension and the parser-reported chunkType.
@@ -132,38 +132,51 @@ function splitTextByTokenBudget(text: string, maxTokens: number): string[] {
     ? text.split(/(\s+)/).filter(part => part.length > 0)
     : splitByEstimatedCharacterBudget(text, maxTokens, totalTokens)
   const chunks: string[] = []
+  const tokenCountCache = new Map<string, number>()
   let current = ''
+  let currentTokens = 0
+
+  const countTokens = (value: string): number => {
+    const cached = tokenCountCache.get(value)
+    if (cached !== undefined) return cached
+    const count = estimateTokens(value)
+    tokenCountCache.set(value, count)
+    return count
+  }
 
   const flush = () => {
     if (!current) return
     chunks.push(current)
     current = ''
+    currentTokens = 0
   }
 
   for (const part of parts) {
-    const candidate = current + part
-    if (current && estimateTokens(candidate) > maxTokens) {
+    const partTokens = countTokens(part)
+    if (current && currentTokens + partTokens > maxTokens) {
       flush()
     }
 
-    if (estimateTokens(part) <= maxTokens) {
+    if (partTokens <= maxTokens) {
       current += part
+      currentTokens += partTokens
       continue
     }
 
     let remainder = part
-    while (estimateTokens(remainder) > maxTokens) {
+    while (countTokens(remainder) > maxTokens) {
       let lo = 1
       let hi = remainder.length
       while (lo < hi) {
         const mid = Math.ceil((lo + hi) / 2)
-        if (estimateTokens(remainder.slice(0, mid)) <= maxTokens) lo = mid
+        if (countTokens(remainder.slice(0, mid)) <= maxTokens) lo = mid
         else hi = mid - 1
       }
       chunks.push(remainder.slice(0, lo))
       remainder = remainder.slice(lo)
     }
     current = remainder
+    currentTokens = countTokens(remainder)
   }
 
   flush()

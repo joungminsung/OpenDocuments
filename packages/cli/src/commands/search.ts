@@ -16,7 +16,8 @@ export function searchCommand() {
         if (!embedder?.embed) { log.fail('No embedding model configured'); return }
 
         const embedResult = await embedder.embed([query])
-        const results = await ctx.store.searchChunks(embedResult.dense[0], parseInt(opts.top))
+        const topK = Math.min(Math.max(parseInt(opts.top, 10) || 5, 1), 100)
+        const results = await ctx.store.searchChunks(embedResult.dense[0], topK, undefined, opts.type)
 
         if (results.length === 0) { log.info('No results found'); return }
 

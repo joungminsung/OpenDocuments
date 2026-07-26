@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { execFileSync, execSync } from 'node:child_process'
 import { bootstrap, type AppContext } from '../../src/bootstrap.js'
 import { createApp } from '../../src/http/app.js'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -110,5 +110,32 @@ describe('Plugin Routes', () => {
       ['search', 'opendocuments', query, '--json'],
       expect.objectContaining({ encoding: 'utf-8', timeout: 30000 })
     )
+  })
+
+  it('persists plugin activation and deactivation across restarts', async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-API-Key': adminKey,
+    }
+    const installed = await app.request('/api/v1/plugins/install', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'opendocuments-parser-pdf' }),
+    })
+    expect(installed.status).toBe(200)
+    expect(JSON.parse(readFileSync(ctx.pluginManifestPath, 'utf-8'))).toMatchObject({
+      enabled: ['opendocuments-parser-pdf'],
+      disabled: [],
+    })
+
+    const removed = await app.request('/api/v1/plugins/opendocuments-parser-pdf', {
+      method: 'DELETE',
+      headers: { 'X-API-Key': adminKey },
+    })
+    expect(removed.status).toBe(200)
+    expect(JSON.parse(readFileSync(ctx.pluginManifestPath, 'utf-8'))).toMatchObject({
+      enabled: [],
+      disabled: ['opendocuments-parser-pdf'],
+    })
   })
 })

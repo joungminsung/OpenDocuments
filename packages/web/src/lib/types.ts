@@ -150,7 +150,7 @@ export interface PluginHealthResponse {
 
 export interface ConnectorStatusResponse {
   connectors: Array<{
-    name: string; connectorId: string; type: string; status: string; lastSyncedAt: string | null; syncIntervalSeconds?: number | null; repo?: string
+    name: string; connectorId: string; type: string; status: string; lastSyncedAt: string | null; syncIntervalSeconds?: number | null; errorMessage?: string; repo?: string
   }>
 }
 
@@ -160,6 +160,13 @@ export interface WorkbenchResponse {
     version: string
     modelStatus: 'ready' | 'degraded'
     models: number
+    modelProvider: string
+    embeddingDimensions: number
+    issues: Array<{
+      code: 'model_unavailable'
+      message: string
+      action: string
+    }>
   }
   corpus: {
     documents: number

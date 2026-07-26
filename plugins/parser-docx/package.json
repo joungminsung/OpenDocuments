@@ -17,12 +17,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "opendocuments-core": "0.3.0",
-    "mammoth": "^1.8.0"
+    "mammoth": "^1.8.0",
+    "opendocuments-core": "^0.3.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "opendocuments-core": "^0.3.0"

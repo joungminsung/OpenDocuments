@@ -67,12 +67,6 @@ export function authMiddleware(appCtx: AppContext) {
       }
     }
 
-    appCtx.auditLogger?.log({
-      eventType: 'auth:login',
-      userId: validated.record.userId,
-      workspaceId: validated.record.workspaceId,
-    })
-
     c.set('auth', validated)
     return next()
   }

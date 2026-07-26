@@ -28,8 +28,12 @@ const WATCH_EXTENSIONS = new Set([
   '.md', '.mdx', '.txt',
   '.json', '.yaml', '.yml', '.toml',
   '.zip', '.pdf', '.docx', '.pptx',
-  '.xlsx', '.xls', '.csv',
+  '.xlsx', '.csv',
   '.html', '.htm', '.ipynb', '.eml',
+  '.js', '.jsx', '.mjs', '.ts', '.tsx', '.mts',
+  '.py', '.java', '.go', '.rs', '.rb', '.php', '.cs',
+  '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp',
+  '.swift', '.kt', '.scala', '.sh', '.bash', '.zsh',
 ])
 
 export function indexCommand() {
@@ -41,7 +45,11 @@ export function indexCommand() {
     .action(async (inputPath, opts) => {
       const ctx = await getContext()
       const absPath = resolve(inputPath)
-      const textExtensions = new Set(['.md', '.mdx', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv', '.html', '.htm', '.ipynb'])
+      const textExtensions = new Set([
+        '.md', '.mdx', '.txt', '.json', '.yaml', '.yml', '.toml', '.csv', '.html', '.htm', '.ipynb',
+        '.js', '.jsx', '.mjs', '.ts', '.tsx', '.mts', '.py', '.java', '.go', '.rs', '.rb', '.php',
+        '.cs', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.swift', '.kt', '.scala', '.sh', '.bash', '.zsh',
+      ])
       const readContent = (file: string): string | Buffer =>
         textExtensions.has(extname(file)) ? readFileSync(file, 'utf-8') : readFileSync(file)
       try {

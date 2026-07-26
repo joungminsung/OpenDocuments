@@ -1,47 +1,42 @@
 import { Command } from 'commander'
 import { log } from 'opendocuments-core'
-import { readFileSync, existsSync, unlinkSync } from 'node:fs'
+import { existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
+import { isRecordedServerProcess, readServerPid, resolveInstanceDataDir } from '../utils/instance.js'
 
 export function stopCommand() {
   return new Command('stop')
     .description('Stop the OpenDocuments server')
     .action(async () => {
-      const pidFile = join(homedir(), '.opendocuments', 'server.pid')
+      const dataDir = resolveInstanceDataDir()
+      const pidFile = join(dataDir, 'server.pid')
       if (!existsSync(pidFile)) {
         log.info('No running server found (no PID file at ' + pidFile + ')')
         return
       }
-      let pid: number
-      try {
-        pid = parseInt(readFileSync(pidFile, 'utf-8').trim())
-        if (isNaN(pid)) {
-          log.fail('Invalid PID file content')
-          unlinkSync(pidFile)
-          return
-        }
-      } catch (err) {
-        log.fail(`Failed to read PID file: ${(err as Error).message}`)
+      const record = readServerPid(pidFile)
+      if (!record) {
+        log.fail(`Invalid PID record at ${pidFile}. Refusing to signal an unverified process.`)
+        process.exitCode = 1
         return
       }
-
-      try {
-        // Check if process exists first
-        process.kill(pid, 0)
-      } catch {
-        log.info(`Server process (PID ${pid}) is not running. Cleaning up PID file.`)
+      if (record.dataDir !== dataDir) {
+        log.fail('PID record belongs to a different data directory. Refusing to stop it.')
+        process.exitCode = 1
+        return
+      }
+      if (!isRecordedServerProcess(record)) {
+        log.info(`Recorded server process (PID ${record.pid}) is not running. Cleaning up the stale PID file.`)
         try { unlinkSync(pidFile) } catch {}
         return
       }
 
       try {
-        process.kill(pid, 'SIGTERM')
-        log.ok(`Server (PID ${pid}) stopped`)
+        process.kill(record.pid, 'SIGTERM')
+        log.ok(`Server (PID ${record.pid}) stop signal sent`)
       } catch (err) {
         log.fail(`Failed to stop server: ${(err as Error).message}`)
-      } finally {
-        try { unlinkSync(pidFile) } catch {}
+        process.exitCode = 1
       }
     })
 }

@@ -17,7 +17,7 @@ if [[ ! -d "$DATA_DIR" ]]; then
   exit 1
 fi
 
-cd "$ROOT_DIR/examples/presentation-demo"
+cd "$ROOT_DIR/docker/demo"
 
 echo "[--] OpenDocuments live search demo"
 echo "[--] Type a search query and press Enter. Type q to quit."

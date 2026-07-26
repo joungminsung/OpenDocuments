@@ -116,6 +116,14 @@ describe('Workspace-scoped Routes', () => {
       fileType: '.md',
       content: '# Default Secret\n\nThe default workspace secret is alpha-only.',
     })
+    await ctx.forWorkspace(secondaryWorkspaceId).pipeline.ingest({
+      title: 'secondary-guide.md',
+      sourceType: 'local',
+      sourcePath: '/secondary-guide.md',
+      fileType: '.md',
+      content: '# Secondary Guide\n\nThis workspace contains only its own onboarding guide.',
+    })
+    ctx.readiness.modelStatus = 'ready'
 
     const res = await app.request('/api/v1/chat', {
       method: 'POST',
@@ -128,7 +136,11 @@ describe('Workspace-scoped Routes', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.sources).toEqual([])
+    expect(body.sources).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({ sourcePath: '/default-secret.md' }),
+      ])
+    )
   })
 
   it('returns a public share link that resolves without authentication', async () => {

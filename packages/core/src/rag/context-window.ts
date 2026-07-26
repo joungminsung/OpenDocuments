@@ -44,10 +44,15 @@ export function fitToContextWindow(
 
   // Already sorted by score (highest first)
   const fitted: SearchResult[] = []
+  const tokenCountCache = new Map<string, number>()
   let usedTokens = 0
 
   for (const chunk of chunks) {
-    const tokens = estimateTokens(chunk.content)
+    let tokens = tokenCountCache.get(chunk.content)
+    if (tokens === undefined) {
+      tokens = estimateTokens(chunk.content)
+      tokenCountCache.set(chunk.content, tokens)
+    }
 
     if (usedTokens + tokens <= maxChunkTokens) {
       fitted.push(chunk)

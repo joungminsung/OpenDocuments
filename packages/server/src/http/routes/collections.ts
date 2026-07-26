@@ -6,14 +6,15 @@ import { requireScope } from '../middleware/auth.js'
 export function collectionRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/collections', (c) => {
+  app.get('/api/v1/collections', requireScope('document:read'), (c) => {
     const { collectionManager } = getWorkspaceServices(c, ctx)
     return c.json({ collections: collectionManager.list() })
   })
 
-  app.get('/api/v1/collections/:id/documents', (c) => {
+  app.get('/api/v1/collections/:id/documents', requireScope('document:read'), (c) => {
     const { collectionManager, store } = getWorkspaceServices(c, ctx)
     const collectionId = c.req.param('id')
+    if (!collectionId) return c.json({ error: 'Collection id required' }, 400)
     const collection = collectionManager.list().find((item) => item.id === collectionId)
     if (!collection) return c.json({ error: 'Collection not found' }, 404)
 

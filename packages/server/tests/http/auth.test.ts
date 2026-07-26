@@ -72,6 +72,43 @@ describe('Auth Middleware', () => {
     expect(res.status).toBe(200)
   })
 
+  it('exchanges an API key for an HttpOnly browser session and clears it on logout', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'browser-session',
+      workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'user-1',
+      role: 'admin',
+    })
+    const app = createApp(ctx)
+
+    const login = await app.request('/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: rawKey }),
+    })
+    const cookie = login.headers.get('set-cookie')
+
+    expect(login.status).toBe(200)
+    expect(cookie).toContain('opendocuments_session=')
+    expect(cookie).not.toContain(rawKey)
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('SameSite=Strict')
+
+    const sessionCookie = cookie?.split(';')[0] || ''
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: sessionCookie },
+    })).status).toBe(200)
+
+    const logout = await app.request('/auth/logout', {
+      method: 'POST',
+      headers: { Cookie: sessionCookie },
+    })
+    expect(logout.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: sessionCookie },
+    })).status).toBe(401)
+  })
+
   it('enforces API key IP restrictions', async () => {
     const { rawKey } = ctx.apiKeyManager.create({
       name: 'ip-test',
@@ -134,6 +171,28 @@ describe('Auth Middleware', () => {
     expect(res.status).toBe(401)
   })
 
+  it('enforces endpoint scopes instead of allowing any valid key', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'read-only',
+      workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'viewer-1',
+      role: 'viewer',
+      scopes: ['document:read'],
+    })
+    const app = createApp(ctx)
+    const headers = { 'X-API-Key': rawKey }
+
+    expect((await app.request('/api/v1/documents', { headers })).status).toBe(200)
+    expect((await app.request('/api/v1/collections', { headers })).status).toBe(200)
+    expect((await app.request('/api/v1/tags', { headers })).status).toBe(200)
+    expect((await app.request('/api/v1/conversations', { headers })).status).toBe(403)
+    expect((await app.request('/api/v1/chat', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'test' }),
+    })).status).toBe(403)
+  })
+
   it('allows all requests in personal mode', async () => {
     const tempDir2 = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     const personalCtx = await bootstrap({ dataDir: tempDir2, configOverrides: { model: stubModel } })  // default personal mode
@@ -157,5 +216,87 @@ describe('Auth Middleware', () => {
     }
     const res = await app.request('/api/v1/health', { headers: { 'X-API-Key': rawKey } })
     expect(res.status).toBe(429)
+  })
+
+  it('honors a lower per-key rate limit', async () => {
+    const { rawKey } = ctx.apiKeyManager.create({
+      name: 'limited',
+      workspaceId: ctx.workspaceManager.list()[0].id,
+      userId: 'user-1',
+      role: 'admin',
+      rateLimit: 1,
+    })
+    const app = createApp(ctx)
+    const headers = { 'X-API-Key': rawKey }
+
+    expect((await app.request('/api/v1/health', { headers })).status).toBe(200)
+    const limited = await app.request('/api/v1/health', { headers })
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('X-RateLimit-Limit')).toBe('1')
+  })
+
+  it('rate-limits browser sessions independently behind the same client IP', async () => {
+    const workspaceId = ctx.workspaceManager.list()[0].id
+    const firstKey = ctx.apiKeyManager.create({
+      name: 'browser-one',
+      workspaceId,
+      userId: 'user-1',
+      role: 'admin',
+      rateLimit: 1,
+    }).rawKey
+    const secondKey = ctx.apiKeyManager.create({
+      name: 'browser-two',
+      workspaceId,
+      userId: 'user-2',
+      role: 'admin',
+      rateLimit: 1,
+    }).rawKey
+    const app = createApp(ctx)
+
+    const createSession = async (apiKey: string): Promise<string> => {
+      const response = await app.request('/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      })
+      expect(response.status).toBe(200)
+      const cookie = response.headers.get('set-cookie')?.split(';')[0]
+      expect(cookie).toBeDefined()
+      return cookie!
+    }
+
+    const firstCookie = await createSession(firstKey)
+    const secondCookie = await createSession(secondKey)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: firstCookie },
+    })).status).toBe(200)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: firstCookie },
+    })).status).toBe(429)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: secondCookie },
+    })).status).toBe(200)
+  })
+
+  it('only exposes configured OAuth providers and requires a team redirect URI', async () => {
+    ctx.config.security.auth.providers = [{
+      type: 'github',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      allowedEmails: [],
+      allowedDomains: [],
+      allowAnyUser: true,
+      role: 'member',
+    }]
+    const app = createApp(ctx)
+
+    const providers = await app.request('/auth/providers')
+    expect(await providers.json()).toEqual({ providers: ['github'] })
+
+    const login = await app.request('/auth/login/github')
+    expect(login.status).toBe(500)
+    expect(await login.json()).toEqual({
+      error: 'OAuth provider github requires an explicit redirectUri in team mode',
+    })
   })
 })

@@ -2,17 +2,18 @@ import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { getWorkspaceServices } from '../workspace.js'
 import { requireScope } from '../middleware/auth.js'
+import { createHash } from 'node:crypto'
 
 export function documentRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/documents', (c) => {
+  app.get('/api/v1/documents', requireScope('document:read'), (c) => {
     const { store } = getWorkspaceServices(c, ctx)
     return c.json({ documents: store.listDocuments() })
   })
 
   // List deleted documents (trash)
-  app.get('/api/v1/documents/trash', (c) => {
+  app.get('/api/v1/documents/trash', requireScope('document:read'), (c) => {
     const { store } = getWorkspaceServices(c, ctx)
     const docs = store.listDeletedDocuments()
     return c.json({ documents: docs })
@@ -27,9 +28,11 @@ export function documentRoutes(ctx: AppContext) {
     return c.json({ restored: true })
   })
 
-  app.get('/api/v1/documents/:id', (c) => {
+  app.get('/api/v1/documents/:id', requireScope('document:read'), (c) => {
     const { store } = getWorkspaceServices(c, ctx)
-    const doc = store.getDocument(c.req.param('id'))
+    const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Document id required' }, 400)
+    const doc = store.getDocument(id)
     if (!doc) return c.json({ error: 'Document not found' }, 404)
     return c.json(doc)
   })
@@ -73,12 +76,13 @@ export function documentRoutes(ctx: AppContext) {
     const content = textExtensions.includes(ext)
       ? await file.text()
       : Buffer.from(await file.arrayBuffer())
+    const uploadHash = createHash('sha256').update(content).digest('hex').slice(0, 16)
     const { pipeline } = getWorkspaceServices(c, ctx)
     const result = await pipeline.ingest({
       title: sanitizedName,
       content,
       sourceType: 'upload',
-      sourcePath: sanitizedName,
+      sourcePath: `upload:${uploadHash}:${sanitizedName}`,
       fileType: sanitizedName.includes('.') ? '.' + sanitizedName.split('.').pop() : undefined,
     })
     return c.json(result, 201)

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import type { AppContext } from '../../bootstrap.js'
 import { requireRole, requireScope } from '../middleware/auth.js'
 
@@ -13,6 +14,44 @@ function npmCommand(): string {
 
 function isValidPluginName(name: string): boolean {
   return PLUGIN_NAME_PATTERN.test(name)
+}
+
+interface PluginManifest {
+  enabled: string[]
+  disabled: string[]
+}
+
+function readPluginManifest(path: string): PluginManifest {
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, 'utf-8'))
+    if (Array.isArray(value)) {
+      return {
+        enabled: value.filter((item): item is string => typeof item === 'string'),
+        disabled: [],
+      }
+    }
+    if (typeof value === 'object' && value !== null) {
+      const manifest = value as { enabled?: unknown; disabled?: unknown }
+      return {
+        enabled: Array.isArray(manifest.enabled)
+          ? manifest.enabled.filter((item): item is string => typeof item === 'string')
+          : [],
+        disabled: Array.isArray(manifest.disabled)
+          ? manifest.disabled.filter((item): item is string => typeof item === 'string')
+          : [],
+      }
+    }
+  } catch {
+    // Missing or malformed manifests are replaced on the next explicit change.
+  }
+  return { enabled: [], disabled: [] }
+}
+
+function writePluginManifest(path: string, manifest: PluginManifest): void {
+  writeFileSync(path, JSON.stringify({
+    enabled: [...new Set(manifest.enabled)].sort(),
+    disabled: [...new Set(manifest.disabled)].sort(),
+  }, null, 2) + '\n', { mode: 0o600 })
 }
 
 export function pluginRoutes(ctx: AppContext) {
@@ -62,7 +101,16 @@ export function pluginRoutes(ctx: AppContext) {
     }
 
     try {
-      execFileSync(npmCommand(), ['install', name], { encoding: 'utf-8', timeout: 60000 })
+      execFileSync(npmCommand(), ['install', name], {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        timeout: 60000,
+      })
+      const manifest = readPluginManifest(ctx.pluginManifestPath)
+      writePluginManifest(ctx.pluginManifestPath, {
+        enabled: [...manifest.enabled, name],
+        disabled: manifest.disabled.filter((pluginName) => pluginName !== name),
+      })
       return c.json({ status: 'installed', message: 'Restart server to activate' })
     } catch (err) {
       return c.json({ error: `Install failed: ${(err as Error).message}` }, 500)
@@ -78,8 +126,17 @@ export function pluginRoutes(ctx: AppContext) {
       )
     }
     try {
-      execFileSync(npmCommand(), ['uninstall', name], { encoding: 'utf-8', timeout: 30000 })
-      return c.json({ status: 'removed' })
+      execFileSync(npmCommand(), ['uninstall', name], {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        timeout: 30000,
+      })
+      const manifest = readPluginManifest(ctx.pluginManifestPath)
+      writePluginManifest(ctx.pluginManifestPath, {
+        enabled: manifest.enabled.filter((pluginName) => pluginName !== name),
+        disabled: [...manifest.disabled, name],
+      })
+      return c.json({ status: 'removed', message: 'Restart server to finish deactivation' })
     } catch (err) {
       return c.json({ error: `Uninstall failed: ${(err as Error).message}` }, 500)
     }

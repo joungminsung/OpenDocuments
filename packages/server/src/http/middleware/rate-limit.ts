@@ -7,11 +7,21 @@ interface RateLimitEntry {
   resetAt: number
 }
 
-export function rateLimit(opts: { max: number; windowMs: number; trustedProxy?: string }) {
+export function rateLimit(opts: { max: number; windowMs: number; trustedProxy?: string; ipOnly?: boolean }) {
   const store = new Map<string, RateLimitEntry>()
 
   return async (c: Context, next: Next) => {
-    const rawKey = c.req.header('x-api-key') || getClientIp(c, opts.trustedProxy) || 'anonymous'
+    const auth = c.get('auth') as {
+      record?: { id?: string; rateLimit?: number } | null
+    } | undefined
+    const authenticatedKey = auth?.record?.id
+    const rawKey = (
+      opts.ipOnly
+        ? undefined
+        : authenticatedKey
+          ? `key:${authenticatedKey}`
+          : c.req.header('x-api-key')
+    ) || getClientIp(c, opts.trustedProxy) || 'anonymous'
     const key = createHash('sha256').update(rawKey).digest('hex').substring(0, 16) // short hash for memory efficiency
     const now = Date.now()
 
@@ -31,17 +41,18 @@ export function rateLimit(opts: { max: number; windowMs: number; trustedProxy?: 
     entry.count++
 
     // Support per-key rate limits from APIKeyManager (overrides global opts.max)
-    const auth = c.get('auth') as any
-    const keyRateLimit = auth?.record?.rateLimit
-    const effectiveMax = keyRateLimit || opts.max
+    const keyRateLimit = opts.ipOnly ? undefined : auth?.record?.rateLimit
+    const effectiveMax = keyRateLimit ?? opts.max
+
+    if (!opts.ipOnly) {
+      c.header('X-RateLimit-Limit', String(effectiveMax))
+      c.header('X-RateLimit-Remaining', String(Math.max(0, effectiveMax - entry.count)))
+    }
 
     if (entry.count > effectiveMax) {
       c.header('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)))
       return c.json({ error: 'Rate limit exceeded' }, 429)
     }
-
-    c.header('X-RateLimit-Limit', String(effectiveMax))
-    c.header('X-RateLimit-Remaining', String(Math.max(0, effectiveMax - entry.count)))
 
     return next()
   }

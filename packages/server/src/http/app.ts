@@ -1,6 +1,6 @@
-import { Hono } from 'hono'
+import { Hono, type Context, type Next } from 'hono'
 import { cors } from 'hono/cors'
-import { serveStatic } from '@hono/node-server/serve-static'
+import { bodyLimit } from 'hono/body-limit'
 import { join, extname, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
@@ -47,13 +47,7 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
     },
   }))
 
-  // Mount OAuth routes BEFORE authMiddleware (public routes -- no API key required)
-  app.route('/', authRoutes(ctx))
-  const sharedConversationHandler = getSharedConversationHandler(ctx)
-  app.get('/shared/:token', sharedConversationHandler)
-  app.get('/api/v1/shared/:token', sharedConversationHandler)
-
-  app.use('/api/*', async (c, next) => {
+  const enforceSecureTransport = async (c: Context, next: Next) => {
     const transport = ctx.config.security.transport
     if (ctx.config.mode !== 'team' || !transport.enforceHTTPS) {
       await next()
@@ -66,38 +60,54 @@ export function createApp(ctx: AppContext, opts?: AppOptions) {
     }
 
     return c.json({ error: 'HTTPS required' }, 426)
-  })
+  }
+
+  app.use('/auth/*', enforceSecureTransport)
+  app.use('/api/*', enforceSecureTransport)
+  app.use('/shared/*', enforceSecureTransport)
+
+  // OAuth routes are public but still follow the team-mode transport policy.
+  app.route('/', authRoutes(ctx))
+  const sharedConversationHandler = getSharedConversationHandler(ctx)
+  app.get('/shared/:token', sharedConversationHandler)
+  app.get('/api/v1/shared/:token', sharedConversationHandler)
+
+  // Rate limiting applies before authentication so invalid-key attempts are
+  // bounded as well.
+  app.use('/api/*', rateLimit({
+    max: 300,
+    windowMs: 60000,
+    trustedProxy: ctx.config.security.transport.proxy,
+    ipOnly: true,
+  }))
 
   // Auth middleware: personal mode passes through, team mode requires X-API-Key
   app.use('/api/*', authMiddleware(ctx))
-
-  // Rate limiting: 60 requests per minute per API key / IP
   app.use('/api/*', rateLimit({
     max: 60,
     windowMs: 60000,
     trustedProxy: ctx.config.security.transport.proxy,
   }))
 
-  // Body size limit (50MB)
-  const MAX_BODY_SIZE = 50 * 1024 * 1024
-  app.use('/api/*', async (c, next) => {
-    const contentLength = c.req.header('content-length')
-    if (contentLength && parseInt(contentLength) > MAX_BODY_SIZE) {
-      return c.json({ error: 'Request body too large (max 50MB)' }, 413)
-    }
-    await next()
-  })
+  // Enforce the limit for both Content-Length and chunked request bodies.
+  app.use('/api/*', bodyLimit({
+    maxSize: 50 * 1024 * 1024,
+    onError: (c) => c.json({ error: 'Request body too large (max 50MB)' }, 413),
+  }))
 
   app.get('/widget.js', (c) => {
     const referer = c.req.header('referer')
     const allowedDomains = ctx.config.security.transport.widgetAllowedDomains
-    if (allowedDomains && allowedDomains.length > 0 && referer) {
+    if (allowedDomains && allowedDomains.length > 0) {
+      if (!referer) return c.text('Forbidden', 403)
       try {
         const refOrigin = new URL(referer).origin
         if (!allowedDomains.some((domain) => originMatchesDomain(refOrigin, domain))) {
           return c.text('Forbidden', 403)
         }
-      } catch {}
+      } catch {
+        return c.text('Forbidden', 403)
+      }
     }
     return c.body(generateWidgetScript(), { headers: { 'Content-Type': 'application/javascript' } })
   })

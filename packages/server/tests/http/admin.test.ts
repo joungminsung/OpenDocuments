@@ -101,6 +101,28 @@ describe('Admin Routes', () => {
     ])
   })
 
+  it('configures a non-GitHub built-in connector through the admin API', async () => {
+    const res = await app.request('/api/v1/admin/connectors/web-crawler', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'docs-site',
+        config: { urls: ['https://docs.example.com'], depth: 0 },
+        syncInterval: 600,
+        autoSync: false,
+      }),
+    })
+
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({
+      connector: {
+        name: 'docs-site',
+        status: 'active',
+        syncIntervalSeconds: 600,
+      },
+    })
+  })
+
   it('POST /api/v1/admin/connectors/github starts automatic sync', async () => {
     vi.useFakeTimers()
     try {

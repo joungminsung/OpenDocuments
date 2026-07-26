@@ -40,7 +40,11 @@ export class AuditLogger {
          event.details ? JSON.stringify(event.details) : null,
          event.ipAddress || null, now]
       )
-    } catch {} // Never fail the main operation because of audit logging
+    } catch (error) {
+      // Audit persistence must not fail the primary request, but silently
+      // dropping the trail would make team-mode incident review misleading.
+      console.error('[audit] Failed to persist audit event:', error instanceof Error ? error.message : String(error))
+    }
   }
 
   query(opts?: {

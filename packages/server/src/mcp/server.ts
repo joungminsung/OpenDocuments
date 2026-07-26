@@ -1,16 +1,13 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+  Server,
+  type Tool,
+} from '@modelcontextprotocol/server'
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { discoverFiles } from 'opendocuments-core'
 import type { AppContext } from '../bootstrap.js'
 import { SERVER_VERSION } from '../version.js'
 
-const TOOLS = [
+const TOOLS: Tool[] = [
   {
     name: 'opendocuments_ask',
     description: 'Query the RAG engine with a natural language question and get an answer with sources',
@@ -152,18 +149,18 @@ export function createMCPServer(ctx: AppContext): Server {
     { capabilities: { tools: {}, resources: {} } }
   )
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler('tools/list', async () => {
     return { tools: TOOLS }
   })
 
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  server.setRequestHandler('resources/list', async () => ({
     resources: [
       { uri: 'opendocuments://documents', name: 'Document List', mimeType: 'application/json' },
       { uri: 'opendocuments://stats', name: 'System Stats', mimeType: 'application/json' },
     ],
   }))
 
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  server.setRequestHandler('resources/read', async (request) => {
     const uri = request.params.uri
     if (uri === 'opendocuments://documents') {
       const docs = ctx.store.listDocuments()
@@ -184,7 +181,7 @@ export function createMCPServer(ctx: AppContext): Server {
     throw new Error(`Unknown resource: ${uri}`)
   })
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler('tools/call', async (request) => {
     const { name, arguments: args } = request.params
 
     try {

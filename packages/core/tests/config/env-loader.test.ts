@@ -33,6 +33,7 @@ const MANAGED_VARS = [
   'OPENDOCUMENTS_MODEL_EMBEDDING_PROVIDER',
   'OPENDOCUMENTS_MODEL_API_KEY',
   'OPENDOCUMENTS_MODEL_BASE_URL',
+  'OPENDOCUMENTS_MODEL_EMBEDDING_BASE_URL',
   'OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS',
   'OPENDOCUMENTS_RAG_PROFILE',
   'OPENDOCUMENTS_STORAGE_DB',
@@ -137,6 +138,12 @@ describe('buildConfigFromEnv', () => {
       setEnv({ OPENDOCUMENTS_MODEL_BASE_URL: 'http://localhost:11434' })
       const result = buildConfigFromEnv()
       expect(result?.model?.baseUrl).toBe('http://localhost:11434')
+    })
+
+    it('maps OPENDOCUMENTS_MODEL_EMBEDDING_BASE_URL separately', () => {
+      setEnv({ OPENDOCUMENTS_MODEL_EMBEDDING_BASE_URL: 'http://embeddings.internal' })
+      const result = buildConfigFromEnv()
+      expect(result?.model?.embeddingBaseUrl).toBe('http://embeddings.internal')
     })
 
     it('maps OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS as integer', () => {

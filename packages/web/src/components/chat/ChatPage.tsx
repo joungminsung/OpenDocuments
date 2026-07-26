@@ -7,8 +7,9 @@ import { streamChat } from '../../lib/sse'
 import { getWorkbench, listConversations, submitFeedback, updateConversation, uploadDocument } from '../../lib/api'
 import type { WorkbenchResponse } from '../../lib/types'
 import { translate as tr } from '../../lib/i18n'
+import { AlertTriangle, ArrowRight, CheckCircle2, Database, Server } from 'lucide-react'
 
-export function ChatPage() {
+export function ChatPage({ compact = false }: { compact?: boolean } = {}) {
   const {
     messages,
     isStreaming,
@@ -19,7 +20,7 @@ export function ChatPage() {
     conversations,
     activeError,
   } = useChatStore()
-  const { profile, locale } = useAppStore()
+  const { profile, locale, setPage } = useAppStore()
   const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -27,9 +28,25 @@ export function ChatPage() {
   const [workbenchError, setWorkbenchError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  const healthStatus = workbenchError ? 'offline' : 'ready'
   const showPreview = messages.length === 0 && !isStreaming
-  const suggestedQuestions = workbench?.suggestedQuestions ?? []
+  const suggestedQuestions = workbench?.corpus.documents
+    ? [
+        t('chat.suggestion.summary'),
+        t('chat.suggestion.deployment'),
+        t('chat.suggestion.authentication'),
+      ]
+    : []
+  const modelReady = compact || workbench?.health.modelStatus === 'ready'
+  const corpusReady = compact || (workbench?.corpus.documents ?? 0) > 0
+  const readinessKnown = compact || workbench !== null
+  const canAsk = Boolean(readinessKnown && modelReady && corpusReady)
+  const disabledReason = !readinessKnown
+    ? t('chat.verifyingReadiness')
+    : !modelReady
+      ? t('chat.modelRequired')
+      : !corpusReady
+        ? t('chat.corpusRequired')
+        : undefined
   const activeConversation = conversations.find((conversation) => conversation.id === conversationId)
   const activeConversationTitle = activeConversation?.title || (conversationId ? t('chat.untitled') : t('chat.newChat'))
 
@@ -61,8 +78,8 @@ export function ChatPage() {
 
   useEffect(() => {
     void refreshConversations()
-    void refreshWorkbench()
-  }, [])
+    if (!compact) void refreshWorkbench()
+  }, [compact])
 
   const handleSend = async (query: string) => {
     const store = useChatStore.getState()
@@ -83,7 +100,11 @@ export function ChatPage() {
           if (!startingConversationId && data.conversationId) {
             const title = query.trim().replace(/\s+/g, ' ').slice(0, 72)
             void updateConversation(data.conversationId, { title })
-              .catch(() => {})
+              .catch((error) => {
+                useChatStore.getState().setActiveError(
+                  error instanceof Error ? error.message : t('chat.errorSessions')
+                )
+              })
               .finally(() => void refreshConversations())
           } else {
             void refreshConversations()
@@ -91,7 +112,14 @@ export function ChatPage() {
           void refreshWorkbench()
         },
         onError: (error) => {
-          useChatStore.getState().failStreaming(`${t('common.error')}: ${error}`, profile)
+          const localizedError = error === 'MODEL_UNAVAILABLE'
+            ? t('chat.modelRequired')
+            : error === 'CORPUS_EMPTY'
+              ? t('chat.corpusRequired')
+              : error === 'MODEL_RUNTIME_ERROR'
+                ? t('chat.modelRuntimeError')
+                : error
+          useChatStore.getState().failStreaming(`${t('common.error')}: ${localizedError}`, profile)
         },
       }, abortRef.current.signal)
     } catch (error) {
@@ -142,6 +170,76 @@ export function ChatPage() {
             </div>
           )}
 
+          {showPreview && !compact && (
+            <div
+              className={`mb-5 overflow-hidden rounded-lg border ${
+                canAsk ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/70'
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              <div className="grid gap-0 md:grid-cols-[190px_1fr]">
+                <div className={`px-5 py-4 ${canAsk ? 'bg-emerald-100/60' : 'bg-amber-100/70'}`}>
+                  <div className="flex items-center gap-2">
+                    {canAsk
+                      ? <CheckCircle2 size={18} className="text-emerald-700" />
+                      : <AlertTriangle size={18} className="text-amber-700" />}
+                    <p className="text-[13px] font-semibold text-slate-900">
+                      {canAsk ? t('chat.readyTitle') : t('chat.notReadyTitle')}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-5 text-slate-600">
+                    {canAsk ? t('chat.readyDetail') : t('chat.notReadyDetail')}
+                  </p>
+                </div>
+                <div className="divide-y divide-amber-200/70">
+                  <div className="flex items-center gap-3 px-5 py-3">
+                    <Server size={17} className={modelReady ? 'text-emerald-600' : 'text-amber-700'} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-slate-900">{t('chat.modelStep')}</p>
+                      <p className="mt-0.5 text-[12px] text-slate-600">
+                        {modelReady
+                          ? t('chat.modelReady', { provider: workbench?.health.modelProvider || t('common.unknown') })
+                          : t('chat.modelUnavailableAction', {
+                              provider: workbench?.health.modelProvider || t('common.unknown'),
+                            })}
+                      </p>
+                    </div>
+                    {!modelReady && readinessKnown && (
+                      <button
+                        type="button"
+                        onClick={() => setPage('settings')}
+                        className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-amber-800 hover:text-amber-950"
+                      >
+                        {t('chat.inspectSettings')} <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 px-5 py-3">
+                    <Database size={17} className={corpusReady ? 'text-emerald-600' : 'text-amber-700'} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-slate-900">{t('chat.corpusStep')}</p>
+                      <p className="mt-0.5 text-[12px] text-slate-600">
+                        {corpusReady
+                          ? t('chat.corpusReady', { count: workbench?.corpus.documents || 0 })
+                          : t('chat.corpusRequired')}
+                      </p>
+                    </div>
+                    {!corpusReady && readinessKnown && (
+                      <button
+                        type="button"
+                        onClick={() => setPage('connectors')}
+                        className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-amber-800 hover:text-amber-950"
+                      >
+                        {t('chat.manageSources')} <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {!showPreview && (
             <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <div className="min-w-0">
@@ -161,8 +259,10 @@ export function ChatPage() {
 
           <ChatInput
             onSend={handleSend}
-            onAttach={handleAttach}
-            disabled={isStreaming || healthStatus === 'offline'}
+            onAttach={compact || !modelReady ? undefined : handleAttach}
+            disabled={isStreaming}
+            sendDisabled={!canAsk}
+            disabledReason={disabledReason}
             uploading={uploading}
             className={showPreview ? '' : 'mb-7'}
           />
@@ -188,7 +288,11 @@ export function ChatPage() {
                   key={msg.id}
                   message={msg}
                   onFeedback={msg.queryId ? ((type) => {
-                    submitFeedback(msg.queryId as string, type).catch(() => {})
+                    submitFeedback(msg.queryId as string, type).catch((error) => {
+                      useChatStore.getState().setActiveError(
+                        error instanceof Error ? error.message : t('chat.errorStream')
+                      )
+                    })
                   }) : undefined}
                 />
               ))}

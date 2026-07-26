@@ -37,7 +37,7 @@
   "scripts": {
     "setup": "npm install && npm run build && echo 'Setup complete. Run: npm run test'",
     "build": "turbo build",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=4",
     "lint": "turbo typecheck",
     "typecheck": "turbo typecheck",
     "dev": "turbo dev",
@@ -47,6 +47,15 @@
     "@changesets/cli": "^2.27.0",
     "turbo": "^2.3.0",
     "typescript": "^5.5.0"
+  },
+  "optionalDependencies": {
+    "@lancedb/lancedb-darwin-arm64": "0.27.1",
+    "@lancedb/lancedb-linux-arm64-gnu": "0.27.1",
+    "@lancedb/lancedb-linux-arm64-musl": "0.27.1",
+    "@lancedb/lancedb-linux-x64-gnu": "0.27.1",
+    "@lancedb/lancedb-linux-x64-musl": "0.27.1",
+    "@lancedb/lancedb-win32-arm64-msvc": "0.27.1",
+    "@lancedb/lancedb-win32-x64-msvc": "0.27.1"
   },
   "engines": {
     "node": ">=20.0.0"

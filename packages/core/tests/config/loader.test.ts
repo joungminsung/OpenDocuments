@@ -33,6 +33,28 @@ describe('validateConfig', () => {
   it('throws on invalid rag profile', () => {
     expect(() => validateConfig({ rag: { profile: 'turbo' } })).toThrow()
   })
+
+  it('validates OAuth provider access policy', () => {
+    const config = validateConfig({
+      security: {
+        auth: {
+          providers: [{
+            type: 'google',
+            clientId: 'client-id',
+            clientSecret: 'client-secret',
+            allowedDomains: ['example.com'],
+            role: 'viewer',
+          }],
+        },
+      },
+    })
+    expect(config.security.auth.providers[0]).toMatchObject({
+      type: 'google',
+      allowedDomains: ['example.com'],
+      allowAnyUser: false,
+      role: 'viewer',
+    })
+  })
 })
 
 describe('loadConfig', () => {

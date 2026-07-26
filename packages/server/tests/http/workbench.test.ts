@@ -71,7 +71,7 @@ describe('Workbench Routes', () => {
         profile: 'balanced',
       }),
     ])
-    expect(body.suggestedQuestions.length).toBeGreaterThan(0)
+    expect(body.suggestedQuestions).toEqual([])
   })
 })
 

@@ -4,9 +4,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { bootstrap, type AppContext } from '../../src/bootstrap.js'
 import { createMCPServer } from '../../src/mcp/server.js'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Server } from '@modelcontextprotocol/server'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 
 describe('MCP Server', () => {
   let tempDir: string

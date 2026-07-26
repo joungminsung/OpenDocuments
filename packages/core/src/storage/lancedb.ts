@@ -86,6 +86,23 @@ export async function createLanceDB(dataDir: string): Promise<VectorDB> {
         ])
         const table = await db.openTable(name)
         await table.delete('id = "__init__"')
+        return
+      }
+
+      const table = await db.openTable(name)
+      const schema = await table.schema()
+      const vectorField = schema.fields.find((field) => field.name === 'vector')
+      const vectorType = vectorField?.type
+      const existingDimensions = vectorType && 'listSize' in vectorType
+        ? Number(vectorType.listSize)
+        : null
+
+      if (existingDimensions !== dimensions) {
+        throw new Error(
+          `Embedding dimension mismatch for "${name}": the existing index uses ${existingDimensions ?? 'an unknown number of'} dimensions, `
+          + `but the configured embedding model uses ${dimensions}. Restore the previous embedding model, or stop the server and run `
+          + '"opendocuments reset-index --yes" to create a safety backup and prepare a full reindex.'
+        )
       }
     },
 

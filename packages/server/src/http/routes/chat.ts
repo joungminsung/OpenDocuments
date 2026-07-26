@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { AppContext } from '../../bootstrap.js'
 import { getWorkspaceServices, resolveRequestWorkspaceId } from '../workspace.js'
+import { requireScope } from '../middleware/auth.js'
+import type { ConfidenceResult, SearchResult } from 'opendocuments-core'
 
 function persistQueryLog(
   ctx: AppContext,
@@ -53,7 +55,34 @@ function getConversationHistory(
 export function chatRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.post('/api/v1/chat', async (c) => {
+  const readinessError = (workspaceId: string) => {
+    if (ctx.readiness.modelStatus !== 'ready') {
+      return {
+        status: 503 as const,
+        body: {
+          code: 'MODEL_UNAVAILABLE',
+          error: 'The configured model runtime is unavailable.',
+          action: ctx.readiness.issues[0]?.action,
+        },
+      }
+    }
+    const indexed = ctx.forWorkspace(workspaceId).store
+      .listDocuments()
+      .some((document) => document.status === 'indexed' && document.chunk_count > 0)
+    if (!indexed) {
+      return {
+        status: 409 as const,
+        body: {
+          code: 'CORPUS_EMPTY',
+          error: 'No indexed documents are available in this workspace.',
+          action: 'Upload a document, sync a connector, or run "opendocuments index <path>".',
+        },
+      }
+    }
+    return null
+  }
+
+  app.post('/api/v1/chat', requireScope('ask'), async (c) => {
     let body: { query: string; profile?: string; conversationId?: string; workspaceId?: string }
     try {
       body = await c.req.json()
@@ -63,6 +92,8 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
+    const notReady = readinessError(workspaceId)
+    if (notReady) return c.json(notReady.body, notReady.status)
     const { conversationManager, ragEngine } = getWorkspaceServices(c, ctx, body.workspaceId)
 
     let conversationHistory: string | undefined
@@ -106,7 +137,7 @@ export function chatRoutes(ctx: AppContext) {
     return c.json(result)
   })
 
-  app.post('/api/v1/chat/stream', async (c) => {
+  app.post('/api/v1/chat/stream', requireScope('ask'), async (c) => {
     let body: { query: string; profile?: string; conversationId?: string; workspaceId?: string }
     try {
       body = await c.req.json()
@@ -116,6 +147,8 @@ export function chatRoutes(ctx: AppContext) {
     if (!body.query || !body.query.trim()) return c.json({ error: 'query is required and must not be empty' }, 400)
 
     const workspaceId = resolveRequestWorkspaceId(c, ctx, body.workspaceId)
+    const notReady = readinessError(workspaceId)
+    if (notReady) return c.json(notReady.body, notReady.status)
     const { conversationManager, ragEngine } = getWorkspaceServices(c, ctx, body.workspaceId)
 
     let streamConversationHistory: string | undefined
@@ -131,8 +164,8 @@ export function chatRoutes(ctx: AppContext) {
     return streamSSE(c, async (stream) => {
       const startTime = Date.now()
       let fullAnswer = ''
-      let sources: any[] = []
-      let confidence: any = null
+      let sources: SearchResult[] = []
+      let confidence: ConfidenceResult | null = null
       let streamError = false
       let queryId: string | null = null
       let route = 'unknown'
@@ -146,7 +179,7 @@ export function chatRoutes(ctx: AppContext) {
           conversationHistory: streamConversationHistory,
         })) {
           if (event.type === 'chunk') fullAnswer += event.data
-          if (event.type === 'sources') sources = event.data as any[]
+          if (event.type === 'sources') sources = event.data
           if (event.type === 'confidence') confidence = event.data
           if (event.type === 'done') {
             queryId = event.data.queryId
@@ -162,7 +195,14 @@ export function chatRoutes(ctx: AppContext) {
         streamError = true
         const internalMessage = err instanceof Error ? err.message : 'Unknown error'
         console.error('[chat/stream] Error during streaming:', internalMessage)
-        await stream.writeSSE({ event: 'error', data: JSON.stringify({ error: 'An error occurred while processing your request' }) })
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify({
+            code: 'MODEL_RUNTIME_ERROR',
+            error: 'The model or retrieval runtime failed while processing the request.',
+            action: 'Run "opendocuments doctor", correct the reported issue, and retry.',
+          }),
+        })
       }
 
       if (!streamError && fullAnswer) {
@@ -202,7 +242,7 @@ export function chatRoutes(ctx: AppContext) {
     })
   })
 
-  app.post('/api/v1/chat/feedback', async (c) => {
+  app.post('/api/v1/chat/feedback', requireScope('ask'), async (c) => {
     let body: { queryId: string; feedback: 'positive' | 'negative' }
     try {
       body = await c.req.json()

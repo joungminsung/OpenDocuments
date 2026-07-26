@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GitBranch, KeyRound, Lock, ShieldCheck } from 'lucide-react'
 import { useAppStore } from '../../stores/appStore'
 import { translate as tr } from '../../lib/i18n'
@@ -12,6 +12,18 @@ export function LoginPage({ onLogin, errorMessage }: Props) {
   const { locale } = useAppStore()
   const t = (key: string, values?: Record<string, string | number>) => tr(locale, key, values)
   const [key, setKey] = useState('')
+  const [providers, setProviders] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch('/auth/providers')
+      .then(async (response) => response.ok ? response.json() : { providers: [] })
+      .then((body: { providers?: unknown }) => {
+        if (Array.isArray(body.providers)) {
+          setProviders(body.providers.filter((provider): provider is string => typeof provider === 'string'))
+        }
+      })
+      .catch(() => setProviders([]))
+  }, [])
 
   const submit = () => {
     const trimmed = key.trim()
@@ -85,15 +97,21 @@ export function LoginPage({ onLogin, errorMessage }: Props) {
             {t('login.signIn')}
           </button>
 
-          <div className="mt-6 grid gap-2">
-            <a href="/auth/login/google" className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
-              {t('login.google')}
-            </a>
-            <a href="/auth/login/github" className="flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
-              <GitBranch size={15} />
-              {t('login.github')}
-            </a>
-          </div>
+          {providers.length > 0 && (
+            <div className="mt-6 grid gap-2">
+              {providers.includes('google') && (
+                <a href="/auth/login/google" className="flex h-10 items-center justify-center rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
+                  {t('login.google')}
+                </a>
+              )}
+              {providers.includes('github') && (
+                <a href="/auth/login/github" className="flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
+                  <GitBranch size={15} />
+                  {t('login.github')}
+                </a>
+              )}
+            </div>
+          )}
 
           <p className="mt-5 text-[12px] leading-5 text-slate-400">
             {t('login.help')}

@@ -8,6 +8,22 @@ export interface ConfluenceConfig {
   spaceKey?: string  // Space to crawl
 }
 
+interface ConfluencePage {
+  id: string
+  title: string
+  version?: { number?: number }
+}
+
+interface ConfluencePageList {
+  results?: ConfluencePage[]
+  size?: number
+}
+
+interface ConfluenceContent {
+  title?: string
+  body?: { storage?: { value?: string } }
+}
+
 export class ConfluenceConnector implements ConnectorPlugin {
   name = '@opendocuments/connector-confluence'
   type = 'connector' as const
@@ -22,8 +38,10 @@ export class ConfluenceConnector implements ConnectorPlugin {
     const config = ctx.config as unknown as ConfluenceConfig
     this.baseUrl = config.baseUrl || ''
     this.spaceKey = config.spaceKey || ''
-    if (config.email && config.token) {
-      this.authHeader = 'Basic ' + Buffer.from(`${config.email}:${config.token}`).toString('base64')
+    const email = config.email || process.env.CONFLUENCE_EMAIL || ''
+    const token = config.token || process.env.CONFLUENCE_TOKEN || ''
+    if (email && token) {
+      this.authHeader = 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64')
     }
   }
 
@@ -50,7 +68,7 @@ export class ConfluenceConnector implements ConnectorPlugin {
       const res = await this.cfFetch(path)
       if (!res.ok) throw new Error(`Confluence API error: ${res.status}`)
 
-      const data = await res.json() as any
+      const data = await res.json() as ConfluencePageList
       for (const page of data.results || []) {
         yield {
           sourceId: page.id,
@@ -69,7 +87,7 @@ export class ConfluenceConnector implements ConnectorPlugin {
     const res = await this.cfFetch(`/rest/api/content/${ref.sourceId}?expand=body.storage`)
     if (!res.ok) throw new Error(`Confluence content error: ${res.status}`)
 
-    const data = await res.json() as any
+    const data = await res.json() as ConfluenceContent
     const html = data.body?.storage?.value || ''
 
     // Strip HTML tags for plain text

@@ -90,12 +90,17 @@ describe('DocumentStore', () => {
     const doc = store.createDocument({
       title: 'test.md', sourceType: 'local', sourcePath: '/docs/test.md', fileType: '.md',
     })
+    store.updateContentHash(doc.id, 'old-content')
+    store.updateSourceVersion(doc.id, 'old-revision')
     await store.softDeleteDocument(doc.id)
     expect(store.getDocument(doc.id)).toBeUndefined()
     store.restoreDocument(doc.id)
     const restored = store.getDocument(doc.id)
     expect(restored).toBeDefined()
     expect(restored?.status).toBe('pending')
+    expect(restored?.chunk_count).toBe(0)
+    expect(restored?.content_hash).toBeNull()
+    expect(restored?.source_version).toBeNull()
   })
 
   it('hard deletes document and its chunks permanently', async () => {
@@ -135,5 +140,17 @@ describe('DocumentStore', () => {
     store.updateContentHash(doc.id, 'abc123')
     expect(store.hasContentChanged(doc.id, 'abc123')).toBe(false)
     expect(store.hasContentChanged(doc.id, 'xyz789')).toBe(true)
+  })
+
+  it('tracks connector revisions separately from content hashes', () => {
+    const doc = store.createDocument({
+      title: 'test.md', sourceType: 'connector', sourcePath: '/docs/test.md', fileType: '.md',
+    })
+    store.updateContentHash(doc.id, 'sha256-content')
+    store.updateSourceVersion(doc.id, 'provider-revision')
+
+    expect(store.hasContentChanged(doc.id, 'sha256-content')).toBe(false)
+    expect(store.hasSourceVersionChanged(doc.id, 'provider-revision')).toBe(false)
+    expect(store.hasSourceVersionChanged(doc.id, 'next-revision')).toBe(true)
   })
 })

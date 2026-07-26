@@ -21,6 +21,15 @@ describe('Chat Routes', () => {
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     ctx = await bootstrap({ dataDir: tempDir, configOverrides: { model: stubModel } })
+    ctx.readiness.modelStatus = 'ready'
+    ctx.readiness.issues = []
+    const workspaceId = ctx.workspaceManager.list()[0].id
+    ctx.db.run(
+      `INSERT INTO documents
+       (id, workspace_id, title, source_type, source_path, chunk_count, status)
+       VALUES ('ready-doc', ?, 'Ready', 'local', '/ready.md', 1, 'indexed')`,
+      [workspaceId]
+    )
     app = createApp(ctx)
   })
   afterEach(async () => { await ctx.shutdown(); rmSync(tempDir, { recursive: true, force: true }) })
@@ -44,6 +53,26 @@ describe('Chat Routes', () => {
       body: JSON.stringify({}),
     })
     expect(res.status).toBe(400)
+  })
+
+  it('blocks chat with an actionable response when the model is unavailable', async () => {
+    ctx.readiness.modelStatus = 'degraded'
+    ctx.readiness.issues = [{
+      code: 'model_unavailable',
+      message: 'Model unavailable',
+      action: 'Run opendocuments doctor',
+    }]
+    const res = await app.request('/api/v1/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'Hello' }),
+    })
+
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({
+      code: 'MODEL_UNAVAILABLE',
+      action: 'Run opendocuments doctor',
+    })
   })
 
   it('POST /api/v1/chat/stream returns SSE', async () => {

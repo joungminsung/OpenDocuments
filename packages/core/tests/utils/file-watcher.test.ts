@@ -5,6 +5,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 describe('FileWatcher', () => {
+  const scan = (watcher: FileWatcher): Promise<void> =>
+    (watcher as unknown as { scan: () => Promise<void> }).scan()
+
   const tempDirs: string[] = []
 
   afterEach(() => {
@@ -40,9 +43,25 @@ describe('FileWatcher', () => {
     const watcher = new FileWatcher(dir, new Set(['.md']), onChange, { ignoreInitial: true })
     watcher.start()
     unlinkSync(file)
-    await (watcher as any).scan()
+    await scan(watcher)
     watcher.stop()
 
     expect(onChange).toHaveBeenCalledWith([{ path: file, type: 'deleted' }])
+  })
+
+  it('retries changes when the callback fails', async () => {
+    const dir = makeTempDir()
+    const file = join(dir, 'retry.md')
+    writeFileSync(file, '# Retry')
+    const onChange = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValue(undefined)
+    const watcher = new FileWatcher(dir, new Set(['.md']), onChange, { stableMs: 0 })
+
+    await expect(scan(watcher)).rejects.toThrow('temporary failure')
+    await scan(watcher)
+
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(onChange).toHaveBeenLastCalledWith([{ path: file, type: 'added' }])
   })
 })

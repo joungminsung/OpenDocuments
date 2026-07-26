@@ -3,7 +3,6 @@ import type {
   PluginContext,
   HealthStatus,
   GenerateOpts,
-  EmbeddingResult,
 } from 'opendocuments-core'
 import { fetchWithTimeout } from 'opendocuments-core'
 
@@ -11,7 +10,6 @@ export interface GrokConfig {
   apiKey?: string
   baseUrl?: string
   llmModel?: string
-  embeddingModel?: string
 }
 
 export class GrokModelPlugin implements ModelPlugin {
@@ -19,19 +17,17 @@ export class GrokModelPlugin implements ModelPlugin {
   type = 'model' as const
   version = '0.1.1'
   coreVersion = '^0.3.0'
-  capabilities = { llm: true, embedding: true, reranker: false, vision: false }
+  capabilities = { llm: true, embedding: false, reranker: false, vision: false }
 
   private apiKey = ''
   private baseUrl = 'https://api.x.ai/v1'
   private llmModel = 'grok-3'
-  private embeddingModel = 'grok-2-embed'
 
   async setup(ctx: PluginContext): Promise<void> {
     const config = ctx.config as GrokConfig
     this.apiKey = config.apiKey || process.env.XAI_API_KEY || ''
     if (config.baseUrl) this.baseUrl = config.baseUrl
     if (config.llmModel) this.llmModel = config.llmModel
-    if (config.embeddingModel) this.embeddingModel = config.embeddingModel
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -99,23 +95,6 @@ export class GrokModelPlugin implements ModelPlugin {
     }
   }
 
-  async embed(texts: string[]): Promise<EmbeddingResult> {
-    const res = await fetchWithTimeout(`${this.baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.embeddingModel,
-        input: texts,
-      }),
-    }, 30000)
-
-    if (!res.ok) throw new Error(`Grok embed error: ${res.status}`)
-    const data = (await res.json()) as { data: { embedding: number[] }[] }
-    return { dense: data.data.map((d) => d.embedding) }
-  }
 }
 
 // Default export for plugin loading

@@ -67,8 +67,19 @@ export class WorkspaceManager {
   }
 
   ensureDefault(): Workspace {
-    const existing = this.getByName('default')
-    if (existing) return existing
-    return this.create('default', 'personal')
+    return this.ensure('default', 'personal')
+  }
+
+  /**
+   * Ensure a named workspace exists and reflects the configured operating mode.
+   */
+  ensure(name: string, mode: 'personal' | 'team' = 'personal'): Workspace {
+    const existing = this.getByName(name)
+    if (!existing) return this.create(name, mode)
+    if (existing.mode !== mode) {
+      this.db.run('UPDATE workspaces SET mode = ? WHERE id = ?', [mode, existing.id])
+      return { ...existing, mode }
+    }
+    return existing
   }
 }
