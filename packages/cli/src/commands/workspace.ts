@@ -3,19 +3,18 @@ import { log } from 'opendocuments-core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { homedir } from 'node:os'
-
-const STATE_DIR = join(homedir(), '.opendocuments')
-const CURRENT_WS_FILE = join(STATE_DIR, 'current-workspace')
+import { dirname } from 'node:path'
+import { resolveWorkspaceStatePath } from '../utils/instance.js'
 
 function getCurrentWorkspace(fallback = 'default'): string {
-  try { return existsSync(CURRENT_WS_FILE) ? readFileSync(CURRENT_WS_FILE, 'utf-8').trim() || fallback : fallback } catch { return fallback }
+  const workspaceFile = resolveWorkspaceStatePath()
+  try { return existsSync(workspaceFile) ? readFileSync(workspaceFile, 'utf-8').trim() || fallback : fallback } catch { return fallback }
 }
 
 function setCurrentWorkspace(name: string): void {
-  mkdirSync(STATE_DIR, { recursive: true })
-  writeFileSync(CURRENT_WS_FILE, name)
+  const workspaceFile = resolveWorkspaceStatePath()
+  mkdirSync(dirname(workspaceFile), { recursive: true })
+  writeFileSync(workspaceFile, name, { mode: 0o600 })
 }
 
 export function workspaceCommand() {

@@ -19,6 +19,11 @@ export function resolveInstanceDataDir(projectDir = process.cwd()): string {
   return isAbsolute(configured) ? configured : resolve(projectDir, configured)
 }
 
+/** Keep mutable workspace selection scoped to the current instance. */
+export function resolveWorkspaceStatePath(projectDir = process.cwd()): string {
+  return resolve(resolveInstanceDataDir(projectDir), 'current-workspace')
+}
+
 export function readServerPid(pidFile: string): ServerPidRecord | null {
   if (!existsSync(pidFile)) return null
   try {

@@ -24,6 +24,7 @@ const BACKUP_FILES = [
   'opendocuments.db-wal',
   'opendocuments.db-shm',
   'installed-plugins.json',
+  'current-workspace',
 ] as const
 const BACKUP_DIRS = ['vectors'] as const
 
@@ -95,7 +96,6 @@ function validateBackupFiles(backupDir: string, manifest: BackupManifest): void 
       || file.path.includes('\\')
       || (
         !BACKUP_FILES.includes(file.path as typeof BACKUP_FILES[number])
-        && file.path !== 'current-workspace'
         && !file.path.startsWith('vectors/')
       )
     ) {
@@ -135,8 +135,17 @@ function assertServerStopped(dataDir: string): void {
   const pidFile = join(dataDir, 'server.pid')
   if (!existsSync(pidFile)) return
   const record = readServerPid(pidFile)
-  if (!record || !isRecordedServerProcess(record)) return
-  throw new Error('OpenDocuments server is running. Run "opendocuments stop" before backup or restore.')
+  if (!record) {
+    throw new Error(
+      `Invalid PID record at ${pidFile}. Refusing backup or restore until the server is stopped and the stale record is removed.`
+    )
+  }
+  if (resolve(record.dataDir) !== resolve(dataDir)) {
+    throw new Error(`PID record at ${pidFile} belongs to a different data directory.`)
+  }
+  if (isRecordedServerProcess(record)) {
+    throw new Error('OpenDocuments server is running. Run "opendocuments stop" before backup or restore.')
+  }
 }
 
 /** Resolve the active storage directory using the same precedence as server bootstrap. */
@@ -147,8 +156,7 @@ export function resolveDataDir(projectDir = process.cwd()): string {
 /** Create a consistent, restorable snapshot of SQLite, LanceDB, and CLI workspace state. */
 export function createBackup(
   dataDir: string,
-  backupDir: string,
-  stateDir = STATE_DIR
+  backupDir: string
 ): { copied: number; skipped: number } {
   assertServerStopped(dataDir)
   if (!existsSync(dataDir)) throw new Error(`Data directory not found: ${dataDir}`)
@@ -198,17 +206,6 @@ export function createBackup(
       } else {
         skipped++
       }
-    }
-
-    const workspaceState = join(stateDir, 'current-workspace')
-    if (existsSync(workspaceState)) {
-      if (lstatSync(workspaceState).isSymbolicLink()) {
-        throw new Error(`Refusing to back up symbolic link: ${workspaceState}`)
-      }
-      copyFileSync(workspaceState, join(snapshotDir, 'current-workspace'))
-      copied++
-    } else {
-      skipped++
     }
 
     const manifestFiles = listFilesRecursive(snapshotDir).map((relativePath) => {
@@ -272,7 +269,7 @@ export function restoreBackup(
   if (force && existsSync(join(dataDir, 'opendocuments.db'))) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     safetyBackup = join(stateDir, 'backups', `pre-restore-${timestamp}`)
-    createBackup(dataDir, safetyBackup, stateDir)
+    createBackup(dataDir, safetyBackup)
   }
 
   const dataDirParent = dirname(resolve(dataDir))
@@ -283,9 +280,6 @@ export function restoreBackup(
   let skipped = 0
   const installed: string[] = []
   const displaced: string[] = []
-  let workspaceInstalled = false
-  let workspaceDisplaced = false
-
   try {
     for (const file of BACKUP_FILES) {
       const source = join(backupDir, file)
@@ -306,14 +300,6 @@ export function restoreBackup(
       }
     }
 
-    const workspaceSource = join(backupDir, 'current-workspace')
-    if (existsSync(workspaceSource)) {
-      copyFileSync(workspaceSource, join(stagingDir, 'current-workspace'))
-      restored++
-    } else {
-      skipped++
-    }
-
     mkdirSync(dataDir, { recursive: true })
     for (const item of [...BACKUP_FILES, ...BACKUP_DIRS]) {
       const destination = join(dataDir, item)
@@ -328,17 +314,6 @@ export function restoreBackup(
       }
     }
 
-    const workspaceDestination = join(stateDir, 'current-workspace')
-    const stagedWorkspace = join(stagingDir, 'current-workspace')
-    mkdirSync(stateDir, { recursive: true })
-    if (existsSync(workspaceDestination)) {
-      renameSync(workspaceDestination, join(rollbackDir, 'current-workspace'))
-      workspaceDisplaced = true
-    }
-    if (existsSync(stagedWorkspace)) {
-      renameSync(stagedWorkspace, workspaceDestination)
-      workspaceInstalled = true
-    }
   } catch (error) {
     for (const item of installed) {
       rmSync(join(dataDir, item), { recursive: true, force: true })
@@ -346,11 +321,6 @@ export function restoreBackup(
     for (const item of displaced) {
       const rollbackItem = join(rollbackDir, item)
       if (existsSync(rollbackItem)) renameSync(rollbackItem, join(dataDir, item))
-    }
-    const workspaceDestination = join(stateDir, 'current-workspace')
-    if (workspaceInstalled) rmSync(workspaceDestination, { force: true })
-    if (workspaceDisplaced) {
-      renameSync(join(rollbackDir, 'current-workspace'), workspaceDestination)
     }
     throw error
   } finally {

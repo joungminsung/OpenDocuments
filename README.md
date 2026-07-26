@@ -528,6 +528,8 @@ export default defineConfig({
 OPENDOCUMENTS_MODEL_PROVIDER=openai \
 OPENDOCUMENTS_MODEL_BASE_URL=https://api.openai.com/v1 \
 OPENDOCUMENTS_MODEL_API_KEY="$OPENAI_API_KEY" \
+OPENDOCUMENTS_MODEL_LLM=gpt-4o \
+OPENDOCUMENTS_MODEL_EMBEDDING=text-embedding-3-small \
 docker compose up -d
 
 # With local LLM (Ollama)
@@ -621,8 +623,8 @@ npm run dev      # Watch mode
 | Package | Role | Tests |
 |---------|------|-------|
 | `@opendocuments/core` | Plugin system, RAG engine, ingest pipeline, storage, auth, security | 437 |
-| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 73 |
-| `@opendocuments/cli` | 20 CLI commands (Commander.js) | 8 |
+| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 75 |
+| `@opendocuments/cli` | 20 CLI commands (Commander.js) | 9 |
 | `@opendocuments/web` | React SPA with 9 pages (Vite + Tailwind) | -- |
 | `@opendocuments/client` | TypeScript SDK | 5 |
 | 5 model plugins | Ollama, OpenAI, Anthropic, Google, Grok | 40 |

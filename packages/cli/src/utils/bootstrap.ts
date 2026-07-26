@@ -2,6 +2,7 @@ import { bootstrap, type AppContext } from 'opendocuments-server'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { resolveWorkspaceStatePath } from './instance.js'
 
 // Module-level cache: single CLI invocation shares one context.
 // This is intentional for CLI use. Tests should import from @opendocuments/server directly.
@@ -10,7 +11,7 @@ const stateDir = join(homedir(), '.opendocuments')
 
 export async function getContext(): Promise<AppContext> {
   if (cachedCtx) return cachedCtx
-  const currentWorkspacePath = join(stateDir, 'current-workspace')
+  const currentWorkspacePath = resolveWorkspaceStatePath()
   const configuredWorkspace = existsSync(currentWorkspacePath)
     ? readFileSync(currentWorkspacePath, 'utf-8').trim()
     : undefined

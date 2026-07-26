@@ -27,9 +27,9 @@ describe('backup helpers', () => {
     writeFileSync(join(source, 'opendocuments.db-wal'), 'wal-v1')
     writeFileSync(join(source, 'installed-plugins.json'), '["plugin-a"]')
     writeFileSync(join(source, 'vectors', 'index.bin'), 'vector-v1')
-    writeFileSync(join(state, 'current-workspace'), 'team-a')
+    writeFileSync(join(source, 'current-workspace'), 'team-a')
 
-    createBackup(source, backup, state)
+    createBackup(source, backup)
     writeFileSync(join(target, 'opendocuments.db'), 'stale-database')
     mkdirSync(join(target, 'vectors'))
     writeFileSync(join(target, 'vectors', 'stale.bin'), 'stale-vector')
@@ -38,7 +38,7 @@ describe('backup helpers', () => {
     expect(readFileSync(join(target, 'opendocuments.db'), 'utf-8')).toBe('database-v1')
     expect(readFileSync(join(target, 'vectors', 'index.bin'), 'utf-8')).toBe('vector-v1')
     expect(existsSync(join(target, 'vectors', 'stale.bin'))).toBe(false)
-    expect(readFileSync(join(state, 'current-workspace'), 'utf-8')).toBe('team-a')
+    expect(readFileSync(join(target, 'current-workspace'), 'utf-8')).toBe('team-a')
   })
 
   it('refuses to replace existing data without force', () => {
@@ -48,7 +48,7 @@ describe('backup helpers', () => {
     const state = temp('state')
     writeFileSync(join(source, 'opendocuments.db'), 'database')
     writeFileSync(join(target, 'opendocuments.db'), 'existing')
-    createBackup(source, backup, state)
+    createBackup(source, backup)
 
     expect(() => restoreBackup(target, backup, false, state)).toThrow('Use --force')
   })
@@ -60,7 +60,7 @@ describe('backup helpers', () => {
     const state = temp('state')
     writeFileSync(join(source, 'opendocuments.db'), 'database')
     writeFileSync(join(target, 'opendocuments.db'), 'existing')
-    createBackup(source, backup, state)
+    createBackup(source, backup)
     writeFileSync(join(backup, 'opendocuments.db'), 'tampered')
 
     expect(() => restoreBackup(target, backup, true, state)).toThrow('integrity check failed')
@@ -71,13 +71,22 @@ describe('backup helpers', () => {
     const source = temp('source')
     const backup = temp('backup')
     const external = temp('external')
-    const state = temp('state')
     mkdirSync(join(source, 'vectors'))
     writeFileSync(join(source, 'opendocuments.db'), 'database')
     writeFileSync(join(external, 'secret.bin'), 'must-not-be-copied')
     symlinkSync(join(external, 'secret.bin'), join(source, 'vectors', 'linked.bin'))
 
-    expect(() => createBackup(source, backup, state)).toThrow('symbolic link')
+    expect(() => createBackup(source, backup)).toThrow('symbolic link')
+    expect(readdirSync(backup)).toEqual([])
+  })
+
+  it('fails closed when the server PID record is unreadable', () => {
+    const source = temp('source')
+    const backup = temp('backup')
+    writeFileSync(join(source, 'opendocuments.db'), 'database')
+    writeFileSync(join(source, 'server.pid'), '12345\n')
+
+    expect(() => createBackup(source, backup)).toThrow('Invalid PID record')
     expect(readdirSync(backup)).toEqual([])
   })
 })

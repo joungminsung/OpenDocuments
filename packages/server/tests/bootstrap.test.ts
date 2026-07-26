@@ -53,6 +53,19 @@ describe('bootstrap', () => {
     expect(ctx.store.listDocuments()).toEqual([])
   })
 
+  it('loads parser packages referenced by legacy plugin identifiers', async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
+    ctx = await bootstrap({
+      dataDir: tempDir,
+      projectDir: process.cwd(),
+      configOverrides: {
+        model: stubModel,
+        plugins: ['@opendocuments/parser-pdf'],
+      },
+    })
+    expect(ctx.registry.get('@opendocuments/parser-pdf')).toBeDefined()
+  })
+
   it('rejects unsupported relational database configuration', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     await expect(bootstrap({

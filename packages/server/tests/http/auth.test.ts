@@ -235,6 +235,49 @@ describe('Auth Middleware', () => {
     expect(limited.headers.get('X-RateLimit-Limit')).toBe('1')
   })
 
+  it('rate-limits browser sessions independently behind the same client IP', async () => {
+    const workspaceId = ctx.workspaceManager.list()[0].id
+    const firstKey = ctx.apiKeyManager.create({
+      name: 'browser-one',
+      workspaceId,
+      userId: 'user-1',
+      role: 'admin',
+      rateLimit: 1,
+    }).rawKey
+    const secondKey = ctx.apiKeyManager.create({
+      name: 'browser-two',
+      workspaceId,
+      userId: 'user-2',
+      role: 'admin',
+      rateLimit: 1,
+    }).rawKey
+    const app = createApp(ctx)
+
+    const createSession = async (apiKey: string): Promise<string> => {
+      const response = await app.request('/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      })
+      expect(response.status).toBe(200)
+      const cookie = response.headers.get('set-cookie')?.split(';')[0]
+      expect(cookie).toBeDefined()
+      return cookie!
+    }
+
+    const firstCookie = await createSession(firstKey)
+    const secondCookie = await createSession(secondKey)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: firstCookie },
+    })).status).toBe(200)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: firstCookie },
+    })).status).toBe(429)
+    expect((await app.request('/api/v1/health', {
+      headers: { Cookie: secondCookie },
+    })).status).toBe(200)
+  })
+
   it('only exposes configured OAuth providers and requires a team redirect URI', async () => {
     ctx.config.security.auth.providers = [{
       type: 'github',

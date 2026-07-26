@@ -534,6 +534,8 @@ export default defineConfig({
 OPENDOCUMENTS_MODEL_PROVIDER=openai \
 OPENDOCUMENTS_MODEL_BASE_URL=https://api.openai.com/v1 \
 OPENDOCUMENTS_MODEL_API_KEY="$OPENAI_API_KEY" \
+OPENDOCUMENTS_MODEL_LLM=gpt-4o \
+OPENDOCUMENTS_MODEL_EMBEDDING=text-embedding-3-small \
 docker compose up -d
 
 # 로컬 LLM(Ollama) 포함
@@ -627,8 +629,8 @@ npm run dev      # Watch mode
 | 패키지                  | 역할                                                                   | 테스트 |
 | ----------------------- | ---------------------------------------------------------------------- | ------ |
 | `@opendocuments/core`   | 플러그인 시스템, RAG 엔진, ingest pipeline, storage, auth, security    | 437    |
-| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                      | 73     |
-| `@opendocuments/cli`    | 20개 CLI 명령어(Commander.js)                                          | 8      |
+| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                      | 75     |
+| `@opendocuments/cli`    | 20개 CLI 명령어(Commander.js)                                          | 9      |
 | `@opendocuments/web`    | 9개 페이지 React SPA(Vite + Tailwind)                                  | --     |
 | `@opendocuments/client` | TypeScript SDK                                                         | 5      |
 | 5개 모델 플러그인       | Ollama, OpenAI, Anthropic, Google, Grok                                | 40     |

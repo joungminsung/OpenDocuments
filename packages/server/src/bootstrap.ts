@@ -84,6 +84,21 @@ const PROVIDER_MAP: Record<string, string> = {
   grok: 'opendocuments-model-grok',
 }
 
+const LEGACY_PLUGIN_PACKAGE_MAP: Record<string, string> = {
+  '@opendocuments/parser-pdf': 'opendocuments-parser-pdf',
+  '@opendocuments/parser-docx': 'opendocuments-parser-docx',
+  '@opendocuments/parser-xlsx': 'opendocuments-parser-xlsx',
+  '@opendocuments/parser-html': 'opendocuments-parser-html',
+  '@opendocuments/parser-jupyter': 'opendocuments-parser-jupyter',
+  '@opendocuments/parser-email': 'opendocuments-parser-email',
+  '@opendocuments/parser-code': 'opendocuments-parser-code',
+  '@opendocuments/parser-pptx': 'opendocuments-parser-pptx',
+}
+
+function normalizePluginPackageName(name: string): string {
+  return LEGACY_PLUGIN_PACKAGE_MAP[name] ?? name
+}
+
 const EMBEDDING_DIMENSIONS: Record<string, number> = {
   ollama: 1024,
   openai: 1536,
@@ -496,8 +511,10 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
       }
     }
 
-    const disabledPlugins = new Set(disabledPluginNames)
-    for (const name of new Set([...config.plugins, ...persistedPluginNames])) {
+    const disabledPlugins = new Set(disabledPluginNames.map(normalizePluginPackageName))
+    const configuredPlugins = [...config.plugins, ...persistedPluginNames]
+      .map(normalizePluginPackageName)
+    for (const name of new Set(configuredPlugins)) {
       if (disabledPlugins.has(name)) continue
       if (registry.get(name)) continue
       try {
