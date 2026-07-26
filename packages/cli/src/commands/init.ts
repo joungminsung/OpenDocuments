@@ -1,7 +1,13 @@
 import { Command } from 'commander'
-import { log } from 'opendocuments-core'
+import {
+  APIKeyManager,
+  WorkspaceManager,
+  createSQLiteDB,
+  log,
+  runMigrations,
+} from 'opendocuments-core'
 import chalk from 'chalk'
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { cpus, totalmem, platform, arch } from 'node:os'
 
@@ -26,42 +32,48 @@ async function getOllamaModels(): Promise<string[]> {
 }
 
 async function pullOllamaModel(model: string): Promise<boolean> {
-  const { execSync } = await import('node:child_process')
+  const { execFileSync } = await import('node:child_process')
   try {
-    console.log(`  Pulling ${model}... (this may take a few minutes)`)
-    execSync(`ollama pull ${model}`, { stdio: 'inherit', timeout: 600000 })
+    log.wait(`Pulling ${model}... (this may take a few minutes)`)
+    execFileSync('ollama', ['pull', model], { stdio: 'inherit', timeout: 600000 })
     return true
   } catch {
     return false
   }
 }
 
-async function validateCloudApiKey(provider: string, apiKey: string): Promise<boolean> {
-  if (!apiKey) return true
+async function validateCloudApiKey(
+  provider: string,
+  apiKey: string
+): Promise<'valid' | 'invalid' | 'unreachable'> {
   const endpoints: Record<string, { url: string; headers: Record<string, string> }> = {
     openai: {
       url: 'https://api.openai.com/v1/models',
       headers: { 'Authorization': `Bearer ${apiKey}` },
     },
     anthropic: {
-      url: 'https://api.anthropic.com/v1/messages',
+      url: 'https://api.anthropic.com/v1/models',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     },
     google: {
       url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
       headers: {},
     },
+    grok: {
+      url: 'https://api.x.ai/v1/models',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    },
   }
   const endpoint = endpoints[provider]
-  if (!endpoint) return true
+  if (!endpoint) return 'unreachable'
   try {
     const res = await fetch(endpoint.url, {
       headers: endpoint.headers,
       signal: AbortSignal.timeout(10000),
     })
-    return res.status !== 401 && res.status !== 403
+    return res.status === 401 || res.status === 403 ? 'invalid' : 'valid'
   } catch {
-    return true
+    return 'unreachable'
   }
 }
 
@@ -71,7 +83,7 @@ export function initCommand() {
     .argument('[directory]', 'Project directory', '.')
     .action(async (dir) => {
       // Dynamic import to avoid loading inquirer when not needed
-      const { input, select, confirm } = await import('@inquirer/prompts')
+      const { checkbox, input, select, confirm } = await import('@inquirer/prompts')
 
       log.heading('OpenDocuments Setup')
       log.blank()
@@ -142,16 +154,18 @@ export function initCommand() {
 
         if (apiKey) {
           log.wait('Validating API key...')
-          const valid = await validateCloudApiKey(provider, apiKey)
-          if (valid) {
+          const validation = await validateCloudApiKey(provider, apiKey)
+          if (validation === 'valid') {
             log.ok('API key is valid')
-          } else {
+          } else if (validation === 'invalid') {
             log.fail('API key appears to be invalid (401/403 response)')
             const proceed = await confirm({
               message: 'Continue with this key anyway?',
               default: false,
             })
             if (!proceed) return
+          } else {
+            log.info('Could not reach the provider. The API key was saved without validation.')
           }
         }
 
@@ -160,13 +174,13 @@ export function initCommand() {
           openai: { llm: 'gpt-4o', embedding: 'text-embedding-3-small' },
           anthropic: { llm: 'claude-sonnet-4-20250514', embedding: 'bge-m3' }, // Anthropic has no embedding
           google: { llm: 'gemini-2.5-flash', embedding: 'gemini-embedding-001' },
-          grok: { llm: 'grok-3', embedding: 'grok-2-embed' },
+          grok: { llm: 'grok-3', embedding: 'bge-m3' },
         }
         llmModel = providerDefaults[provider].llm
         embeddingModel = providerDefaults[provider].embedding
 
-        if (provider === 'anthropic') {
-          log.wait('Anthropic does not provide an embedding API.')
+        if (provider === 'anthropic' || provider === 'grok') {
+          log.wait(`${provider === 'anthropic' ? 'Anthropic' : 'xAI'} does not provide a general-purpose embedding endpoint.`)
           const embeddingChoice = await select({
             message: 'Embedding provider:',
             choices: [
@@ -229,12 +243,18 @@ export function initCommand() {
       const preset = await select({
         message: 'Plugin preset:',
         choices: [
-          { name: `Developer ${chalk.dim('-- GitHub, Swagger, code parser, Markdown')}`, value: 'developer' },
-          { name: `Enterprise ${chalk.dim('-- Google Drive, Notion, Confluence, PDF, DOCX')}`, value: 'enterprise' },
-          { name: `All ${chalk.dim('-- all connectors + all parsers')}`, value: 'all' },
-          { name: 'Custom -- pick individually', value: 'custom' },
+          { name: `Developer ${chalk.dim('-- code parser + built-in Markdown')}`, value: 'developer' },
+          { name: `Enterprise ${chalk.dim('-- PDF, DOCX, XLSX')}`, value: 'enterprise' },
+          { name: `All ${chalk.dim('-- all document parsers')}`, value: 'all' },
+          { name: 'Custom -- pick parsers individually', value: 'custom' },
         ],
       })
+      const selectedPlugins = preset === 'custom'
+        ? await checkbox({
+            message: 'Parsers to enable:',
+            choices: PRESET_PLUGINS.all.map((plugin) => ({ name: plugin, value: plugin })),
+          })
+        : PRESET_PLUGINS[preset] || []
 
       // 9. Generate config
       const projectDir = resolve(dir)
@@ -253,6 +273,8 @@ export function initCommand() {
         embeddingModel,
         profile,
         preset,
+        plugins: selectedPlugins,
+        allowCloudProcessing: backend === 'cloud',
       })
 
       const configPath = join(projectDir, 'opendocuments.config.ts')
@@ -270,27 +292,50 @@ export function initCommand() {
 
       // Write .env file with the actual key (never written to config)
       const envVarName = getEnvVarName(provider)
-      const envLines: string[] = []
-      if (apiKey) envLines.push(`${envVarName}=${apiKey}`)
-      if (embeddingApiKey) envLines.push(`OPENAI_API_KEY=${embeddingApiKey}`)
-      if (envLines.length > 0) {
-        writeFileSync(join(projectDir, '.env'), envLines.join('\n') + '\n')
-        log.ok(`API key(s) saved to ${chalk.cyan('.env')} (add to .gitignore!)`)
+      const envValues: Record<string, string> = {}
+      if (apiKey) envValues[envVarName] = apiKey
+      if (embeddingApiKey) envValues.OPENAI_API_KEY = embeddingApiKey
+      if (Object.keys(envValues).length > 0) {
+        updateEnvFile(join(projectDir, '.env'), envValues)
+        log.ok(`API key(s) saved to ${chalk.cyan('.env')}`)
       }
 
-      // Write .gitignore if one doesn't exist
+      let initialAdminKey: string | null = null
+      if (mode === 'team') {
+        const dataDir = join(projectDir, '.opendocuments')
+        mkdirSync(dataDir, { recursive: true })
+        const db = createSQLiteDB(join(dataDir, 'opendocuments.db'))
+        try {
+          runMigrations(db)
+          const workspace = new WorkspaceManager(db).ensure(projectName, 'team')
+          const keyManager = new APIKeyManager(db)
+          if (keyManager.list(workspace.id).length === 0) {
+            initialAdminKey = keyManager.create({
+              name: 'initial-admin',
+              workspaceId: workspace.id,
+              userId: 'initial-admin',
+              role: 'admin',
+            }).rawKey
+          }
+        } catch (error) {
+          log.fail(`Failed to create the initial team administrator: ${error instanceof Error ? error.message : String(error)}`)
+          process.exitCode = 1
+          return
+        } finally {
+          db.close()
+        }
+      }
+
+      // Ensure secret environment files are ignored.
       const gitignorePath = join(projectDir, '.gitignore')
-      if (!existsSync(gitignorePath)) {
-        writeFileSync(gitignorePath, [
-          'node_modules/',
-          '.env',
-          '.env.local',
-          '*.db',
-          '*.sqlite',
-          '.opendocuments/',
-          '',
-        ].join('\n'))
-        log.ok(`.gitignore created`)
+      const existingIgnore = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf-8') : ''
+      const ignoreLines = new Set(existingIgnore.split(/\r?\n/).filter(Boolean))
+      const requiredIgnores = ['node_modules/', '.env', '.env.local', '*.db', '*.sqlite', '.opendocuments/']
+      const missingIgnores = requiredIgnores.filter((entry) => !ignoreLines.has(entry))
+      if (missingIgnores.length > 0) {
+        const prefix = existingIgnore && !existingIgnore.endsWith('\n') ? '\n' : ''
+        writeFileSync(gitignorePath, existingIgnore + prefix + missingIgnores.join('\n') + '\n')
+        log.ok(`.gitignore updated`)
       }
 
       // 9. Summary
@@ -305,6 +350,12 @@ export function initCommand() {
       log.dim(`  Embedding  ${embeddingModel}`)
       log.dim(`  Profile    ${profile}`)
       log.dim(`  Preset     ${preset}`)
+      if (initialAdminKey) {
+        log.blank()
+        log.heading('Initial Team Administrator')
+        log.ok(`API key    ${chalk.cyan(initialAdminKey)}`)
+        log.fail('This key will not be shown again. Save it in a password manager before continuing.')
+      }
       log.blank()
       log.heading('Next Steps')
       if (backend === 'ollama') {
@@ -377,9 +428,9 @@ function detectSystem(): SystemSpecs {
 }
 
 const PRESET_PLUGINS: Record<string, string[]> = {
-  developer: ['@opendocuments/parser-code', '@opendocuments/connector-github'],
-  enterprise: ['@opendocuments/parser-pdf', '@opendocuments/parser-docx', '@opendocuments/parser-xlsx', '@opendocuments/connector-gdrive', '@opendocuments/connector-notion', '@opendocuments/connector-confluence'],
-  all: ['@opendocuments/parser-pdf', '@opendocuments/parser-docx', '@opendocuments/parser-xlsx', '@opendocuments/parser-html', '@opendocuments/parser-jupyter', '@opendocuments/parser-email', '@opendocuments/parser-code', '@opendocuments/connector-github', '@opendocuments/connector-notion', '@opendocuments/connector-gdrive', '@opendocuments/connector-s3', '@opendocuments/connector-confluence', '@opendocuments/connector-web-crawler'],
+  developer: ['opendocuments-parser-code'],
+  enterprise: ['opendocuments-parser-pdf', 'opendocuments-parser-docx', 'opendocuments-parser-xlsx'],
+  all: ['opendocuments-parser-pdf', 'opendocuments-parser-docx', 'opendocuments-parser-xlsx', 'opendocuments-parser-html', 'opendocuments-parser-jupyter', 'opendocuments-parser-email', 'opendocuments-parser-code', 'opendocuments-parser-pptx'],
 }
 
 interface ConfigOptions {
@@ -393,6 +444,8 @@ interface ConfigOptions {
   embeddingModel: string
   profile: string
   preset: string
+  plugins: string[]
+  allowCloudProcessing: boolean
 }
 
 function generateConfigFile(opts: ConfigOptions): string {
@@ -400,17 +453,17 @@ function generateConfigFile(opts: ConfigOptions): string {
     `import { defineConfig } from 'opendocuments-core'`,
     ``,
     `export default defineConfig({`,
-    `  workspace: '${opts.projectName}',`,
+    `  workspace: ${JSON.stringify(opts.projectName)},`,
     `  mode: '${opts.mode}',`,
     ``,
     `  model: {`,
-    `    provider: '${opts.provider}',`,
-    `    llm: '${opts.llmModel}',`,
-    `    embedding: '${opts.embeddingModel}',`,
+    `    provider: ${JSON.stringify(opts.provider)},`,
+    `    llm: ${JSON.stringify(opts.llmModel)},`,
+    `    embedding: ${JSON.stringify(opts.embeddingModel)},`,
   ]
 
   if (opts.embeddingProvider) {
-    lines.push(`    embeddingProvider: '${opts.embeddingProvider}',`)
+    lines.push(`    embeddingProvider: ${JSON.stringify(opts.embeddingProvider)},`)
   }
 
   if (opts.apiKey) {
@@ -425,22 +478,36 @@ function generateConfigFile(opts: ConfigOptions): string {
     `  },`,
     ``,
     `  rag: {`,
-    `    profile: '${opts.profile}',`,
+    `    profile: ${JSON.stringify(opts.profile)},`,
     `  },`,
     ``,
     `  storage: {`,
     `    db: 'sqlite',`,
     `    vectorDb: 'lancedb',`,
-    `    dataDir: '~/.opendocuments',`,
+    `    dataDir: './.opendocuments',`,
     `  },`,
   )
 
-  const presetPlugins = PRESET_PLUGINS[opts.preset] || []
-  if (presetPlugins.length > 0) {
+  if (opts.mode === 'team') {
+    lines.push(
+      ``,
+      `  security: {`,
+      `    dataPolicy: {`,
+      `      allowCloudProcessing: ${opts.allowCloudProcessing},`,
+      `      autoRedact: { enabled: true, method: 'replace', replacement: '[REDACTED]' },`,
+      `    },`,
+      `    transport: { enforceHTTPS: true },`,
+      `    storage: { encryptAtRest: false, redactLogsContent: true },`,
+      `    audit: { enabled: true, destination: 'local' },`,
+      `  },`,
+    )
+  }
+
+  if (opts.plugins.length > 0) {
     lines.push(
       ``,
       `  plugins: [`,
-      ...presetPlugins.map(p => `    '${p}',`),
+      ...opts.plugins.map(p => `    ${JSON.stringify(p)},`),
       `  ],`,
     )
   } else {
@@ -453,6 +520,23 @@ function generateConfigFile(opts: ConfigOptions): string {
   lines.push(`})`, ``)
 
   return lines.join('\n')
+}
+
+function updateEnvFile(path: string, values: Record<string, string>): void {
+  const existing = existsSync(path) ? readFileSync(path, 'utf-8') : ''
+  const pending = new Map(Object.entries(values))
+  const lines = existing.split(/\r?\n/).filter((line, index, all) => index < all.length - 1 || line !== '')
+  const updated = lines.map((line) => {
+    const match = line.match(/^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=/)
+    const key = match?.[1]
+    if (!key || !pending.has(key)) return line
+    const value = pending.get(key)!
+    pending.delete(key)
+    return `${key}=${JSON.stringify(value)}`
+  })
+  for (const [key, value] of pending) updated.push(`${key}=${JSON.stringify(value)}`)
+  writeFileSync(path, updated.join('\n') + '\n', { mode: 0o600 })
+  chmodSync(path, 0o600)
 }
 
 function getEnvVarName(provider: string): string {

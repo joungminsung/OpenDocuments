@@ -68,7 +68,7 @@ export default defineConfig({
   storage: {
     db: 'sqlite',
     vectorDb: 'lancedb',
-    dataDir: '~/.opendocuments',
+    dataDir: './.opendocuments',
   },
 })
 ```
@@ -148,16 +148,24 @@ The `.env` file is automatically loaded before config resolution.
 export default defineConfig({
   mode: 'team',
   security: {
+    dataPolicy: {
+      allowCloudProcessing: false,
+      autoRedact: { enabled: true, method: 'replace', replacement: '[REDACTED]' },
+    },
     transport: {
       enforceHTTPS: true,
       // Set this when TLS terminates at a reverse proxy. Use only IPs/CIDRs
       // controlled by your deployment; untrusted X-Forwarded-* headers are ignored.
       proxy: '10.0.0.10,172.18.0.0/16',
     },
+    audit: { enabled: true, destination: 'local' },
   },
-  // Enables: API key auth, RBAC, workspace isolation, audit logging
+  // Team mode enables API-key enforcement, RBAC, and workspace isolation.
+  // Redaction, audit logging, and cloud policy are explicit settings.
 })
 ```
+
+The `init` wizard writes these secure team defaults and creates the first administrator key. Hand-written configs must set them explicitly.
 
 Container liveness probes use the unauthenticated `/healthz` endpoint. Detailed
 health and readiness endpoints under `/api/v1` continue to require authentication

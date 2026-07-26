@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="$ROOT_DIR/packages/cli/dist/index.js"
-DEMO_DIR="$ROOT_DIR/examples/presentation-demo"
-CORPUS_DIR="$DEMO_DIR/corpus"
+DEMO_DIR="$ROOT_DIR/docker/demo"
+CORPUS_DIR="$DEMO_DIR/docs"
 DATA_DIR="$ROOT_DIR/.opendocuments-demo"
 
 if [[ ! -f "$CLI" ]]; then

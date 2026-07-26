@@ -11,7 +11,7 @@ if [[ ! -f "$CLI" ]]; then
   exit 1
 fi
 
-cd "$ROOT_DIR/examples/presentation-demo"
+cd "$ROOT_DIR/docker/demo"
 
 run_search() {
   local query="$1"

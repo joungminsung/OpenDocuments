@@ -37,7 +37,7 @@
   "scripts": {
     "setup": "npm install && npm run build && echo 'Setup complete. Run: npm run test'",
     "build": "turbo build",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=4",
     "lint": "turbo typecheck",
     "typecheck": "turbo typecheck",
     "dev": "turbo dev",

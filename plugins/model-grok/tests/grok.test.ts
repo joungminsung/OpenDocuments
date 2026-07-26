@@ -22,7 +22,7 @@ describe('GrokModelPlugin', () => {
     expect(plugin.type).toBe('model')
     expect(plugin.version).toBe('0.1.1')
     expect(plugin.capabilities.llm).toBe(true)
-    expect(plugin.capabilities.embedding).toBe(true)
+    expect(plugin.capabilities.embedding).toBe(false)
     expect(plugin.capabilities.reranker).toBe(false)
     expect(plugin.capabilities.vision).toBe(false)
   })
@@ -149,29 +149,4 @@ describe('GrokModelPlugin', () => {
     }).rejects.toThrow('Grok error: 429')
   })
 
-  it('embed returns dense vectors', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          data: [{ embedding: [0.1, 0.2, 0.3] }, { embedding: [0.4, 0.5, 0.6] }],
-        }),
-      }),
-    )
-
-    const result = await plugin.embed(['hello', 'world'])
-    expect(result.dense).toHaveLength(2)
-    expect(result.dense[0]).toEqual([0.1, 0.2, 0.3])
-    expect(result.dense[1]).toEqual([0.4, 0.5, 0.6])
-  })
-
-  it('embed throws on HTTP error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500 }),
-    )
-
-    await expect(plugin.embed(['test'])).rejects.toThrow('Grok embed error: 500')
-  })
 })

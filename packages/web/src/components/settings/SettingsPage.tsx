@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { CheckCircle2, Monitor, Moon, RefreshCw, Server, Sun } from 'lucide-react'
-import { getHealth, getModelBenchmarks, getWorkbench } from '../../lib/api'
+import { getHealth, getPluginHealth, getWorkbench } from '../../lib/api'
 import { useAppStore } from '../../stores/appStore'
 import type { RAGProfile, WorkbenchResponse } from '../../lib/types'
 import { translate as tr } from '../../lib/i18n'
@@ -50,11 +50,20 @@ export function SettingsPage() {
       const [nextHealth, nextWorkbench, modelData] = await Promise.all([
         getHealth(),
         getWorkbench(),
-        getModelBenchmarks().catch(() => ({ benchmarks: [] as BenchmarkModel[] })),
+        getPluginHealth().catch(() => ({ plugins: [] })),
       ])
       setHealth(nextHealth)
       setWorkbench(nextWorkbench)
-      setModels(modelData.benchmarks)
+      setModels(modelData.plugins
+        .filter((plugin) => plugin.type === 'model')
+        .map((plugin) => ({
+          name: plugin.name,
+          version: plugin.version,
+          capabilities: {},
+          health: plugin.health,
+          generation: null,
+          embedding: null,
+        })))
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.subtitle'))
     } finally {
@@ -177,7 +186,21 @@ export function SettingsPage() {
                 <Field label={t('common.chunks')} value={workbench?.corpus.chunks ?? 0} />
                 <Field label={t('dashboard.connectors')} value={`${workbench?.connectors.active ?? 0}/${workbench?.connectors.total ?? 0} ${t('common.active')}`} />
                 <Field label={t('settings.modelStatus')} value={workbench?.health.modelStatus || t('common.unknown')} />
+                <Field label={t('settings.modelProvider')} value={workbench?.health.modelProvider || t('common.unknown')} />
+                <Field label={t('settings.embeddingDimensions')} value={workbench?.health.embeddingDimensions || t('common.unknown')} />
               </div>
+              {workbench?.health.issues.map((issue) => (
+                <div key={issue.code} className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
+                  <p className="text-[12px] font-semibold text-amber-900">{t('settings.actionRequired')}</p>
+                  <p className="mt-1 text-[12px] leading-5 text-amber-800">
+                    {issue.code === 'model_unavailable'
+                      ? t('settings.modelUnavailableAction', {
+                          provider: workbench.health.modelProvider || t('common.unknown'),
+                        })
+                      : issue.action}
+                  </p>
+                </div>
+              ))}
             </SettingCard>
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
@@ -190,7 +213,7 @@ export function SettingsPage() {
               ) : (
                 <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
                   {models.map((model) => (
-                    <div key={model.name} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_150px_150px]">
+                    <div key={model.name} className="px-4 py-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-[14px] font-semibold text-slate-900">{model.name}</p>
@@ -198,18 +221,6 @@ export function SettingsPage() {
                         </div>
                         <p className="mt-1 text-[12px] text-slate-400">v{model.version} · {model.health?.message || t('common.notRecorded')}</p>
                       </div>
-                      <p className="text-[12px] text-slate-500">
-                        {t('settings.generation')}<br />
-                        <span className="font-medium text-slate-800">
-                          {model.generation && 'latencyMs' in model.generation ? `${model.generation.latencyMs}ms` : '-'}
-                        </span>
-                      </p>
-                      <p className="text-[12px] text-slate-500">
-                        {t('settings.embedding')}<br />
-                        <span className="font-medium text-slate-800">
-                          {model.embedding && 'latencyMs' in model.embedding ? `${model.embedding.latencyMs}ms` : '-'}
-                        </span>
-                      </p>
                     </div>
                   ))}
                 </div>

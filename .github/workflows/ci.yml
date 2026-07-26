@@ -24,8 +24,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - run: rm -f package-lock.json && npm install
-      - run: npx turbo build
-      - run: npx turbo typecheck
-      - run: npx turbo lint
-      - run: npx turbo test
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: git diff --check
+      - run: npm test

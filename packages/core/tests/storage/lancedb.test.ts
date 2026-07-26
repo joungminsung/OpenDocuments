@@ -30,6 +30,12 @@ describe('LanceDB VectorDB', () => {
     expect(count).toBe(2)
   })
 
+  it('rejects an embedding dimension change before the first query', async () => {
+    await expect(vectorDb.ensureCollection(COLLECTION, 4)).rejects.toThrow(
+      'Embedding dimension mismatch'
+    )
+  })
+
   it('searches by embedding similarity', async () => {
     await vectorDb.upsert(COLLECTION, [
       { id: 'chunk-1', content: 'hello world', embedding: [1, 0, 0], metadata: { source: 'a' } },

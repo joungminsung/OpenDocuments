@@ -3,6 +3,7 @@ import type { AppContext } from '../../bootstrap.js'
 import { getCachedUpdateInfo } from '../../utils/update-checker.js'
 import { SERVER_VERSION } from '../../version.js'
 import { getWorkspaceServices } from '../workspace.js'
+import { requireScope } from '../middleware/auth.js'
 
 type CheckStatus = 'ok' | 'error' | 'warning'
 
@@ -16,7 +17,7 @@ export function healthRoutes(ctx: AppContext) {
 
   app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: SERVER_VERSION }))
 
-  app.get('/api/v1/stats', (c) => {
+  app.get('/api/v1/stats', requireScope('document:read'), (c) => {
     const { store } = getWorkspaceServices(c, ctx)
     const docs = store.listDocuments()
     const workspaces = ctx.workspaceManager.list()
@@ -33,7 +34,7 @@ export function healthRoutes(ctx: AppContext) {
 
   app.get('/api/v1/healthz', (c) => c.json({ status: 'ok' }, 200))
 
-  app.get('/api/v1/readyz', async (c) => {
+  app.get('/api/v1/readyz', requireScope('document:read'), async (c) => {
     const checks: Record<string, CheckResult> = {}
     let allOk = true
 

@@ -217,10 +217,12 @@ describe('Health Routes', () => {
       const blocked = await widgetApp.request('/widget.js', {
         headers: { Referer: 'https://evil.example/page' },
       })
+      const missingReferer = await widgetApp.request('/widget.js')
       const allowed = await widgetApp.request('/widget.js', {
         headers: { Referer: 'https://docs.company.com/page' },
       })
       expect(blocked.status).toBe(403)
+      expect(missingReferer.status).toBe(403)
       expect(allowed.status).toBe(200)
     } finally {
       await widgetCtx.shutdown()

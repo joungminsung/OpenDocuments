@@ -3,9 +3,19 @@ import type { AppContext } from '../../bootstrap.js'
 import { requireRole, requireScope } from '../middleware/auth.js'
 import { resolveRequestWorkspaceId } from '../workspace.js'
 import type { ConnectorPlugin, PluginContext } from 'opendocuments-core'
+import { dirname } from 'node:path'
 
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 const GITHUB_BRANCH_PATTERN = /^[A-Za-z0-9._/-]+$/
+const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,80}$/
+const CONFIGURABLE_CONNECTOR_TYPES = new Set([
+  'notion',
+  'gdrive',
+  's3',
+  'confluence',
+  'swagger',
+  'web-crawler',
+])
 
 interface GitHubConnectorRequest {
   repo?: string
@@ -24,6 +34,53 @@ interface GitHubConnectorConfig {
   syncInterval?: number
 }
 
+interface DocumentStatsRow extends Record<string, unknown> {
+  docCount: number
+  chunkCount: number
+}
+
+interface SourceCountRow extends Record<string, unknown> {
+  source_type: string
+  count: number
+}
+
+interface StatusCountRow extends Record<string, unknown> {
+  status: string
+  count: number
+}
+
+interface FileTypeCountRow extends Record<string, unknown> {
+  ft: string
+  count: number
+}
+
+interface SearchQualityRow extends Record<string, unknown> {
+  totalQueries: number
+  avgConfidence: number | null
+  avgResponseTime: number | null
+}
+
+interface IntentCountRow extends Record<string, unknown> {
+  intent: string | null
+  count: number
+}
+
+interface RouteCountRow extends Record<string, unknown> {
+  route: string | null
+  count: number
+}
+
+interface FeedbackCountRow extends Record<string, unknown> {
+  positive: number | null
+  negative: number | null
+}
+
+interface QueryLogRow extends Record<string, unknown> {}
+
+interface CountRow extends Record<string, unknown> {
+  count: number
+}
+
 function sanitizeConnector(connector: {
   name: string
   connectorId: string
@@ -32,6 +89,7 @@ function sanitizeConnector(connector: {
   lastSyncedAt: string | null
   syncIntervalSeconds?: number | null
   repo?: string
+  errorMessage?: string
 }) {
   return connector
 }
@@ -79,26 +137,26 @@ export function adminRoutes(ctx: AppContext) {
 
   app.get('/api/v1/admin/stats', requireRole('admin'), requireScope('admin'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
-    const summary = ctx.db.get<any>(
+    const summary = ctx.db.get<DocumentStatsRow>(
       'SELECT COUNT(*) as docCount, COALESCE(SUM(chunk_count), 0) as chunkCount FROM documents WHERE deleted_at IS NULL AND workspace_id = ?',
       [workspaceId]
     )
 
-    const sourceDist = ctx.db.all<any>(
+    const sourceDist = ctx.db.all<SourceCountRow>(
       'SELECT source_type, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY source_type',
       [workspaceId]
     )
     const sourceDistribution: Record<string, number> = {}
     for (const row of sourceDist) sourceDistribution[row.source_type] = row.count
 
-    const statusDist = ctx.db.all<any>(
+    const statusDist = ctx.db.all<StatusCountRow>(
       'SELECT status, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY status',
       [workspaceId]
     )
     const statusDistribution: Record<string, number> = {}
     for (const row of statusDist) statusDistribution[row.status] = row.count
 
-    const fileTypeDist = ctx.db.all<any>(
+    const fileTypeDist = ctx.db.all<FileTypeCountRow>(
       "SELECT COALESCE(file_type, 'unknown') as ft, COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND workspace_id = ? GROUP BY ft",
       [workspaceId]
     )
@@ -119,26 +177,26 @@ export function adminRoutes(ctx: AppContext) {
   app.get('/api/v1/admin/search-quality', requireRole('admin'), requireScope('admin'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
     // Aggregate in SQL
-    const summary = ctx.db.get<any>(
+    const summary = ctx.db.get<SearchQualityRow>(
       'SELECT COUNT(*) as totalQueries, AVG(confidence_score) as avgConfidence, AVG(response_time_ms) as avgResponseTime FROM query_logs WHERE workspace_id = ?',
       [workspaceId]
     )
 
-    const intents = ctx.db.all<any>(
+    const intents = ctx.db.all<IntentCountRow>(
       'SELECT intent, COUNT(*) as count FROM query_logs WHERE workspace_id = ? GROUP BY intent',
       [workspaceId]
     )
     const intentDistribution: Record<string, number> = {}
     for (const row of intents) intentDistribution[row.intent || 'general'] = row.count
 
-    const routes = ctx.db.all<any>(
+    const routes = ctx.db.all<RouteCountRow>(
       'SELECT route, COUNT(*) as count FROM query_logs WHERE workspace_id = ? GROUP BY route',
       [workspaceId]
     )
     const routeDistribution: Record<string, number> = {}
     for (const row of routes) routeDistribution[row.route || 'unknown'] = row.count
 
-    const feedback = ctx.db.get<any>(
+    const feedback = ctx.db.get<FeedbackCountRow>(
       `SELECT
         SUM(CASE WHEN feedback = 'positive' THEN 1 ELSE 0 END) as positive,
         SUM(CASE WHEN feedback = 'negative' THEN 1 ELSE 0 END) as negative
@@ -172,13 +230,13 @@ export function adminRoutes(ctx: AppContext) {
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
     params.push(limit, offset)
 
-    const logs = ctx.db.all<any>(sql, params)
+    const logs = ctx.db.all<QueryLogRow>(sql, params)
 
     let countSql = 'SELECT COUNT(*) as count FROM query_logs WHERE workspace_id = ?'
     const countParams: unknown[] = [workspaceId]
     if (intent) { countSql += ' AND intent = ?'; countParams.push(intent) }
     if (route) { countSql += ' AND route = ?'; countParams.push(route) }
-    const total = ctx.db.get<any>(countSql, countParams)
+    const total = ctx.db.get<CountRow>(countSql, countParams)
 
     return c.json({ logs, total: total?.count || 0, limit, offset })
   })
@@ -285,9 +343,10 @@ export function adminRoutes(ctx: AppContext) {
   })
 
   // Workspaces endpoint (public, no admin required)
-  app.get('/api/v1/workspaces', (c) => {
-    const workspaces = ctx.workspaceManager.list()
-    return c.json({ workspaces })
+  app.get('/api/v1/workspaces', requireScope('document:read'), (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const workspace = ctx.workspaceManager.getById(workspaceId)
+    return c.json({ workspaces: workspace ? [workspace] : [] })
   })
 
   app.get('/api/v1/admin/connectors', requireRole('admin'), requireScope('admin'), (c) => {
@@ -326,14 +385,14 @@ export function adminRoutes(ctx: AppContext) {
     }
 
     try {
-      const connector = await createGitHubConnector(config, ctx.config.storage.dataDir)
+      const connector = await createGitHubConnector(config, dirname(ctx.pluginManifestPath))
       const health = await connector.healthCheck?.()
       if (health && !health.healthy) {
         return c.json({ error: `GitHub connection failed: ${health.message || 'unhealthy'}` }, 400)
       }
 
       const manager = ctx.forWorkspace(workspaceId).connectorManager
-      const connectorId = manager.registerConnector(connector, {
+      const connectorId = await manager.registerOwnedConnector(connector, {
         name: 'github',
         syncIntervalSeconds: syncInterval,
         autoSync: true,
@@ -360,10 +419,91 @@ export function adminRoutes(ctx: AppContext) {
   app.post('/api/v1/admin/connectors/github/sync', requireRole('admin'), requireScope('admin'), async (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
     try {
-      const result = await ctx.forWorkspace(workspaceId).connectorManager.syncConnector('@opendocuments/connector-github')
+      const result = await ctx.forWorkspace(workspaceId).connectorManager.syncConnector('github')
       return c.json({ result })
     } catch (err) {
       return c.json({ error: (err as Error).message }, 404)
+    }
+  })
+
+  app.post('/api/v1/admin/connectors/:type', requireRole('admin'), requireScope('admin'), async (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const type = c.req.param('type') || ''
+    if (!CONFIGURABLE_CONNECTOR_TYPES.has(type)) {
+      return c.json({ error: `Unsupported configurable connector type: ${type}` }, 400)
+    }
+
+    const body = await c.req.json<{
+      name?: unknown
+      config?: unknown
+      syncInterval?: unknown
+      autoSync?: unknown
+    }>().catch(() => ({})) as {
+      name?: unknown
+      config?: unknown
+      syncInterval?: unknown
+      autoSync?: unknown
+    }
+    const name = typeof body.name === 'string' && body.name.trim()
+      ? body.name.trim()
+      : type
+    if (!CONNECTOR_NAME_PATTERN.test(name)) {
+      return c.json({ error: 'Connector name may contain only letters, numbers, dot, underscore, and dash.' }, 400)
+    }
+    if (!body.config || typeof body.config !== 'object' || Array.isArray(body.config)) {
+      return c.json({ error: 'Connector config must be a JSON object.' }, 400)
+    }
+    const syncInterval = typeof body.syncInterval === 'number' && Number.isFinite(body.syncInterval)
+      ? Math.max(60, Math.floor(body.syncInterval))
+      : 300
+    const connectorConfig = {
+      ...(body.config as Record<string, unknown>),
+      type,
+      syncInterval,
+    }
+
+    try {
+      const connector = await ctx.createConnector(connectorConfig)
+      if (!connector) return c.json({ error: `Connector ${type} could not be created.` }, 500)
+      const health = await connector.healthCheck?.()
+      if (health && !health.healthy) {
+        await connector.teardown?.()
+        return c.json({ error: `${type} connection failed: ${health.message || 'unhealthy'}` }, 400)
+      }
+
+      const manager = ctx.forWorkspace(workspaceId).connectorManager
+      const connectorId = await manager.registerOwnedConnector(connector, {
+        name,
+        syncIntervalSeconds: syncInterval,
+        autoSync: body.autoSync !== false,
+        config: connectorConfig,
+      })
+      const registered = manager.listConnectors().find((item) => item.connectorId === connectorId)
+      return c.json({
+        connector: registered ? sanitizeConnector(registered) : {
+          name,
+          connectorId,
+          type: connector.name,
+          status: 'active',
+          lastSyncedAt: null,
+        },
+        health: health || { healthy: true },
+      }, 201)
+    } catch (error) {
+      return c.json({
+        error: `Failed to configure ${type}: ${error instanceof Error ? error.message : String(error)}`,
+      }, 500)
+    }
+  })
+
+  app.post('/api/v1/admin/connectors/:name/sync', requireRole('admin'), requireScope('admin'), async (c) => {
+    const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const name = c.req.param('name') || ''
+    try {
+      const result = await ctx.forWorkspace(workspaceId).connectorManager.syncConnector(name)
+      return c.json({ result })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 404)
     }
   })
 

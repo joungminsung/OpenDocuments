@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { log } from 'opendocuments-core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
+import { homedir } from 'node:os'
 
 export function authCommand() {
   const cmd = new Command('auth')
@@ -14,14 +15,18 @@ export function authCommand() {
     .action(async (opts) => {
       const ctx = await getContext()
       try {
-        const ws = ctx.workspaceManager.list()[0]
+        if (!['admin', 'member', 'viewer'].includes(opts.role)) {
+          log.fail('Role must be admin, member, or viewer')
+          return
+        }
+        const ws = ctx.workspaceManager.getByName(ctx.config.workspace)
         if (!ws) { log.fail('No workspace found'); return }
 
         const { rawKey, record } = ctx.apiKeyManager.create({
           name: opts.name,
           workspaceId: ws.id,
           userId: 'cli-user',
-          role: opts.role,
+          role: opts.role as 'admin' | 'member' | 'viewer',
         })
 
         log.heading('API Key Created')
@@ -40,7 +45,8 @@ export function authCommand() {
     .action(async () => {
       const ctx = await getContext()
       try {
-        const keys = ctx.apiKeyManager.list()
+        const workspace = ctx.workspaceManager.getByName(ctx.config.workspace)
+        const keys = ctx.apiKeyManager.list(workspace?.id)
         if (keys.length === 0) { log.info('No API keys'); return }
 
         log.heading('API Keys')
@@ -58,7 +64,8 @@ export function authCommand() {
     .action(async (nameOrId) => {
       const ctx = await getContext()
       try {
-        const keys = ctx.apiKeyManager.list()
+        const workspace = ctx.workspaceManager.getByName(ctx.config.workspace)
+        const keys = ctx.apiKeyManager.list(workspace?.id)
         const key = keys.find(k => k.name === nameOrId || k.id === nameOrId)
         if (!key) { log.fail(`Key "${nameOrId}" not found`); return }
 
@@ -72,13 +79,24 @@ export function authCommand() {
   cmd.command('login').description('Login with API key').action(async () => {
     const { input } = await import('@inquirer/prompts')
     const key = await input({ message: 'Enter API key:' })
+    const ctx = await getContext()
+    const validated = ctx.apiKeyManager.validate(key.trim())
+    if (!validated) {
+      log.fail('Invalid or expired API key')
+      await shutdownContext()
+      return
+    }
 
-    const { writeFileSync, mkdirSync } = await import('node:fs')
+    const { chmodSync, writeFileSync, mkdirSync } = await import('node:fs')
     const { join } = await import('node:path')
-    const dir = join(process.env.HOME || '~', '.opendocuments')
+    const dir = join(homedir(), '.opendocuments')
     mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, 'auth-token'), key)
-    log.ok('Logged in. API key saved to ~/.opendocuments/auth-token')
+    const tokenPath = join(dir, 'auth-token')
+    writeFileSync(tokenPath, key.trim(), { mode: 0o600 })
+    chmodSync(tokenPath, 0o600)
+    const workspace = ctx.workspaceManager.getById(validated.record.workspaceId)
+    log.ok(`Logged in to workspace "${workspace?.name || validated.record.workspaceId}"`)
+    await shutdownContext()
   })
 
   return cmd

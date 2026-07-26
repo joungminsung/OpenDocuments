@@ -3,9 +3,9 @@ import { log } from 'opendocuments-core'
 import { bootstrap, createApp, startMCPServer } from 'opendocuments-server'
 import { serve } from '@hono/node-server'
 import { resolve, dirname, join } from 'node:path'
-import { homedir } from 'node:os'
 import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { isRecordedServerProcess, readServerPid, resolveInstanceDataDir } from '../utils/instance.js'
 
 function findWebDistDir(): string | null {
   // Try monorepo path: packages/web/dist relative to cwd
@@ -15,16 +15,11 @@ function findWebDistDir(): string | null {
   // Try relative to this file's location (dist/commands/start.js -> ../../../web/dist)
   try {
     const thisDir = dirname(fileURLToPath(import.meta.url))
+    const packagedPath = resolve(thisDir, '../../web-dist')
+    if (existsSync(packagedPath)) return packagedPath
+
     const relativePath = resolve(thisDir, '../../../web/dist')
     if (existsSync(relativePath)) return relativePath
-  } catch {}
-
-  // Try to find via require.resolve for npm-installed case
-  try {
-    // @ts-ignore
-    const webPkg = require.resolve('@opendocuments/web/package.json')
-    const webDist = resolve(dirname(webPkg), 'dist')
-    if (existsSync(webDist)) return webDist
   } catch {}
 
   return null
@@ -53,7 +48,7 @@ export function startCommand() {
     .option('-p, --port <port>', 'Port number', '3000')
     .option('--mcp-only', 'Start MCP server only (stdio mode)')
     .option('--no-web', 'Disable web UI static serving')
-    .action(async (opts) => {
+    .action(async (opts: { port: string; mcpOnly?: boolean; web?: boolean }) => {
       log.heading('OpenDocuments Server')
       if (opts.mcpOnly) {
         log.wait('Starting MCP server (stdio mode)...')
@@ -69,6 +64,24 @@ export function startCommand() {
         await startMCPServer(ctx)
         return
       }
+
+      const port = parseInt(opts.port, 10)
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        log.fail('Port must be an integer between 1 and 65535')
+        process.exitCode = 1
+        return
+      }
+
+      // Resolve and verify this instance before opening its database or vector store.
+      const dataDir = resolveInstanceDataDir()
+      const pidFile = join(dataDir, 'server.pid')
+      const previousPid = readServerPid(pidFile)
+      if (previousPid && isRecordedServerProcess(previousPid)) {
+        log.fail(`This instance is already running with PID ${previousPid.pid}`)
+        process.exitCode = 1
+        return
+      }
+
       log.wait('Bootstrapping...')
       let ctx: Awaited<ReturnType<typeof bootstrap>>
       try {
@@ -88,14 +101,31 @@ export function startCommand() {
       }
 
       const app = createApp(ctx, { webDir })
-      const port = parseInt(opts.port)
-      // Write PID file for `opendocuments stop`
-      const pidDir = join(homedir(), '.opendocuments')
-      const pidFile = join(pidDir, 'server.pid')
-      mkdirSync(pidDir, { recursive: true })
-      writeFileSync(pidFile, String(process.pid))
+      mkdirSync(dataDir, { recursive: true })
+      const pidRecord = {
+        pid: process.pid,
+        dataDir,
+        entrypoint: process.argv[1] || fileURLToPath(import.meta.url),
+        startedAt: new Date().toISOString(),
+      }
 
-      serve({ fetch: app.fetch, port }, () => {
+      let pidWritten = false
+      const removeOwnPid = () => {
+        if (!pidWritten) return
+        const current = readServerPid(pidFile)
+        if (current?.pid !== process.pid) return
+        try { unlinkSync(pidFile) } catch {}
+        pidWritten = false
+      }
+      const server = serve({ fetch: app.fetch, port }, () => {
+        try {
+          writeFileSync(pidFile, JSON.stringify(pidRecord, null, 2) + '\n', { mode: 0o600 })
+          pidWritten = true
+        } catch (error) {
+          log.fail(`Server started but its PID record could not be written: ${error instanceof Error ? error.message : String(error)}`)
+          void shutdown(1)
+          return
+        }
         log.ok(`Server running at http://localhost:${port}`)
         log.arrow(`API: http://localhost:${port}/api/v1`)
         if (webDir) {
@@ -105,15 +135,29 @@ export function startCommand() {
         }
         log.dim('Press Ctrl+C to stop')
       })
-      const shutdown = async () => {
+      let shuttingDown = false
+      const shutdown = async (exitCode = 0) => {
+        if (shuttingDown) return
+        shuttingDown = true
         log.blank()
         log.wait('Shutting down...')
-        try { unlinkSync(pidFile) } catch {}
+        removeOwnPid()
+        await new Promise<void>((resolveClose) => {
+          try {
+            server.close(() => resolveClose())
+          } catch {
+            resolveClose()
+          }
+        })
         await ctx.shutdown()
-        log.ok('Goodbye')
-        process.exit(0)
+        process.exitCode = exitCode
+        if (exitCode === 0) log.ok('Goodbye')
       }
-      process.on('SIGINT', shutdown)
-      process.on('SIGTERM', shutdown)
+      server.on('error', (error) => {
+        log.fail(`Server failed to listen on port ${port}: ${error.message}`)
+        void shutdown(1)
+      })
+      process.on('SIGINT', () => void shutdown())
+      process.on('SIGTERM', () => void shutdown())
     })
 }

@@ -1,8 +1,32 @@
 import { z } from 'zod'
 
 export const ragProfileSchema = z.enum(['fast', 'balanced', 'precise', 'custom'])
+/** Official parser packages enabled when no explicit plugin list is configured. */
+export const DEFAULT_PARSER_PLUGINS = [
+  'opendocuments-parser-pdf',
+  'opendocuments-parser-docx',
+  'opendocuments-parser-xlsx',
+  'opendocuments-parser-html',
+  'opendocuments-parser-jupyter',
+  'opendocuments-parser-email',
+  'opendocuments-parser-pptx',
+  'opendocuments-parser-code',
+] as const
 
 export const securitySchema = z.object({
+  auth: z.object({
+    providers: z.array(z.object({
+      type: z.enum(['google', 'github']),
+      clientId: z.string().min(1),
+      clientSecret: z.string().min(1),
+      redirectUri: z.string().url().optional(),
+      workspace: z.string().optional(),
+      role: z.enum(['admin', 'member', 'viewer']).default('member'),
+      allowedEmails: z.array(z.string().email()).default([]),
+      allowedDomains: z.array(z.string().min(1)).default([]),
+      allowAnyUser: z.boolean().default(false),
+    })).default([]),
+  }).default({}),
   dataPolicy: z.object({
     allowCloudProcessing: z.boolean().default(true),
     autoRedact: z.object({
@@ -51,6 +75,7 @@ export const configSchema = z.object({
     apiKey: z.string().optional(),
     embeddingApiKey: z.string().optional(),    // separate API key for embedding provider
     baseUrl: z.string().optional(),
+    embeddingBaseUrl: z.string().optional(),
     embeddingDimensions: z.number().optional(),
   }).default({}),
   rag: z.object({
@@ -73,7 +98,7 @@ export const configSchema = z.object({
     repo: z.string().optional(),
     watch: z.boolean().default(false),
   }).passthrough()).default([]),
-  plugins: z.array(z.string()).default([]),
+  plugins: z.array(z.string()).default([...DEFAULT_PARSER_PLUGINS]),
   parserFallbacks: z.record(z.array(z.string())).default({}),
   security: securitySchema,
   ui: z.object({

@@ -20,6 +20,8 @@ export interface IngestInput {
   sourcePath: string
   fileType?: string
   connectorId?: string
+  /** Provider-specific revision identifier used to skip remote fetches. */
+  sourceVersion?: string
 }
 
 export interface IngestResult {
@@ -102,6 +104,7 @@ export class IngestPipeline {
     const existing = store.getDocumentBySourcePath(input.sourcePath)
     if (existing) {
       if (!options.force && !store.hasContentChanged(existing.id, contentHash)) {
+        if (input.sourceVersion) store.updateSourceVersion(existing.id, input.sourceVersion)
         return { documentId: existing.id, chunks: existing.chunk_count ?? 0, status: 'skipped' }
       }
       documentId = existing.id
@@ -305,6 +308,9 @@ export class IngestPipeline {
 
       // Update content hash
       store.updateContentHash(documentId, contentHash)
+      if (input.sourceVersion) {
+        store.updateSourceVersion(documentId, input.sourceVersion)
+      }
 
       // Record version if version manager is configured
       if (this.opts.versionManager) {

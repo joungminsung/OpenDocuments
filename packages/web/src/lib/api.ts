@@ -3,6 +3,21 @@ import { withStoredApiKey } from './auth'
 
 const BASE = '/api/v1'
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => null) as { error?: unknown } | null
+  return typeof body?.error === 'string' ? body.error : fallback
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers, ...rest } = options || {}
   const res = await fetch(`${BASE}${path}`, {
@@ -11,10 +26,31 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: withStoredApiKey({ 'Content-Type': 'application/json', ...headers }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw new ApiError(await errorMessage(res, `HTTP ${res.status}`), res.status)
   }
   return res.json()
+}
+
+export async function createBrowserSession(apiKey: string): Promise<void> {
+  const res = await fetch('/auth/session', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey }),
+  })
+  if (!res.ok) {
+    throw new ApiError(await errorMessage(res, `Authentication failed with HTTP ${res.status}`), res.status)
+  }
+}
+
+export async function clearBrowserSession(): Promise<void> {
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    throw new ApiError(await errorMessage(res, `Logout failed with HTTP ${res.status}`), res.status)
+  }
 }
 
 // Chat
@@ -48,8 +84,7 @@ export async function uploadDocument(file: File): Promise<{ documentId: string; 
     body: formData,
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: 'Upload failed' }))
-    throw new Error(body.error || `Upload failed with HTTP ${res.status}`)
+    throw new ApiError(await errorMessage(res, `Upload failed with HTTP ${res.status}`), res.status)
   }
   return res.json()
 }
@@ -180,6 +215,34 @@ export async function syncGitHubConnector(): Promise<{ result: {
   errors: string[]
 } }> {
   return request('/admin/connectors/github/sync', { method: 'POST' })
+}
+
+export async function connectSourceConnector(input: {
+  type: 'notion' | 'gdrive' | 's3' | 'confluence' | 'swagger' | 'web-crawler'
+  name?: string
+  config: Record<string, unknown>
+  syncInterval?: number
+  autoSync?: boolean
+}): Promise<{ connector: ConnectorStatusResponse['connectors'][number]; health: { healthy: boolean; message?: string } }> {
+  return request(`/admin/connectors/${encodeURIComponent(input.type)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      config: input.config,
+      syncInterval: input.syncInterval,
+      autoSync: input.autoSync,
+    }),
+  })
+}
+
+export async function syncSourceConnector(name: string): Promise<{ result: {
+  connectorName: string
+  documentsDiscovered: number
+  documentsIndexed: number
+  documentsSkipped: number
+  errors: string[]
+} }> {
+  return request(`/admin/connectors/${encodeURIComponent(name)}/sync`, { method: 'POST' })
 }
 
 export async function getModelBenchmarks(): Promise<{ benchmarks: Array<{

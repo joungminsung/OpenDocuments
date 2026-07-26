@@ -15,7 +15,8 @@ export interface LoadedPlugin {
 export async function loadPlugin(name: string): Promise<AnyPlugin> {
   try {
     const mod = await import(name)
-    const plugin = mod.default ?? mod
+    const exported = mod.default ?? mod
+    const plugin = typeof exported === 'function' ? new exported() : exported
 
     if (!isValidPlugin(plugin)) {
       throw new Error(`Plugin ${name} does not export a valid OpenDocuments plugin`)

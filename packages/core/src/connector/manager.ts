@@ -14,9 +14,60 @@ export interface ConnectorSyncResult {
   errors: string[]
 }
 
+interface ConnectorRow extends Record<string, unknown> {
+  name: string
+  type: string
+  config: string
+  status: string
+  last_synced_at: string | null
+  sync_interval_seconds: number | null
+  error_message: string | null
+}
+
+const CONNECTOR_SECRET_FIELDS = new Set([
+  'token',
+  'accesstoken',
+  'apikey',
+  'secretaccesskey',
+  'sessiontoken',
+  'serviceaccountkey',
+  'password',
+  'clientsecret',
+  'authorization',
+  'cookie',
+  'credentials',
+  'headers',
+  'privatekey',
+])
+
+function isSecretField(key: string): boolean {
+  const normalized = key.replace(/[-_]/g, '').toLowerCase()
+  return CONNECTOR_SECRET_FIELDS.has(normalized)
+    || normalized.endsWith('token')
+    || normalized.endsWith('secret')
+    || normalized.endsWith('password')
+}
+
+function sanitizePersistedValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizePersistedValue)
+  if (!value || typeof value !== 'object') return value
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !isSecretField(key))
+      .map(([key, nested]) => [key, sanitizePersistedValue(nested)])
+  )
+}
+
+function configForPersistence(config: Record<string, unknown>): Record<string, unknown> {
+  return sanitizePersistedValue(config) as Record<string, unknown>
+}
+
 export class ConnectorManager {
   private connectors = new Map<string, { plugin: ConnectorPlugin; connectorId: string }>()
   private syncTimers = new Map<string, ReturnType<typeof setInterval>>()
+  private syncsInFlight = new Map<string, Promise<ConnectorSyncResult>>()
+  private ownedConnectors = new Set<ConnectorPlugin>()
 
   constructor(
     private pipeline: IngestPipeline,
@@ -37,7 +88,7 @@ export class ConnectorManager {
     config?: Record<string, unknown>
   } = {}): string {
     const name = config.name || plugin.name
-    const serializedConfig = JSON.stringify(config.config || {})
+    const serializedConfig = JSON.stringify(configForPersistence(config.config || {}))
     const existing = this.db.get<{ id: string }>(
       `SELECT id FROM connectors
        WHERE workspace_id = ? AND name = ? AND type = ? AND deleted_at IS NULL
@@ -62,10 +113,31 @@ export class ConnectorManager {
       )
     }
 
-    this.connectors.set(plugin.name, { plugin, connectorId })
+    this.connectors.set(name, { plugin, connectorId })
     if (config.autoSync) {
-      this.startPeriodicSync(plugin.name, config.syncIntervalSeconds || 300)
+      this.startPeriodicSync(name, config.syncIntervalSeconds || 300)
     }
+    return connectorId
+  }
+
+  /**
+   * Register a connector whose lifecycle is owned by this manager.
+   * Runtime-created connector instances are torn down when replaced or when
+   * the manager shuts down.
+   */
+  async registerOwnedConnector(plugin: ConnectorPlugin, config: {
+    name?: string
+    syncIntervalSeconds?: number
+    autoSync?: boolean
+    config?: Record<string, unknown>
+  } = {}): Promise<string> {
+    const name = config.name || plugin.name
+    const previous = this.connectors.get(name)?.plugin
+    if (previous && this.ownedConnectors.delete(previous)) {
+      await previous.teardown?.()
+    }
+    const connectorId = this.registerConnector(plugin, config)
+    this.ownedConnectors.add(plugin)
     return connectorId
   }
 
@@ -73,6 +145,17 @@ export class ConnectorManager {
    * Sync a single connector: discover docs, fetch new/changed, ingest.
    */
   async syncConnector(pluginName: string): Promise<ConnectorSyncResult> {
+    const running = this.syncsInFlight.get(pluginName)
+    if (running) return running
+
+    const operation = this.performSync(pluginName).finally(() => {
+      this.syncsInFlight.delete(pluginName)
+    })
+    this.syncsInFlight.set(pluginName, operation)
+    return operation
+  }
+
+  private async performSync(pluginName: string): Promise<ConnectorSyncResult> {
     const entry = this.connectors.get(pluginName)
     if (!entry) throw new Error(`Connector not found: ${pluginName}`)
 
@@ -95,9 +178,11 @@ export class ConnectorManager {
         this.eventBus.emit('document:discovered', { documentId: discovered.sourceId, source: plugin.name })
 
         try {
-          // Check if document already exists with same content hash
+          // Provider revisions are not content hashes. Keep them in a separate
+          // column so Git blob SHA-1, Drive MD5, and timestamps can be compared
+          // without conflicting with the pipeline's SHA-256 content hash.
           const existing = this.store.getDocumentBySourcePath(discovered.sourcePath)
-          if (existing && discovered.contentHash && !this.store.hasContentChanged(existing.id, discovered.contentHash)) {
+          if (existing && discovered.contentHash && !this.store.hasSourceVersionChanged(existing.id, discovered.contentHash)) {
             result.documentsSkipped++
             return
           }
@@ -116,6 +201,7 @@ export class ConnectorManager {
             sourcePath: discovered.sourcePath,
             fileType,
             connectorId,
+            sourceVersion: discovered.contentHash,
           })
 
           if (ingestResult.status === 'indexed') result.documentsIndexed++
@@ -140,10 +226,13 @@ export class ConnectorManager {
       result.errors.push(`Discovery failed: ${(err as Error).message}`)
     }
 
-    // Update connector status
+    const status = result.errors.length > 0 ? 'error' : 'active'
+    const errorMessage = result.errors.length > 0
+      ? result.errors.slice(0, 5).join('; ')
+      : null
     this.db.run(
-      'UPDATE connectors SET last_synced_at = ?, status = ? WHERE id = ?',
-      [new Date().toISOString(), 'active', connectorId]
+      'UPDATE connectors SET last_synced_at = ?, status = ?, error_message = ? WHERE id = ?',
+      [new Date().toISOString(), status, errorMessage, connectorId]
     )
 
     this.eventBus.emit('connector:sync:completed', {
@@ -196,12 +285,24 @@ export class ConnectorManager {
     }
   }
 
+  /** Stop timers and tear down runtime-owned connector instances. */
+  async shutdown(): Promise<void> {
+    this.stopAll()
+    for (const connector of this.ownedConnectors) {
+      await connector.teardown?.()
+    }
+    this.ownedConnectors.clear()
+  }
+
   /**
    * List registered connectors with their DB status.
    */
-  listConnectors(): { name: string; connectorId: string; type: string; status: string; lastSyncedAt: string | null; syncIntervalSeconds: number | null; repo?: string }[] {
+  listConnectors(): { name: string; connectorId: string; type: string; status: string; lastSyncedAt: string | null; syncIntervalSeconds: number | null; errorMessage?: string; repo?: string }[] {
     return Array.from(this.connectors.entries()).map(([name, entry]) => {
-      const row = this.db.get<any>('SELECT name, type, config, status, last_synced_at, sync_interval_seconds FROM connectors WHERE id = ?', [entry.connectorId])
+      const row = this.db.get<ConnectorRow>(
+        'SELECT name, type, config, status, last_synced_at, sync_interval_seconds, error_message FROM connectors WHERE id = ?',
+        [entry.connectorId]
+      )
       let repo: string | undefined
       try {
         const parsed = JSON.parse(row?.config || '{}') as { repo?: unknown }
@@ -214,6 +315,7 @@ export class ConnectorManager {
         status: row?.status || 'unknown',
         lastSyncedAt: row?.last_synced_at || null,
         syncIntervalSeconds: row?.sync_interval_seconds || null,
+        errorMessage: row?.error_message || undefined,
         repo,
       }
     })

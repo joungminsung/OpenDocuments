@@ -1,13 +1,17 @@
 node_modules/
 dist/
+/packages/cli/web-dist/
 *.db
 *.sqlite
 .env
 .env.local
 opendocuments.config.ts
+!docker/demo/opendocuments.config.ts
 .opendocuments*/
 outputs/
 examples/
+/tmp/
+/portfolio-opendocuments.html
 .turbo/
 coverage/
 .DS_Store

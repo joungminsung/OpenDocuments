@@ -58,6 +58,16 @@ describe('APIKeyManager', () => {
     expect(viewer.record.scopes).not.toContain('document:write')
   })
 
+  it('rejects invalid per-key rate limits', () => {
+    expect(() => manager.create({
+      name: 'invalid-limit',
+      workspaceId: 'ws-1',
+      userId: 'u1',
+      role: 'member',
+      rateLimit: 0,
+    })).toThrow('rateLimit must be a positive integer')
+  })
+
   it('lists and revokes keys', () => {
     manager.create({ name: 'key1', workspaceId: 'ws-1', userId: 'u1', role: 'member' })
     const { record } = manager.create({ name: 'key2', workspaceId: 'ws-1', userId: 'u2', role: 'viewer' })

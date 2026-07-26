@@ -32,6 +32,7 @@ const DETECTED_VARS: ReadonlyArray<string> = [
   'OPENDOCUMENTS_MODEL_EMBEDDING_PROVIDER',
   'OPENDOCUMENTS_MODEL_API_KEY',
   'OPENDOCUMENTS_MODEL_BASE_URL',
+  'OPENDOCUMENTS_MODEL_EMBEDDING_BASE_URL',
   'OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS',
   'OPENDOCUMENTS_RAG_PROFILE',
   'OPENDOCUMENTS_STORAGE_DB',
@@ -87,6 +88,7 @@ export function buildConfigFromEnv(): EnvConfig | null {
     embeddingProvider: env.OPENDOCUMENTS_MODEL_EMBEDDING_PROVIDER,
     apiKey: env.OPENDOCUMENTS_MODEL_API_KEY,
     baseUrl: env.OPENDOCUMENTS_MODEL_BASE_URL,
+    embeddingBaseUrl: env.OPENDOCUMENTS_MODEL_EMBEDDING_BASE_URL,
     embeddingDimensions: env.OPENDOCUMENTS_MODEL_EMBEDDING_DIMENSIONS,
   }
 
@@ -111,6 +113,7 @@ export function buildConfigFromEnv(): EnvConfig | null {
     if (modelVars.embeddingProvider !== undefined) model.embeddingProvider = modelVars.embeddingProvider
     if (resolvedApiKey !== undefined) model.apiKey = resolvedApiKey
     if (modelVars.baseUrl !== undefined) model.baseUrl = modelVars.baseUrl
+    if (modelVars.embeddingBaseUrl !== undefined) model.embeddingBaseUrl = modelVars.embeddingBaseUrl
 
     if (modelVars.embeddingDimensions !== undefined) {
       const parsed = parseInt(modelVars.embeddingDimensions, 10)

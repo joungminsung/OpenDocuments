@@ -25,7 +25,20 @@ export async function streamChat(
   })
 
   if (!res.ok) {
-    callbacks.onError(`HTTP ${res.status}`)
+    const body = await res.json().catch(() => null) as {
+      code?: unknown
+      error?: unknown
+      action?: unknown
+    } | null
+    callbacks.onError(
+      typeof body?.code === 'string'
+        ? body.code
+        : typeof body?.action === 'string'
+          ? body.action
+          : typeof body?.error === 'string'
+            ? body.error
+            : `HTTP ${res.status}`
+    )
     return
   }
 
@@ -70,7 +83,13 @@ export async function streamChat(
             callbacks.onDone(parsed)
             break
           case 'error':
-            callbacks.onError(typeof parsed === 'object' && parsed.error ? parsed.error : 'Unknown streaming error')
+            callbacks.onError(
+              typeof parsed === 'object' && typeof parsed.code === 'string'
+                ? parsed.code
+                : typeof parsed === 'object' && parsed.error
+                  ? parsed.error
+                  : 'Unknown streaming error'
+            )
             break
         }
       } catch (e) {

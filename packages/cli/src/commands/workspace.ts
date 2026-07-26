@@ -2,19 +2,19 @@ import { Command } from 'commander'
 import { log } from 'opendocuments-core'
 import chalk from 'chalk'
 import { getContext, shutdownContext } from '../utils/bootstrap.js'
-import { writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { homedir } from 'node:os'
 
-const CURRENT_WS_FILE = join(process.env.HOME || '~', '.opendocuments', 'current-workspace')
+const STATE_DIR = join(homedir(), '.opendocuments')
+const CURRENT_WS_FILE = join(STATE_DIR, 'current-workspace')
 
-function getCurrentWorkspace(): string {
-  try { return existsSync(CURRENT_WS_FILE) ? readFileSync(CURRENT_WS_FILE, 'utf-8').trim() : 'default' } catch { return 'default' }
+function getCurrentWorkspace(fallback = 'default'): string {
+  try { return existsSync(CURRENT_WS_FILE) ? readFileSync(CURRENT_WS_FILE, 'utf-8').trim() || fallback : fallback } catch { return fallback }
 }
 
 function setCurrentWorkspace(name: string): void {
-  const dir = join(process.env.HOME || '~', '.opendocuments')
-  const { mkdirSync } = require('node:fs')
-  mkdirSync(dir, { recursive: true })
+  mkdirSync(STATE_DIR, { recursive: true })
   writeFileSync(CURRENT_WS_FILE, name)
 }
 
@@ -24,7 +24,7 @@ export function workspaceCommand() {
   cmd.command('list').description('List workspaces').action(async () => {
     const ctx = await getContext()
     try {
-      const current = getCurrentWorkspace()
+      const current = getCurrentWorkspace(ctx.config.workspace)
       const workspaces = ctx.workspaceManager.list()
       log.heading('Workspaces')
       for (const ws of workspaces) {
@@ -37,6 +37,10 @@ export function workspaceCommand() {
   cmd.command('create <name>').description('Create workspace').option('--mode <mode>', 'personal or team', 'personal').action(async (name, opts) => {
     const ctx = await getContext()
     try {
+      if (opts.mode !== 'personal' && opts.mode !== 'team') {
+        log.fail('Workspace mode must be personal or team')
+        return
+      }
       ctx.workspaceManager.create(name, opts.mode)
       log.ok(`Workspace "${name}" created`)
     } finally { await shutdownContext() }
@@ -58,6 +62,14 @@ export function workspaceCommand() {
       if (name === 'default') { log.fail('Cannot delete default workspace'); return }
       const ws = ctx.workspaceManager.getByName(name)
       if (!ws) { log.fail(`Workspace "${name}" not found`); return }
+      if (name === getCurrentWorkspace(ctx.config.workspace)) {
+        log.fail(`Cannot delete the active workspace "${name}". Switch to another workspace first.`)
+        return
+      }
+      const services = ctx.forWorkspace(ws.id)
+      for (const document of services.store.listDocuments()) {
+        await services.store.hardDeleteDocument(document.id)
+      }
       ctx.workspaceManager.delete(ws.id)
       log.ok(`Workspace "${name}" deleted`)
     } finally { await shutdownContext() }

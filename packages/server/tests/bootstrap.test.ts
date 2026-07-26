@@ -41,6 +41,18 @@ describe('bootstrap', () => {
     expect(ws).toBeDefined()
   })
 
+  it('creates and activates the configured workspace on bootstrap', async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
+    ctx = await bootstrap({
+      dataDir: tempDir,
+      configOverrides: { workspace: 'configured-team', mode: 'team', model: stubModel },
+    })
+    const workspace = ctx.workspaceManager.getByName('configured-team')
+    expect(workspace).toBeDefined()
+    expect(workspace?.mode).toBe('team')
+    expect(ctx.store.listDocuments()).toEqual([])
+  })
+
   it('rejects unsupported relational database configuration', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
     await expect(bootstrap({
@@ -55,6 +67,33 @@ describe('bootstrap', () => {
       dataDir: tempDir,
       configOverrides: { model: stubModel, storage: { vectorDb: 'qdrant' } },
     })).rejects.toThrow('Qdrant storage is not implemented')
+  })
+
+  it('refuses to pretend application-level encryption is active', async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
+    await expect(bootstrap({
+      dataDir: tempDir,
+      configOverrides: {
+        model: stubModel,
+        security: { storage: { encryptAtRest: true } },
+      } as any,
+    })).rejects.toThrow('application-level storage encryption is not implemented')
+  })
+
+  it('enforces the cloud processing data policy before loading a provider', async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'opendocuments-test-'))
+    await expect(bootstrap({
+      dataDir: tempDir,
+      configOverrides: {
+        model: {
+          provider: 'openai',
+          llm: 'gpt-4o',
+          embedding: 'text-embedding-3-small',
+          embeddingDimensions: 1536,
+        },
+        security: { dataPolicy: { allowCloudProcessing: false } },
+      } as any,
+    })).rejects.toThrow('Cloud model processing is blocked')
   })
 
   it('restores persisted GitHub connectors on bootstrap', async () => {

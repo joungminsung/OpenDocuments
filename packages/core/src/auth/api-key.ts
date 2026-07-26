@@ -36,6 +36,44 @@ export interface ValidatedKey {
   hasScope: (scope: APIKeyScope) => boolean
 }
 
+interface APIKeyRow extends Record<string, unknown> {
+  id: string
+  name: string
+  key_hash: string
+  key_prefix: string
+  workspace_id: string
+  user_id: string
+  role: UserRole
+  scopes: string
+  rate_limit: number | null
+  allowed_ips: string | null
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+}
+
+const API_KEY_SCOPES = new Set<APIKeyScope>([
+  'ask',
+  'search',
+  'document:read',
+  'document:write',
+  'connector:read',
+  'connector:write',
+  'admin',
+  '*',
+])
+
+function parseStringArray(value: string): string[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Generate a new API key with od_live_ prefix.
  * Returns the raw key (shown once to user) and the hash (stored in DB).
@@ -56,6 +94,13 @@ export class APIKeyManager {
   constructor(private db: DB) {}
 
   create(input: CreateKeyInput): { rawKey: string; record: APIKeyRecord } {
+    if (
+      input.rateLimit !== undefined
+      && (!Number.isInteger(input.rateLimit) || input.rateLimit <= 0)
+    ) {
+      throw new Error('API key rateLimit must be a positive integer')
+    }
+
     const { rawKey, keyHash, keyPrefix } = generateAPIKey()
     const id = randomBytes(16).toString('hex')
     const now = new Date().toISOString()
@@ -64,7 +109,7 @@ export class APIKeyManager {
     this.db.run(
       `INSERT INTO api_keys (id, name, key_hash, key_prefix, workspace_id, user_id, role, scopes, rate_limit, allowed_ips, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.name, keyHash, keyPrefix, input.workspaceId, input.userId, input.role, JSON.stringify(scopes), input.rateLimit || null, JSON.stringify(input.allowedIps || []), input.expiresAt || null, now]
+      [id, input.name, keyHash, keyPrefix, input.workspaceId, input.userId, input.role, JSON.stringify(scopes), input.rateLimit ?? null, JSON.stringify(input.allowedIps || []), input.expiresAt || null, now]
     )
 
     return {
@@ -80,7 +125,7 @@ export class APIKeyManager {
    */
   validate(rawKey: string): ValidatedKey | null {
     const keyHash = hashKey(rawKey)
-    const row = this.db.get<any>(
+    const row = this.db.get<APIKeyRow>(
       'SELECT * FROM api_keys WHERE key_hash = ? AND revoked_at IS NULL',
       [keyHash]
     )
@@ -91,9 +136,25 @@ export class APIKeyManager {
     if (row.expires_at && new Date(row.expires_at) < new Date()) {
       return null
     }
+    const parsedScopes = parseStringArray(row.scopes)
+    const parsedAllowedIps = row.allowed_ips ? parseStringArray(row.allowed_ips) : []
+    if (
+      !parsedScopes
+      || !parsedScopes.every((scope): scope is APIKeyScope => API_KEY_SCOPES.has(scope as APIKeyScope))
+      || !parsedAllowedIps
+    ) {
+      return null
+    }
 
-    // Update last used
-    this.db.run('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [new Date().toISOString(), row.id])
+    // Avoid a SQLite write on every request while keeping activity useful.
+    const now = new Date()
+    const previousLastUsed = row.last_used_at ? Date.parse(row.last_used_at) : 0
+    const shouldUpdateLastUsed = !Number.isFinite(previousLastUsed)
+      || now.getTime() - previousLastUsed >= 60000
+    const lastUsedAt = shouldUpdateLastUsed ? now.toISOString() : row.last_used_at || undefined
+    if (shouldUpdateLastUsed) {
+      this.db.run('UPDATE api_keys SET last_used_at = ? WHERE id = ?', [lastUsedAt, row.id])
+    }
 
     const record: APIKeyRecord = {
       id: row.id,
@@ -103,11 +164,11 @@ export class APIKeyManager {
       workspaceId: row.workspace_id,
       userId: row.user_id,
       role: row.role,
-      scopes: JSON.parse(row.scopes),
-      rateLimit: row.rate_limit,
-      allowedIps: row.allowed_ips ? JSON.parse(row.allowed_ips) : [],
-      expiresAt: row.expires_at,
-      lastUsedAt: row.last_used_at,
+      scopes: parsedScopes,
+      rateLimit: row.rate_limit ?? undefined,
+      allowedIps: parsedAllowedIps,
+      expiresAt: row.expires_at ?? undefined,
+      lastUsedAt,
       createdAt: row.created_at,
     }
 
@@ -125,20 +186,25 @@ export class APIKeyManager {
       : 'SELECT * FROM api_keys WHERE revoked_at IS NULL ORDER BY created_at DESC'
     const params = workspaceId ? [workspaceId] : []
 
-    return this.db.all<any>(query, params).map(row => ({
-      id: row.id,
-      name: row.name,
-      keyPrefix: row.key_prefix,
-      workspaceId: row.workspace_id,
-      userId: row.user_id,
-      role: row.role,
-      scopes: JSON.parse(row.scopes),
-      rateLimit: row.rate_limit,
-      allowedIps: row.allowed_ips ? JSON.parse(row.allowed_ips) : [],
-      expiresAt: row.expires_at,
-      lastUsedAt: row.last_used_at,
-      createdAt: row.created_at,
-    }))
+    return this.db.all<APIKeyRow>(query, params).map(row => {
+      const scopes = parseStringArray(row.scopes)?.filter(
+        (scope): scope is APIKeyScope => API_KEY_SCOPES.has(scope as APIKeyScope)
+      ) ?? []
+      return {
+        id: row.id,
+        name: row.name,
+        keyPrefix: row.key_prefix,
+        workspaceId: row.workspace_id,
+        userId: row.user_id,
+        role: row.role,
+        scopes,
+        rateLimit: row.rate_limit ?? undefined,
+        allowedIps: (row.allowed_ips ? parseStringArray(row.allowed_ips) : []) ?? [],
+        expiresAt: row.expires_at ?? undefined,
+        lastUsedAt: row.last_used_at ?? undefined,
+        createdAt: row.created_at,
+      }
+    })
   }
 
   revoke(id: string): void {

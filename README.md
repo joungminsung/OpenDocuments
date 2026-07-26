@@ -154,6 +154,10 @@ Now your AI coding assistant can search your organization's entire document corp
 Deploy on your own infrastructure. Your data **never leaves your network** when using a local LLM via Ollama. No cloud dependency, no vendor lock-in, no subscription fees.
 
 ```bash
+OPENDOCUMENTS_MODEL_PROVIDER=ollama \
+OPENDOCUMENTS_MODEL_BASE_URL=http://ollama:11434 \
+OPENDOCUMENTS_MODEL_LLM=qwen2.5:14b \
+OPENDOCUMENTS_MODEL_EMBEDDING=mxbai-embed-large \
 docker compose --profile with-ollama up -d
 # Everything runs locally: LLM, embeddings, vector search, web UI
 ```
@@ -192,7 +196,7 @@ opendocuments start
 
 Open **http://localhost:3000** -- you'll see a chat UI, document manager, and admin dashboard.
 
-> **First time?** If Ollama isn't running, you'll see a clear **DEGRADED MODE** banner with step-by-step fix instructions. Run `opendocuments doctor` for full diagnostics.
+> **First time?** If the model or corpus is not ready, the Web UI blocks questions and shows the exact recovery step. A normal `start` never downloads a model. Run `opendocuments doctor` for full diagnostics.
 
 ### 4. Index Your Documents
 
@@ -266,7 +270,7 @@ OpenDocuments uses a standard RAG architecture with practical production pieces 
 | Plain Text | `.txt` | Direct text indexing |
 | PDF | `.pdf` | Page-level extraction, OCR fallback for scanned docs |
 | Word | `.docx` | HTML conversion with heading detection |
-| Excel / CSV | `.xlsx`, `.xls`, `.csv` | Sheet-aware table chunking (header + rows) |
+| Excel / CSV | `.xlsx`, `.csv` | Sheet-aware table chunking (header + rows) |
 | HTML | `.html`, `.htm` | Structure-preserving extraction, script/nav stripping |
 | Jupyter Notebook | `.ipynb` | Markdown cells + code cells with language detection |
 | Email | `.eml` | Header parsing (from/to/subject/date) + body extraction |
@@ -311,7 +315,7 @@ parserFallbacks: {
 | **OpenAI** | GPT-5.4, GPT-5.4-mini, GPT-4.1, o3, o4-mini | text-embedding-3-small/large | General purpose, vision, reasoning |
 | **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5 | -- (use separate provider) | Long context (1M), coding, analysis |
 | **Google** | Gemini 3.1 Pro, Gemini 3.1 Flash Lite, Gemini 3.0 Deep Think | text-embedding-005 | Multimodal, multilingual |
-| **xAI** | Grok 4, Grok 4 Heavy, Grok 4.1 Fast | Grok embedding | Real-time knowledge, code |
+| **xAI** | Grok 4, Grok 4 Heavy, Grok 4.1 Fast | -- (use separate provider) | Real-time knowledge, code |
 
 ### Local Models (via Ollama)
 
@@ -397,7 +401,7 @@ opendocuments ask "List endpoints" --json | jq '.sources[].sourcePath'
 # Administration
 opendocuments doctor                  # Health check
 opendocuments auth create-key --name "ci-bot" --role member
-opendocuments export --output ./backup
+opendocuments backup --output ./backup
 ```
 
 ### 3. MCP Server
@@ -520,10 +524,17 @@ export default defineConfig({
 ## Docker Deployment
 
 ```bash
-# Basic (cloud LLM)
+# Cloud LLM (set provider, real API base URL, models, and key)
+OPENDOCUMENTS_MODEL_PROVIDER=openai \
+OPENDOCUMENTS_MODEL_BASE_URL=https://api.openai.com/v1 \
+OPENDOCUMENTS_MODEL_API_KEY="$OPENAI_API_KEY" \
 docker compose up -d
 
 # With local LLM (Ollama)
+OPENDOCUMENTS_MODEL_PROVIDER=ollama \
+OPENDOCUMENTS_MODEL_BASE_URL=http://ollama:11434 \
+OPENDOCUMENTS_MODEL_LLM=qwen2.5:14b \
+OPENDOCUMENTS_MODEL_EMBEDDING=mxbai-embed-large \
 docker compose --profile with-ollama up -d
 
 # With .env file for API keys
@@ -609,13 +620,13 @@ npm run dev      # Watch mode
 
 | Package | Role | Tests |
 |---------|------|-------|
-| `@opendocuments/core` | Plugin system, RAG engine, ingest pipeline, storage, auth, security | 424 |
-| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 63 |
-| `@opendocuments/cli` | 19 CLI commands (Commander.js) | 3 |
+| `@opendocuments/core` | Plugin system, RAG engine, ingest pipeline, storage, auth, security | 437 |
+| `@opendocuments/server` | HTTP API (Hono), MCP server, auth middleware, widget | 73 |
+| `@opendocuments/cli` | 20 CLI commands (Commander.js) | 8 |
 | `@opendocuments/web` | React SPA with 9 pages (Vite + Tailwind) | -- |
 | `@opendocuments/client` | TypeScript SDK | 5 |
-| 5 model plugins | Ollama, OpenAI, Anthropic, Google, Grok | 42 |
-| 9 parser plugins | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured | 37 |
+| 5 model plugins | Ollama, OpenAI, Anthropic, Google, Grok | 40 |
+| 8 parser plugins | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX | 40 |
 | 8 connector plugins | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 42 |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, test patterns, and plugin development guide.
@@ -626,7 +637,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, test patterns, and plugi
 
 | Guide | Description |
 |-------|-------------|
-| [Quick Start](#quick-start) | Install and run in 5 minutes |
+| [Quick Start](#quick-start) | Install, choose a provider, and verify readiness |
 | [Architecture](docs/architecture.md) | Package structure, data flow, design decisions |
 | [Plugin API: Parsers](docs-site/plugins/parser-api.md) | Create custom document parsers |
 | [Plugin API: Connectors](docs-site/plugins/connector-api.md) | Connect external data sources |

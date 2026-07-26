@@ -94,15 +94,29 @@ describe('ConnectorManager', () => {
     expect(list[0].name).toBe('@opendocuments/connector-mock')
   })
 
-  it('stores connector config and updates existing named connector', () => {
+  it('stores connector config without reusable credentials and updates existing named connector', () => {
     const connector = createMockConnector([])
     const firstId = manager.registerConnector(connector, {
       name: 'github',
-      config: { type: 'github', repo: 'owner/first', branch: 'main', token: 'secret-token' },
+      config: {
+        type: 'github',
+        repo: 'owner/first',
+        branch: 'main',
+        token: 'secret-token',
+        headers: { Authorization: 'Bearer secret-token' },
+        nested: { client_secret: 'also-secret', folder: 'docs' },
+      },
     })
     const secondId = manager.registerConnector(connector, {
       name: 'github',
-      config: { type: 'github', repo: 'owner/second', branch: 'develop', token: 'secret-token' },
+      config: {
+        type: 'github',
+        repo: 'owner/second',
+        branch: 'develop',
+        token: 'secret-token',
+        headers: { Authorization: 'Bearer secret-token' },
+        nested: { client_secret: 'also-secret', folder: 'docs' },
+      },
     })
 
     expect(secondId).toBe(firstId)
@@ -113,8 +127,11 @@ describe('ConnectorManager', () => {
       type: 'github',
       repo: 'owner/second',
       branch: 'develop',
-      token: 'secret-token',
     })
+    expect(JSON.parse(rows[0].config)).not.toHaveProperty('token')
+    expect(JSON.parse(rows[0].config)).not.toHaveProperty('headers')
+    expect(JSON.parse(rows[0].config)).toMatchObject({ nested: { folder: 'docs' } })
+    expect(JSON.parse(rows[0].config).nested).not.toHaveProperty('client_secret')
 
     const list = manager.listConnectors()
     expect(list[0]).toMatchObject({
@@ -161,6 +178,47 @@ describe('ConnectorManager', () => {
     expect(result.errors).toHaveLength(0)
   })
 
+  it('marks a connector as failed when discovery fails', async () => {
+    const connector: ConnectorPlugin = {
+      ...createMockConnector([]),
+      name: '@opendocuments/connector-failing',
+      async *discover() {
+        throw new Error('upstream unavailable')
+      },
+    }
+    manager.registerConnector(connector, { name: 'failing' })
+
+    const result = await manager.syncConnector('failing')
+    const listed = manager.listConnectors().find((item) => item.name === 'failing')
+
+    expect(result.errors).toContain('Discovery failed: upstream unavailable')
+    expect(listed).toMatchObject({
+      status: 'error',
+      errorMessage: 'Discovery failed: upstream unavailable',
+    })
+  })
+
+  it('coalesces overlapping sync requests for the same connector', async () => {
+    let discoveries = 0
+    const connector: ConnectorPlugin = {
+      ...createMockConnector([]),
+      name: '@opendocuments/connector-slow',
+      async *discover() {
+        discoveries++
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      },
+    }
+    manager.registerConnector(connector, { name: 'slow' })
+
+    const [first, second] = await Promise.all([
+      manager.syncConnector('slow'),
+      manager.syncConnector('slow'),
+    ])
+
+    expect(discoveries).toBe(1)
+    expect(second).toBe(first)
+  })
+
   it('skips unchanged documents on re-sync', async () => {
     const connector = createMockConnector([
       { id: '1', title: 'readme.md', path: '/repo/README.md', content: '# Hello\n\nWorld' },
@@ -171,6 +229,65 @@ describe('ConnectorManager', () => {
     const result2 = await manager.syncConnector('@opendocuments/connector-mock')
     expect(result2.documentsSkipped).toBe(1)
     expect(result2.documentsIndexed).toBe(0)
+  })
+
+  it('uses provider source versions to skip fetching unchanged documents', async () => {
+    const fetch = vi.fn(async () => ({
+      sourceId: '1',
+      title: 'readme.md',
+      content: '# Hello',
+    }))
+    const connector: ConnectorPlugin = {
+      name: '@opendocuments/connector-versioned',
+      type: 'connector',
+      version: '0.3.0',
+      coreVersion: '^0.3.0',
+      setup: async () => {},
+      async *discover() {
+        yield {
+          sourceId: '1',
+          title: 'readme.md',
+          sourcePath: '/repo/README.md',
+          contentHash: 'provider-revision-1',
+        }
+      },
+      fetch,
+    }
+    manager.registerConnector(connector, { name: 'versioned' })
+
+    await manager.syncConnector('versioned')
+    const second = await manager.syncConnector('versioned')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(second.documentsSkipped).toBe(1)
+  })
+
+  it('records a new provider revision even when fetched content is unchanged', async () => {
+    let revision = 'revision-1'
+    const fetch = vi.fn(async () => ({
+      sourceId: '1',
+      title: 'readme.md',
+      content: '# Same content',
+    }))
+    const connector: ConnectorPlugin = {
+      name: '@opendocuments/connector-revision',
+      type: 'connector',
+      version: '0.3.0',
+      coreVersion: '^0.3.0',
+      setup: async () => {},
+      async *discover() {
+        yield { sourceId: '1', title: 'readme.md', sourcePath: '/same.md', contentHash: revision }
+      },
+      fetch,
+    }
+    manager.registerConnector(connector, { name: 'revision' })
+
+    await manager.syncConnector('revision')
+    revision = 'revision-2'
+    await manager.syncConnector('revision')
+    await manager.syncConnector('revision')
+
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 
   it('emits sync events', async () => {

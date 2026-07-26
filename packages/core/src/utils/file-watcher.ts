@@ -38,8 +38,14 @@ export class FileWatcher {
   }
 
   start(): void {
-    void this.scan({ emitInitial: !this.ignoreInitial })
-    this.interval = setInterval(() => { void this.scan() }, this.pollIntervalMs)
+    void this.scan({ emitInitial: !this.ignoreInitial }).catch((err) => {
+      console.error(`[FileWatcher] Initial scan failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+    this.interval = setInterval(() => {
+      void this.scan().catch((err) => {
+        console.error(`[FileWatcher] Scan failed: ${err instanceof Error ? err.message : String(err)}`)
+      })
+    }, this.pollIntervalMs)
   }
 
   stop(): void {
@@ -59,7 +65,7 @@ export class FileWatcher {
       // Check for added/modified
       for (const [path, state] of currentFiles) {
         const prev = this.fileHashes.get(path)
-        const isStable = Date.now() - state.mtimeMs >= this.stableMs
+        const isStable = this.stableMs <= 0 || Date.now() - state.mtimeMs >= this.stableMs
         if (!prev) {
           if (opts.emitInitial === false) {
             nextHashes.set(path, state)
@@ -82,9 +88,8 @@ export class FileWatcher {
         if (!currentFiles.has(path)) changes.push({ path, type: 'deleted' })
       }
 
-      this.fileHashes = nextHashes
-
       if (changes.length > 0) await this.onChange(changes)
+      this.fileHashes = nextHashes
     } finally {
       this.isScanning = false
     }

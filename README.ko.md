@@ -155,6 +155,10 @@ OpenDocuments를 **Claude Code**, **Cursor** 또는 MCP 호환 AI 도구의 지�
 자체 인프라에 배포하세요. Ollama를 통해 로컬 LLM을 사용하면 데이터가 **네트워크 밖으로 나가지 않습니다**. 클라우드 의존성, 벤더 락인, 구독 비용이 없습니다.
 
 ```bash
+OPENDOCUMENTS_MODEL_PROVIDER=ollama \
+OPENDOCUMENTS_MODEL_BASE_URL=http://ollama:11434 \
+OPENDOCUMENTS_MODEL_LLM=qwen2.5:14b \
+OPENDOCUMENTS_MODEL_EMBEDDING=mxbai-embed-large \
 docker compose --profile with-ollama up -d
 # 모든 것이 로컬에서 실행됩니다: LLM, 임베딩, 벡터 검색, Web UI
 ```
@@ -194,7 +198,7 @@ opendocuments start
 
 **http://localhost:3000**을 열면 채팅 UI, 문서 관리자, 관리자 대시보드를 볼 수 있습니다.
 
-> **처음 실행하나요?** Ollama가 실행 중이 아니면 단계별 수정 안내와 함께 명확한 **DEGRADED MODE** 배너가 표시됩니다. 전체 진단은 `opendocuments doctor`를 실행하세요.
+> **처음 실행하나요?** 모델이나 코퍼스가 준비되지 않으면 Web UI가 질문을 잠그고 정확한 복구 단계를 표시합니다. 일반 `start`는 모델을 다운로드하지 않습니다. 전체 진단은 `opendocuments doctor`를 실행하세요.
 
 ### 4. 문서 인덱싱
 
@@ -399,7 +403,7 @@ opendocuments ask "List endpoints" --json | jq '.sources[].sourcePath'
 # 관리
 opendocuments doctor                  # Health check
 opendocuments auth create-key --name "ci-bot" --role member
-opendocuments export --output ./backup
+opendocuments backup --output ./backup
 ```
 
 ### 3. MCP 서버
@@ -526,10 +530,17 @@ export default defineConfig({
 ## Docker 배포
 
 ```bash
-# 기본(cloud LLM)
+# 클라우드 LLM(제공자, 실제 API URL, 모델, 키 지정)
+OPENDOCUMENTS_MODEL_PROVIDER=openai \
+OPENDOCUMENTS_MODEL_BASE_URL=https://api.openai.com/v1 \
+OPENDOCUMENTS_MODEL_API_KEY="$OPENAI_API_KEY" \
 docker compose up -d
 
 # 로컬 LLM(Ollama) 포함
+OPENDOCUMENTS_MODEL_PROVIDER=ollama \
+OPENDOCUMENTS_MODEL_BASE_URL=http://ollama:11434 \
+OPENDOCUMENTS_MODEL_LLM=qwen2.5:14b \
+OPENDOCUMENTS_MODEL_EMBEDDING=mxbai-embed-large \
 docker compose --profile with-ollama up -d
 
 # API 키용 .env 파일 사용
@@ -615,13 +626,13 @@ npm run dev      # Watch mode
 
 | 패키지                  | 역할                                                                   | 테스트 |
 | ----------------------- | ---------------------------------------------------------------------- | ------ |
-| `@opendocuments/core`   | 플러그인 시스템, RAG 엔진, ingest pipeline, storage, auth, security    | 424    |
-| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                      | 63     |
-| `@opendocuments/cli`    | 19개 CLI 명령어(Commander.js)                                          | 3      |
+| `@opendocuments/core`   | 플러그인 시스템, RAG 엔진, ingest pipeline, storage, auth, security    | 437    |
+| `@opendocuments/server` | HTTP API(Hono), MCP 서버, auth middleware, widget                      | 73     |
+| `@opendocuments/cli`    | 20개 CLI 명령어(Commander.js)                                          | 8      |
 | `@opendocuments/web`    | 9개 페이지 React SPA(Vite + Tailwind)                                  | --     |
 | `@opendocuments/client` | TypeScript SDK                                                         | 5      |
-| 5개 모델 플러그인       | Ollama, OpenAI, Anthropic, Google, Grok                                | 42     |
-| 9개 파서 플러그인       | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX, Structured          | 37     |
+| 5개 모델 플러그인       | Ollama, OpenAI, Anthropic, Google, Grok                                | 40     |
+| 8개 파서 플러그인       | PDF, DOCX, XLSX, HTML, Jupyter, Email, Code, PPTX                      | 40     |
 | 8개 커넥터 플러그인     | GitHub, Notion, GDrive, S3, Confluence, Swagger, WebCrawler, WebSearch | 42     |
 
 규칙, 테스트 패턴, 플러그인 개발 가이드는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
@@ -632,7 +643,7 @@ npm run dev      # Watch mode
 
 | 가이드                                                       | 설명                                  |
 | ------------------------------------------------------------ | ------------------------------------- |
-| [빠른 시작](#빠른-시작)                                      | 5분 안에 설치 및 실행                 |
+| [빠른 시작](#빠른-시작)                                      | 설치, 모델 준비, 첫 인덱싱 확인       |
 | [아키텍처](docs/architecture.ko.md)                          | 패키지 구조, 데이터 흐름, 설계 결정   |
 | [Plugin API: Parsers](docs-site/plugins/parser-api.md)       | 커스텀 문서 파서 만들기               |
 | [Plugin API: Connectors](docs-site/plugins/connector-api.md) | 외부 데이터 소스 연결                 |

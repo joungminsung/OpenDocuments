@@ -6,10 +6,14 @@ export const SUPPORTED_EXTENSIONS = new Set([
   '.json', '.yaml', '.yml', '.toml', // structured data parsers
   '.zip',                          // archive parser
   '.pdf', '.docx', '.pptx',        // document parsers
-  '.xlsx', '.xls', '.csv',        // spreadsheet parsers
+  '.xlsx', '.csv',                 // spreadsheet parsers
   '.html', '.htm',                 // HTML parser
   '.ipynb',                        // Jupyter parser
   '.eml',                          // email parser
+  '.js', '.jsx', '.mjs', '.ts', '.tsx', '.mts',
+  '.py', '.java', '.go', '.rs', '.rb', '.php', '.cs',
+  '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp',
+  '.swift', '.kt', '.scala', '.sh', '.bash', '.zsh',
 ])
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv', 'dist', 'build', '.next', '.turbo', 'coverage'])
 

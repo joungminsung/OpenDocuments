@@ -7,7 +7,7 @@ import type { WorkbenchResponse } from '../../lib/types'
 import { translate as tr } from '../../lib/i18n'
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { theme, setTheme, locale, setLocale } = useAppStore()
+  const { theme, setTheme, locale, setLocale, setPage } = useAppStore()
   const nextTheme = theme === 'dark' ? 'light' : 'dark'
   const [workbench, setWorkbench] = useState<WorkbenchResponse | null>(null)
   const [reachable, setReachable] = useState(true)
@@ -29,30 +29,49 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const setupRequired = Boolean(workbench && (
+    workbench.health.modelStatus !== 'ready' || workbench.corpus.documents === 0
+  ))
   const statusLabel = !reachable
     ? tr(locale, 'layout.systemOffline')
-    : workbench?.health.modelStatus === 'degraded'
-      ? tr(locale, 'layout.degradedMode')
-      : tr(locale, 'layout.systemHealthy')
+    : !workbench
+      ? tr(locale, 'layout.checking')
+      : setupRequired
+        ? tr(locale, 'layout.setupRequired')
+        : tr(locale, 'layout.systemHealthy')
   const statusDot = !reachable
     ? 'bg-red-500'
-    : workbench?.health.modelStatus === 'degraded'
-      ? 'bg-amber-500'
-      : 'bg-emerald-500'
+    : !workbench
+      ? 'bg-slate-400'
+      : setupRequired
+        ? 'bg-amber-500'
+        : 'bg-emerald-500'
 
   return (
     <div className="flex h-screen overflow-hidden bg-white text-slate-950">
       <Sidebar />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-[72px] items-center justify-end border-b border-slate-200 bg-white px-7">
-          <div className="flex items-center gap-6">
-            <div className="flex h-9 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-4 text-[14px] font-medium text-slate-600 shadow-sm">
+        <header className="flex h-[72px] items-center justify-end border-b border-slate-200 bg-white px-3 sm:px-5 xl:px-7">
+          <div className="flex items-center gap-2.5 sm:gap-4 xl:gap-6">
+            <button
+              type="button"
+              onClick={() => setPage(setupRequired ? 'chat' : 'health')}
+              className="flex h-9 items-center gap-2.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-[14px] font-medium text-slate-600 shadow-sm hover:bg-slate-50 sm:px-4"
+              aria-label={statusLabel}
+              title={statusLabel}
+            >
               <span className={`h-2.5 w-2.5 rounded-full ${statusDot}`} />
-              {statusLabel}
-            </div>
-            <button className="text-slate-500 hover:text-slate-900" aria-label={tr(locale, 'layout.help')}>
-              <CircleHelp size={22} strokeWidth={1.9} />
+              <span className="hidden sm:inline">{statusLabel}</span>
             </button>
+            <a
+              href="https://joungminsung.github.io/OpenDocuments/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-slate-500 hover:text-slate-900"
+              aria-label={tr(locale, 'layout.help')}
+            >
+              <CircleHelp size={22} strokeWidth={1.9} />
+            </a>
             <select
               value={locale}
               onChange={(event) => setLocale(event.target.value === 'ko' ? 'ko' : 'en')}

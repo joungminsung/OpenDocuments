@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get OpenDocuments running in under 5 minutes.
+Get OpenDocuments running with explicit model, storage, and security choices. The application install is quick; first-time local model downloads can take much longer depending on model size and network speed.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ opendocuments init
 
 The wizard will:
 1. Detect your hardware and recommend an LLM
-2. Auto-detect Ollama and offer to pull missing models
+2. Auto-detect Ollama and ask before pulling each missing model
 3. Generate `opendocuments.config.ts` and `.env`
 
 ## Start the Server

@@ -33,7 +33,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/semver": "^7.7.1",
     "typescript": "^5.5.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   },
   "description": "Core RAG engine for OpenDocuments, including ingestion, hybrid retrieval, storage, auth, security, and plugins",
   "license": "MIT",

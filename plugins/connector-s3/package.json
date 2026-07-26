@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "typescript": "^5.5.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   },
   "description": "Amazon S3 and object storage connector for OpenDocuments AI document search",
   "keywords": [

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { AppContext } from '../../bootstrap.js'
 import { SERVER_VERSION } from '../../version.js'
 import { resolveRequestWorkspaceId } from '../workspace.js'
+import { requireScope } from '../middleware/auth.js'
 
 interface DocumentSummaryRow extends Record<string, unknown> {
   docCount: number
@@ -42,14 +43,7 @@ function toDistribution(rows: DistributionRow[]): Record<string, number> {
 }
 
 function suggestedQuestions(documentCount: number): string[] {
-  if (documentCount === 0) {
-    return [
-      'What should I upload first?',
-      'How do I connect a documentation source?',
-      'What can OpenDocuments answer once documents are indexed?',
-    ]
-  }
-
+  if (documentCount === 0) return []
   return [
     'Summarize the most important docs in this workspace.',
     'Which source explains the current deployment process?',
@@ -60,7 +54,7 @@ function suggestedQuestions(documentCount: number): string[] {
 export function workbenchRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/workbench', (c) => {
+  app.get('/api/v1/workbench', requireScope('document:read'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
 
     const documentSummary = ctx.db.get<DocumentSummaryRow>(
@@ -111,15 +105,17 @@ export function workbenchRoutes(ctx: AppContext) {
     const workspace = ctx.workspaceManager.getById(workspaceId)
     const activeConnectors = connectors.filter((connector) => connector.status === 'active').length
     const modelCount = ctx.registry.getModels().length
-    const stubModelCount = ctx.registry.getModels().filter((model) => model.name.includes('stub')).length
     const docCount = documentSummary?.docCount || 0
 
     return c.json({
       health: {
         status: 'ok',
         version: SERVER_VERSION,
-        modelStatus: stubModelCount > 0 ? 'degraded' : 'ready',
+        modelStatus: ctx.readiness.modelStatus,
         models: modelCount,
+        modelProvider: ctx.readiness.modelProvider,
+        embeddingDimensions: ctx.readiness.embeddingDimensions,
+        issues: ctx.readiness.issues,
       },
       corpus: {
         documents: docCount,

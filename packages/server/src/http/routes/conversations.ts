@@ -17,7 +17,7 @@ export function getSharedConversationHandler(ctx: AppContext) {
 export function conversationRoutes(ctx: AppContext) {
   const app = new Hono()
 
-  app.get('/api/v1/conversations', (c) => {
+  app.get('/api/v1/conversations', requireScope('ask'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
     const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '50', 10) || 50, 1), 200)
     const offset = Math.max(parseInt(c.req.query('offset') || '0', 10) || 0, 0)
@@ -28,20 +28,22 @@ export function conversationRoutes(ctx: AppContext) {
     return c.json({ conversations, limit, offset })
   })
 
-  app.get('/api/v1/conversations/:id/messages', (c) => {
+  app.get('/api/v1/conversations/:id/messages', requireScope('ask'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Conversation id required' }, 400)
     const convo = ctx.db.get(
       'SELECT id FROM conversations WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
-      [c.req.param('id'), workspaceId]
+      [id, workspaceId]
     )
     if (!convo) return c.json({ error: 'Conversation not found' }, 404)
 
     const { conversationManager } = getWorkspaceServices(c, ctx)
-    const messages = conversationManager.getMessages(c.req.param('id'))
+    const messages = conversationManager.getMessages(id)
     return c.json({ messages })
   })
 
-  app.post('/api/v1/conversations', async (c) => {
+  app.post('/api/v1/conversations', requireScope('ask'), async (c) => {
     let body: { title?: string }
     try {
       body = await c.req.json()
@@ -53,21 +55,24 @@ export function conversationRoutes(ctx: AppContext) {
     return c.json(conversation, 201)
   })
 
-  app.delete('/api/v1/conversations/:id', (c) => {
+  app.delete('/api/v1/conversations/:id', requireScope('ask'), (c) => {
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
+    const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Conversation id required' }, 400)
     const convo = ctx.db.get<any>(
       'SELECT workspace_id FROM conversations WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL',
-      [c.req.param('id'), workspaceId]
+      [id, workspaceId]
     )
     if (!convo) return c.json({ error: 'Conversation not found' }, 404)
 
     const { conversationManager } = getWorkspaceServices(c, ctx)
-    conversationManager.delete(c.req.param('id'))
+    conversationManager.delete(id)
     return c.json({ deleted: true })
   })
 
-  app.patch('/api/v1/conversations/:id', async (c) => {
+  app.patch('/api/v1/conversations/:id', requireScope('ask'), async (c) => {
     const id = c.req.param('id')
+    if (!id) return c.json({ error: 'Conversation id required' }, 400)
     const body = await c.req.json<{ title?: string }>()
     const workspaceId = resolveRequestWorkspaceId(c, ctx)
 

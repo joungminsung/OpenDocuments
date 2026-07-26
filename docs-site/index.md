@@ -24,11 +24,11 @@ features:
   - icon:
       src: /icons/server.svg
     title: Self-Hosted Knowledge Base
-    details: Your data never leaves your network. Run locally with Ollama or connect to OpenAI, Claude, Gemini, Grok. Zero cloud dependency, zero vendor lock-in.
+    details: Keep model traffic on your network with Ollama, or explicitly opt into OpenAI, Claude, Gemini, or Grok. The runtime enforces the configured cloud-processing policy.
   - icon:
       src: /icons/plugin.svg
     title: Plugin Ecosystem
-    details: 22 built-in plugins — 9 parsers (PDF, DOCX, code, Jupyter), 8 connectors (GitHub, Notion, Drive), 5 AI models. Create your own with one CLI command.
+    details: 21 installable packages — 8 parsers (PDF, DOCX, code, Jupyter), 8 connectors (GitHub, Notion, Drive), and 5 AI model providers.
   - icon:
       src: /icons/robot.svg
     title: MCP Server for AI Coding
@@ -40,7 +40,7 @@ features:
   - icon:
       src: /icons/shield.svg
     title: Enterprise Security
-    details: Team mode with OAuth SSO (Google, GitHub), API key auth with RBAC, automatic PII redaction, audit logging, workspace isolation, and per-key rate limiting.
+    details: Team-mode init enables PII redaction and audit logging, creates the first admin key, and adds OAuth, RBAC, workspace isolation, HTTPS enforcement, and per-key rate limiting.
 ---
 
 ## What is OpenDocuments?
@@ -53,10 +53,10 @@ Unlike cloud-only solutions, OpenDocuments can run **entirely on your own infras
 
 | Feature | OpenDocuments | Cloud alternatives |
 |---------|--------------|-------------------|
-| **Data privacy** | Runs locally, data never leaves your network | Data sent to third-party servers |
+| **Data privacy** | Can stay local with Ollama; cloud providers require explicit policy approval | Data sent to third-party servers |
 | **Cost** | Free, open source (MIT) | $20-100+/user/month |
 | **File formats** | 12+ formats (PDF, DOCX, code, Jupyter...) | Limited format support |
-| **Data sources** | 10+ connectors (GitHub, Notion, Drive...) | Vendor-specific integrations |
+| **Data sources** | 8 connectors plus local upload and directory indexing | Vendor-specific integrations |
 | **Customization** | Plugin system, full source access | Closed source, limited APIs |
 | **AI models** | Any model (Ollama, OpenAI, Claude, Gemini) | Locked to one provider |
 | **Korean support** | Built-in cross-lingual search | Usually English-only |
@@ -73,11 +73,11 @@ Unlike cloud-only solutions, OpenDocuments can run **entirely on your own infras
 
 ```bash
 npm install -g opendocuments
-opendocuments init    # Auto-detects Ollama, pulls models
+opendocuments init    # Detects Ollama and asks before any model download
 opendocuments start   # Opens Web UI at localhost:3000
 ```
 
-Three commands. Under 5 minutes. [Get started →](/guide/)
+The wizard validates the selected provider and shows every required download before it starts. Large local models can take substantially longer than the application install. [Get started →](/guide/)
 
 ### Learn more
 

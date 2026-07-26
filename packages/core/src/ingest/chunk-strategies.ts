@@ -12,7 +12,7 @@ const CODE_EXT = new Set([
   '.swift', '.kt', '.scala', '.sh', '.bash', '.zsh',
 ])
 const DATA_EXT = new Set(['.json', '.yaml', '.yml', '.toml', '.xml'])
-const TABLE_EXT = new Set(['.csv', '.tsv', '.xlsx', '.xls'])
+const TABLE_EXT = new Set(['.csv', '.tsv', '.xlsx'])
 
 /**
  * Select a chunking strategy based on file extension and the parser-reported chunkType.

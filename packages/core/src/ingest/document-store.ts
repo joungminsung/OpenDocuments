@@ -67,6 +67,7 @@ interface DocumentRow {
   chunk_count: number
   status: string
   content_hash: string | null
+  source_version: string | null
   [key: string]: unknown
 }
 
@@ -208,11 +209,14 @@ export class DocumentStore {
     }
   }
 
-  async searchChunks(queryEmbedding: number[], topK: number, minScore?: number): Promise<SearchResult[]> {
+  async searchChunks(queryEmbedding: number[], topK: number, minScore?: number, chunkType?: string): Promise<SearchResult[]> {
     const results = await this.vectorDb.search(COLLECTION, {
       embedding: queryEmbedding,
       topK,
-      filter: { workspace_id: this.workspaceId },
+      filter: {
+        workspace_id: this.workspaceId,
+        ...(chunkType ? { chunk_type: chunkType } : {}),
+      },
       minScore,
     })
     return results
@@ -347,7 +351,10 @@ export class DocumentStore {
    */
   restoreDocument(documentId: string): void {
     this.db.run(
-      'UPDATE documents SET deleted_at = NULL, status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      `UPDATE documents
+       SET deleted_at = NULL, status = ?, chunk_count = 0, content_hash = NULL,
+           source_version = NULL, updated_at = ?
+       WHERE id = ? AND workspace_id = ?`,
       ['pending', new Date().toISOString(), documentId, this.workspaceId]
     )
   }
@@ -364,6 +371,21 @@ export class DocumentStore {
       'UPDATE documents SET content_hash = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
       [hash, new Date().toISOString(), documentId, this.workspaceId]
     )
+  }
+
+  /** Persist the connector's provider-specific revision for a document. */
+  updateSourceVersion(documentId: string, sourceVersion: string): void {
+    this.db.run(
+      'UPDATE documents SET source_version = ?, updated_at = ? WHERE id = ? AND workspace_id = ?',
+      [sourceVersion, new Date().toISOString(), documentId, this.workspaceId]
+    )
+  }
+
+  /** Return true when a connector reports a revision not yet indexed. */
+  hasSourceVersionChanged(documentId: string, sourceVersion: string): boolean {
+    const doc = this.getDocument(documentId)
+    if (!doc) return true
+    return doc.source_version !== sourceVersion
   }
 
   hasContentChanged(documentId: string, newHash: string): boolean {
