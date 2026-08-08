@@ -1,0 +1,102 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'package*.json'
+      - 'turbo.json'
+      - 'tsconfig.base.json'
+      - 'packages/**'
+      - 'plugins/**'
+      - '.github/workflows/docker.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'package*.json'
+      - 'turbo.json'
+      - 'tsconfig.base.json'
+      - 'packages/**'
+      - 'plugins/**'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each platform builds on a native runner rather than under QEMU.
+          # Emulation is not just slower here: esbuild is a Go binary, and Go
+          # binaries reliably abort under qemu-user with "fatal error:
+          # lfstack.push" during the Vite build.
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          tags: opendocuments:${{ matrix.arch }}
+          load: true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Verify image architecture
+        run: |
+          actual="$(docker image inspect --format '{{.Architecture}}' opendocuments:${{ matrix.arch }})"
+          if [ "$actual" != "${{ matrix.arch }}" ]; then
+            echo "Expected ${{ matrix.arch }} image, got $actual"
+            exit 1
+          fi
+
+      # The arch-specific risk is the native modules: LanceDB ships a prebuilt
+      # binary per platform, and better-sqlite3 resolves one at install time.
+      - name: Verify native modules load
+        run: |
+          docker run --rm --entrypoint node opendocuments:${{ matrix.arch }} -e "
+            require('@lancedb/lancedb');
+            const db = new (require('better-sqlite3'))(':memory:');
+            db.exec('CREATE TABLE t (x)');
+            console.log('native modules loaded on ' + process.arch);
+          "
+
+      - name: Verify the server starts
+        run: |
+          cid="$(docker run -d -p 3000:3000 opendocuments:${{ matrix.arch }})"
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/healthz; then
+              started=1
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "${started:-}" ]; then
+            docker logs "$cid"
+            docker rm -f "$cid"
+            exit 1
+          fi
+          docker rm -f "$cid"

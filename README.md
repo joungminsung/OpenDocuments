@@ -550,6 +550,22 @@ docker run -v ./opendocuments.config.ts:/app/opendocuments.config.ts \
   -v opendocuments-data:/data -p 3000:3000 opendocuments
 ```
 
+### Architecture support
+
+The image builds and runs on both `linux/amd64` and `linux/arm64`. Apple Silicon
+Macs need no extra flags — `docker compose up -d` builds natively for your host,
+and the LanceDB and better-sqlite3 native modules resolve to their ARM64 builds.
+
+To produce a single image that serves both architectures:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t opendocuments:latest .
+```
+
+A multi-platform build produces a manifest list rather than a single image, so
+add `--push` to publish it to a registry. For local use, build one platform at a
+time with `--load`.
+
 ---
 
 ## Plugin Development
