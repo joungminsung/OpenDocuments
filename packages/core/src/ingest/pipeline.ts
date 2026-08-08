@@ -8,7 +8,7 @@ import { generateChunkContexts } from '../rag/contextual.js'
 import { getProfileConfig } from '../rag/profiles.js'
 import { sha256 } from '../utils/hash.js'
 import type { StoredChunk } from './document-store.js'
-import type { ParsedChunk, RawDocument, ParserPlugin } from '../plugin/interfaces.js'
+import type { ParsedChunk, RawDocument, ParserPlugin, ModelPlugin } from '../plugin/interfaces.js'
 import type { OpenDocumentsConfig } from '../config/schema.js'
 import type { PIIRedactor } from '../security/redactor.js'
 import type { DocumentVersionManager } from '../document/version-manager.js'
@@ -39,6 +39,16 @@ export interface IngestPipelineOptions {
   config?: OpenDocumentsConfig
   redactor?: PIIRedactor
   versionManager?: DocumentVersionManager
+  /**
+   * Embedding provider to index with. Must be the same instance retrieval uses,
+   * or documents get embedded by one provider and queried through another.
+   *
+   * Falling back to "first embedding-capable plugin in the registry" is not safe
+   * once `model.embeddingProvider` can name a provider other than the main one:
+   * the main plugin registers first, so the registry scan picks it over the
+   * configured embedder and writes vectors of the wrong width.
+   */
+  embedder?: ModelPlugin
 }
 
 const BATCH_SIZE = 32
@@ -159,9 +169,11 @@ export class IngestPipeline {
       // Apply before:chunk middleware
       await middleware.run('before:chunk', parsedChunks)
 
-      // Resolve embedder early -- semantic chunking needs it
-      const models = registry.getModels()
-      const embeddingModel = models.find(m => m.capabilities.embedding && m.embed)
+      // Resolve embedder early -- semantic chunking needs it.
+      // Prefer the explicitly configured embedder; the registry scan is a fallback
+      // for callers that do not supply one and picks whichever model registered first.
+      const embeddingModel = this.opts.embedder
+        ?? registry.getModels().find(m => m.capabilities.embedding && m.embed)
       const embedFn = embeddingModel?.embed?.bind(embeddingModel) ?? null
 
       // Embedder is required to index; bail early if missing

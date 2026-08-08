@@ -218,6 +218,29 @@ async function loadSinglePlugin(
   }
 }
 
+/**
+ * Decide whether embeddings should be routed to a provider other than the main one.
+ *
+ * `model.embeddingProvider` used to be consulted only when the main provider could
+ * not embed at all, so a config pairing e.g. an Ollama LLM with a different embedder
+ * was silently ignored. That was more than an ignored preference: embedding
+ * dimensions are resolved from `embeddingProvider`, so the vector collection was
+ * created at the override's width and then filled with the main provider's vectors.
+ *
+ * Returns undefined when the main provider should embed (no override, or the
+ * override names that same provider). The value is trimmed first: it reaches us
+ * straight from config or the environment, and a blank-but-not-empty string would
+ * otherwise be treated as a provider name and fail plugin lookup.
+ */
+export function resolveEmbeddingProviderOverride(
+  provider: string,
+  embeddingProvider: string | undefined,
+): string | undefined {
+  const override = embeddingProvider?.trim()
+  if (!override) return undefined
+  return override === provider.trim() ? undefined : override
+}
+
 async function loadModelPlugin(
   provider: string,
   modelConfig: OpenDocumentsConfig['model'],
@@ -253,11 +276,14 @@ async function loadModelPlugin(
     const maxRetries = parseInt(process.env.OPENDOCUMENTS_PROBE_RETRIES || '3', 10)
     const retryDelay = parseInt(process.env.OPENDOCUMENTS_PROBE_DELAY_MS || '3000', 10)
 
+    const embeddingOverride = resolveEmbeddingProviderOverride(provider, modelConfig.embeddingProvider)
+
     // Probe the embedding capability with a test call to verify the plugin is
     // actually functional (e.g. the remote model server is running with the
     // required model installed). Fall back to stubs on any failure so that the
     // server can still start and serve requests in degraded mode.
-    if (mainPlugin.capabilities.embedding && mainPlugin.embed) {
+    // Only probe the main plugin's embedder when it will actually be used as one.
+    if (!embeddingOverride && mainPlugin.capabilities.embedding && mainPlugin.embed) {
       let probeSuccess = false
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -280,10 +306,15 @@ async function loadModelPlugin(
       }
     }
 
-    // If the main plugin doesn't support embedding, load a secondary embedding provider
-    if (!mainPlugin.capabilities.embedding) {
-      const embeddingProvider = modelConfig.embeddingProvider || 'ollama'
-      log.info(`Main provider '${provider}' does not support embedding. Loading secondary embedding provider: ${embeddingProvider}`)
+    // Load a secondary embedding provider when the main plugin cannot embed, or when
+    // the config explicitly points embeddings at a different provider.
+    if (embeddingOverride || !mainPlugin.capabilities.embedding) {
+      const embeddingProvider = embeddingOverride ?? (modelConfig.embeddingProvider || 'ollama')
+      log.info(
+        embeddingOverride
+          ? `Embeddings routed to configured provider '${embeddingProvider}' (LLM stays on '${provider}').`
+          : `Main provider '${provider}' does not support embedding. Loading secondary embedding provider: ${embeddingProvider}`
+      )
 
       const embeddingPlugin = await loadSinglePlugin(
         embeddingProvider,
@@ -632,6 +663,9 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<AppContext
           config,
           redactor,
           versionManager,
+          // Must match the embedder the RAG engine queries with, otherwise an
+          // `embeddingProvider` override indexes and retrieves through different models.
+          embedder,
         })
         pipelines.set(workspaceId, scopedPipeline)
       }
