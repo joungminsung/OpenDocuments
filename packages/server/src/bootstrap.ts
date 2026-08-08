@@ -228,14 +228,17 @@ async function loadSinglePlugin(
  * created at the override's width and then filled with the main provider's vectors.
  *
  * Returns undefined when the main provider should embed (no override, or the
- * override names that same provider).
+ * override names that same provider). The value is trimmed first: it reaches us
+ * straight from config or the environment, and a blank-but-not-empty string would
+ * otherwise be treated as a provider name and fail plugin lookup.
  */
 export function resolveEmbeddingProviderOverride(
   provider: string,
   embeddingProvider: string | undefined,
 ): string | undefined {
-  if (!embeddingProvider) return undefined
-  return embeddingProvider === provider ? undefined : embeddingProvider
+  const override = embeddingProvider?.trim()
+  if (!override) return undefined
+  return override === provider.trim() ? undefined : override
 }
 
 async function loadModelPlugin(

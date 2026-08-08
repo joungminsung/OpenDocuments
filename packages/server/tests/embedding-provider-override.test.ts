@@ -21,6 +21,18 @@ describe('resolveEmbeddingProviderOverride', () => {
     expect(resolveEmbeddingProviderOverride('ollama', '')).toBeUndefined()
   })
 
+  it('treats a whitespace-only override as unset', () => {
+    // Reaches us untrimmed from config or the environment; left as-is it would be
+    // taken for a provider name and fail plugin lookup.
+    expect(resolveEmbeddingProviderOverride('ollama', '   ')).toBeUndefined()
+    expect(resolveEmbeddingProviderOverride('ollama', '\t\n')).toBeUndefined()
+  })
+
+  it('trims a padded override rather than passing it through', () => {
+    expect(resolveEmbeddingProviderOverride('ollama', '  openai  ')).toBe('openai')
+    expect(resolveEmbeddingProviderOverride('ollama', '  ollama  ')).toBeUndefined()
+  })
+
   it('still routes when the main provider cannot embed at all', () => {
     expect(resolveEmbeddingProviderOverride('anthropic', 'ollama')).toBe('ollama')
   })

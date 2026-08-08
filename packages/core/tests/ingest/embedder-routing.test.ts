@@ -15,6 +15,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
+/** Typed no-op logger, so the test context satisfies PluginContext without a cast. */
+const silentLog: PluginContext['log'] = {
+  ok: () => {},
+  fail: () => {},
+  info: () => {},
+  wait: () => {},
+}
+
 /** Records which embedder was asked to embed, so routing is directly observable. */
 function trackingEmbedder(name: string, log: string[]): ModelPlugin {
   return {
@@ -57,7 +65,7 @@ describe('IngestPipeline embedder routing', () => {
     registry = new PluginRegistry()
     eventBus = new EventBus()
     middleware = new MiddlewareRunner()
-    ctx = { config: {}, dataDir: tempDir, log: console as any }
+    ctx = { config: {}, dataDir: tempDir, log: silentLog }
     await registry.register(new MarkdownParser(), ctx)
 
     store = new DocumentStore(db, vectorDb, 'ws-1')
