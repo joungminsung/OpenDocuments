@@ -556,6 +556,18 @@ docker run -v ./opendocuments.config.ts:/app/opendocuments.config.ts \
   -v opendocuments-data:/data -p 3000:3000 opendocuments
 ```
 
+### 아키텍처 지원
+
+이미지는 `linux/amd64`와 `linux/arm64` 모두에서 빌드되고 실행됩니다. Apple Silicon Mac에서는 추가 flag가 필요 없습니다. `docker compose up -d`는 host 아키텍처에 맞춰 native로 빌드하며, LanceDB와 better-sqlite3 native module도 ARM64 빌드로 설치됩니다.
+
+두 아키텍처를 모두 지원하는 단일 이미지를 만들려면:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t opendocuments:latest .
+```
+
+multi-platform 빌드는 단일 이미지가 아니라 manifest list를 생성합니다. registry에 게시하려면 `--push`를 추가하세요. 로컬에서 사용하려면 `--load`와 함께 한 번에 하나의 platform만 빌드하세요.
+
 ---
 
 ## 플러그인 개발
